@@ -1,0 +1,43 @@
+<view class="container">
+  <navigation-bar title="子午花信" showTitle="{{true}}"></navigation-bar>
+  
+  <!-- 时间区块 -->
+  <view class="time-section">
+    <view class="time-main">
+      <text class="shichen-big">{{timeInfo.shichen}}</text>
+      <text class="meridian-small">· {{timeInfo.meridian}}</text>
+    </view>
+    <view class="flower-decoration">
+      <image src="/assets/images/Frame 59.png" mode="aspectFit" class="flower-img"></image>
+    </view>
+  </view>
+
+  <!-- 养生建议 -->
+  <view class="advice-section">
+    <view class="advice-line"></view>
+    <text class="advice-text">{{timeInfo.advice || '夜深水气重，宜温阳。去泡个脚吧，用热度驱散一天的疲惫。'}}</text>
+  </view>
+
+  <!-- 习惯网格 -->
+  <view class="habits-grid">
+    <view class="habit-item" wx:for="{{taskList}}" wx:key="_id" bindtap="handleCheckin" data-habit-id="{{item._id}}" data-is-checked="{{item.isChecked}}">
+      <view class="habit-circle {{item.isChecked ? 'checked' : ''}}" style="background-color: {{item.bgColor || circleColors[index % 6]}}">
+        <image wx:if="{{item.icon}}" src="{{item.icon}}" class="habit-icon" mode="aspectFit"></image>
+        <text wx:else class="habit-emoji">{{item.emoji || '🧘'}}</text>
+        <view wx:if="{{item.isChecked}}" class="check-mark">✓</view>
+      </view>
+      <text class="habit-name">{{item.title}}</text>
+      <text class="habit-streak">已坚持 {{item.streak || 12}} 天</text>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{taskList.length === 0 && !loading}}">
+    <text class="empty-text">今日暂无打卡任务</text>
+    <text class="empty-hint">前往「修习」添加习惯吧</text>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+</view>

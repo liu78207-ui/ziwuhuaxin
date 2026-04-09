@@ -1,0 +1,280 @@
+.container {
+  min-height: 100vh;
+  background-color: #F5F0EB;
+}
+
+.tabs {
+  display: flex;
+  background-color: #FDFBF7;
+  padding: 0 24rpx;
+  border-bottom: 1rpx solid #E8DFD5;
+}
+
+.tab-item {
+  padding: 24rpx 32rpx;
+  font-size: 28rpx;
+  color: #8B8578;
+  position: relative;
+}
+
+.tab-item.active {
+  color: #C4786A;
+  font-weight: 500;
+}
+
+.tab-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 48rpx;
+  height: 4rpx;
+  background-color: #C4786A;
+  border-radius: 2rpx;
+}
+
+.habit-list {
+  padding: 24rpx;
+  height: calc(100vh - 200rpx);
+}
+
+.habit-card {
+  background-color: #FFFFFF;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.04);
+}
+
+.habit-icon {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 16rpx;
+  background-color: #F5F0EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 24rpx;
+  overflow: hidden;
+}
+
+.habit-icon image {
+  width: 60rpx;
+  height: 60rpx;
+}
+
+.icon-placeholder {
+  font-size: 36rpx;
+  color: #C4786A;
+}
+
+.habit-info {
+  flex: 1;
+}
+
+.habit-title {
+  font-size: 30rpx;
+  color: #2C2C2C;
+  font-weight: 500;
+  display: block;
+}
+
+.habit-desc {
+  font-size: 24rpx;
+  color: #8B8578;
+  margin-top: 8rpx;
+  display: block;
+}
+
+.habit-tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+
+.tag {
+  font-size: 20rpx;
+  color: #C4786A;
+  background-color: rgba(196, 120, 106, 0.1);
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
+}
+
+.add-btn {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background-color: #C4786A;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 36rpx;
+}
+
+.add-btn.added {
+  background-color: #D4C4B5;
+  font-size: 24rpx;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 80rpx;
+  color: #8B8578;
+  font-size: 28rpx;
+}
+
+.init-btn {
+  margin-top: 40rpx;
+  background-color: #C4786A;
+  color: #FFFFFF;
+  font-size: 28rpx;
+  padding: 16rpx 48rpx;
+  border-radius: 40rpx;
+  border: none;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.3s ease;
+  z-index: 100;
+}
+
+.modal-mask.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.strategy-modal {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #FDFBF7;
+  border-radius: 32rpx 32rpx 0 0;
+  transform: translateY(100%);
+  transition: transform 0.3s ease;
+  z-index: 101;
+  max-height: 80vh;
+}
+
+.strategy-modal.show {
+  transform: translateY(0);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx;
+  border-bottom: 1rpx solid #E8DFD5;
+}
+
+.modal-title {
+  font-size: 32rpx;
+  color: #2C2C2C;
+  font-weight: 500;
+}
+
+.modal-close {
+  font-size: 44rpx;
+  color: #8B8578;
+  line-height: 1;
+}
+
+.modal-body {
+  padding: 32rpx;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.form-item {
+  margin-bottom: 36rpx;
+}
+
+.form-label {
+  font-size: 28rpx;
+  color: #2C2C2C;
+  display: block;
+  margin-bottom: 16rpx;
+}
+
+.picker-value {
+  background-color: #FFFFFF;
+  padding: 24rpx;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  color: #2C2C2C;
+  border: 1rpx solid #E8DFD5;
+}
+
+.freq-type-group {
+  display: flex;
+  gap: 32rpx;
+}
+
+.radio-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 28rpx;
+  color: #2C2C2C;
+}
+
+.weekday-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.weekday-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 26rpx;
+  color: #2C2C2C;
+  padding: 12rpx 16rpx;
+  background-color: #FFFFFF;
+  border-radius: 8rpx;
+  border: 1rpx solid #E8DFD5;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 24rpx;
+  padding: 32rpx;
+  border-top: 1rpx solid #E8DFD5;
+}
+
+.btn-cancel,
+.btn-confirm {
+  flex: 1;
+  height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-cancel {
+  background-color: #F5F0EB;
+  color: #8B8578;
+}
+
+.btn-confirm {
+  background-color: #C4786A;
+  color: #FFFFFF;
+}

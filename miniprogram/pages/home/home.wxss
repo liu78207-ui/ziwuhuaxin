@@ -1,0 +1,163 @@
+.container {
+  min-height: 100vh;
+  background-color: #F5F0EB;
+  padding-bottom: 120rpx;
+}
+
+/* 时间区块 */
+.time-section {
+  padding: 160rpx 40rpx 40rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.time-main {
+  display: flex;
+  align-items: baseline;
+}
+
+.shichen-big {
+  font-size: 96rpx;
+  font-weight: 600;
+  color: #4A4A4A;
+  font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+}
+
+.meridian-small {
+  font-size: 32rpx;
+  color: #8B8578;
+  margin-left: 16rpx;
+  font-weight: 400;
+}
+
+.flower-decoration {
+  width: 120rpx;
+  height: 120rpx;
+}
+
+.flower-img {
+  width: 100%;
+  height: 100%;
+  opacity: 0.8;
+}
+
+/* 养生建议 */
+.advice-section {
+  padding: 0 40rpx 60rpx;
+  display: flex;
+  align-items: flex-start;
+}
+
+.advice-line {
+  width: 4rpx;
+  height: 80rpx;
+  background: linear-gradient(180deg, #C4786A 0%, #D4A574 100%);
+  margin-right: 24rpx;
+  flex-shrink: 0;
+  margin-top: 8rpx;
+}
+
+.advice-text {
+  font-size: 28rpx;
+  color: #6B6560;
+  line-height: 1.8;
+  flex: 1;
+}
+
+/* 习惯网格 */
+.habits-grid {
+  padding: 0 30rpx;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.habit-item {
+  width: 33.33%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 48rpx;
+}
+
+.habit-circle {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-shadow: 0 8rpx 24rpx rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.habit-circle.checked {
+  opacity: 0.7;
+}
+
+.habit-icon {
+  width: 80rpx;
+  height: 80rpx;
+}
+
+.habit-emoji {
+  font-size: 60rpx;
+}
+
+.check-mark {
+  position: absolute;
+  top: 8rpx;
+  right: 8rpx;
+  width: 40rpx;
+  height: 40rpx;
+  background-color: #7CB342;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 24rpx;
+  font-weight: bold;
+  box-shadow: 0 2rpx 8rpx rgba(124, 179, 66, 0.4);
+}
+
+.habit-name {
+  font-size: 28rpx;
+  color: #4A4A4A;
+  margin-top: 16rpx;
+  font-weight: 500;
+}
+
+.habit-streak {
+  font-size: 22rpx;
+  color: #9E9E9E;
+  margin-top: 8rpx;
+}
+
+/* 空状态 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 120rpx 40rpx;
+}
+
+.empty-text {
+  font-size: 32rpx;
+  color: #8B8578;
+  margin-bottom: 16rpx;
+}
+
+.empty-hint {
+  font-size: 26rpx;
+  color: #B5A99A;
+}
+
+.loading {
+  text-align: center;
+  padding: 40rpx;
+  color: #8B8578;
+  font-size: 28rpx;
+}

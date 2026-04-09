@@ -1,0 +1,154 @@
+.container {
+  min-height: 100vh;
+  background-color: #F5F0EB;
+  padding-bottom: 40rpx;
+}
+
+.week-selector {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 32rpx;
+  background-color: #FDFBF7;
+}
+
+.week-nav {
+  width: 80rpx;
+  height: 80rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-arrow {
+  font-size: 48rpx;
+  color: #C4786A;
+}
+
+.week-range {
+  font-size: 28rpx;
+  color: #2C2C2C;
+  font-weight: 500;
+}
+
+.matrix-section {
+  margin: 24rpx;
+  background-color: #FFFFFF;
+  border-radius: 20rpx;
+  overflow: hidden;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
+}
+
+.matrix-header {
+  display: flex;
+  background-color: #F5F0EB;
+}
+
+.matrix-corner {
+  width: 120rpx;
+  height: 60rpx;
+  flex-shrink: 0;
+}
+
+.weekday-header {
+  display: flex;
+  flex: 1;
+}
+
+.weekday-header text {
+  flex: 1;
+  text-align: center;
+  font-size: 22rpx;
+  color: #8B8578;
+  line-height: 60rpx;
+}
+
+.matrix-body {
+  overflow-x: auto;
+}
+
+.matrix-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.matrix-row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1rpx solid #F5F0EB;
+}
+
+.matrix-row:last-child {
+  border-bottom: none;
+}
+
+.habit-name {
+  width: 120rpx;
+  padding: 20rpx 12rpx;
+  font-size: 22rpx;
+  color: #2C2C2C;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.day-cells {
+  display: flex;
+  flex: 1;
+  min-width: 420rpx;
+}
+
+.day-cell {
+  flex: 1;
+  height: 56rpx;
+  margin: 8rpx 4rpx;
+  border-radius: 8rpx;
+  background-color: #F5F0EB;
+}
+
+.day-cell.done {
+  background-color: #C4786A;
+}
+
+.day-cell.today {
+  border: 2rpx solid #C4786A;
+}
+
+.stats-cards {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 0 16rpx;
+  gap: 16rpx;
+}
+
+.stat-card {
+  width: calc(50% - 8rpx);
+  background-color: #FFFFFF;
+  border-radius: 20rpx;
+  padding: 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
+}
+
+.stat-value {
+  font-size: 48rpx;
+  color: #C4786A;
+  font-weight: 600;
+}
+
+.stat-label {
+  font-size: 24rpx;
+  color: #8B8578;
+  margin-top: 8rpx;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  padding: 40rpx;
+  color: #8B8578;
+  font-size: 24rpx;
+}

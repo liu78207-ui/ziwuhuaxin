@@ -1,0 +1,92 @@
+<view class="container">
+  <navigation-bar title="修习"></navigation-bar>
+
+  <view class="tabs">
+    <view 
+      class="tab-item {{currentTab === index ? 'active' : ''}}" 
+      wx:for="{{categories}}" 
+      wx:key="index"
+      bindtap="switchTab" 
+      data-index="{{index}}">
+      {{item}}
+    </view>
+  </view>
+
+  <scroll-view class="habit-list" scroll-y>
+    <view class="habit-card" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" data-habit="{{item}}">
+      <view class="habit-icon">
+        <image src="{{item.icon_url}}" mode="aspectFit" wx:if="{{item.icon_url}}"></image>
+        <view class="icon-placeholder" wx:else>养</view>
+      </view>
+      <view class="habit-info">
+        <text class="habit-title">{{item.title}}</text>
+        <text class="habit-desc">{{item.description}}</text>
+        <view class="habit-tags">
+          <text class="tag">{{item.category}}</text>
+          <text class="tag" wx:if="{{item.default_duration}}">{{item.default_duration}}分钟</text>
+        </view>
+      </view>
+      <view class="add-btn {{item.hasStrategy ? 'added' : ''}}">
+        <text>{{item.hasStrategy ? '已添加' : '+'}}</text>
+      </view>
+    </view>
+
+    <view class="empty-state" wx:if="{{filteredHabits.length === 0 && !loading}}">
+      <text>暂无该分类习惯</text>
+      <button class="init-btn" bindtap="initHabits" wx:if="{{currentTab === 0}}">初始化习惯数据</button>
+    </view>
+  </scroll-view>
+
+  <view class="modal-mask {{showModal ? 'show' : ''}}" bindtap="closeModal"></view>
+  <view class="strategy-modal {{showModal ? 'show' : ''}}">
+    <view class="modal-header">
+      <text class="modal-title">{{selectedHabit.title}}</text>
+      <text class="modal-close" bindtap="closeModal">×</text>
+    </view>
+
+    <view class="modal-body">
+      <view class="form-item">
+        <text class="form-label">单次时长</text>
+        <picker mode="selector" range="{{durationOptions}}" bindchange="onDurationChange">
+          <view class="picker-value">
+            {{selectedDuration ? selectedDuration + ' 分钟' : '选择时长'}}
+          </view>
+        </picker>
+      </view>
+
+      <view class="form-item">
+        <text class="form-label">打卡频次</text>
+        <radio-group class="freq-type-group" bindchange="onFreqTypeChange">
+          <label class="radio-item" wx:for="{{freqTypes}}" wx:key="value">
+            <radio value="{{item.value}}" checked="{{selectedFreqType === item.value}}" color="#C4786A"/>
+            <text>{{item.label}}</text>
+          </label>
+        </radio-group>
+      </view>
+
+      <view class="form-item" wx:if="{{selectedFreqType === 'weekly'}}">
+        <text class="form-label">选择星期</text>
+        <checkbox-group class="weekday-group" bindchange="onWeekdayChange">
+          <label class="weekday-item" wx:for="{{weekdays}}" wx:key="value">
+            <checkbox value="{{item.value}}" checked="{{selectedWeekdays.includes(item.value)}}" color="#C4786A"/>
+            <text>{{item.label}}</text>
+          </label>
+        </checkbox-group>
+      </view>
+
+      <view class="form-item" wx:if="{{selectedFreqType === 'interval'}}">
+        <text class="form-label">间隔天数</text>
+        <picker mode="selector" range="{{intervalOptions}}" bindchange="onIntervalChange">
+          <view class="picker-value">
+            {{selectedInterval ? '每 ' + selectedInterval + ' 天' : '选择间隔'}}
+          </view>
+        </picker>
+      </view>
+    </view>
+
+    <view class="modal-footer">
+      <button class="btn-cancel" bindtap="closeModal">取消</button>
+      <button class="btn-confirm" bindtap="saveStrategy">保存</button>
+    </view>
+  </view>
+</view>
