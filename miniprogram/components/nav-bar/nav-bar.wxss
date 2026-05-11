@@ -1,0 +1,83 @@
+/* components/nav-bar/nav-bar.wxss */
+/* 玉露丹青极致清透版 - 自定义导航栏 */
+
+/* 状态栏占位 */
+.sys-bar {
+  width: 100%;
+  background: transparent;
+}
+
+/* 导航栏主体 */
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24rpx;
+  background: rgba(226, 223, 216, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.3);
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+/* 左侧返回区域 */
+.nav-left {
+  display: flex;
+  align-items: center;
+  min-width: 88rpx;
+}
+
+.back-btn {
+  width: 64rpx;
+  height: 64rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(10px);
+  transition: all 200ms ease;
+}
+
+.back-btn:active {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(0.95);
+}
+
+.back-icon {
+  width: 20rpx;
+  height: 20rpx;
+  border-left: 4rpx solid var(--text-primary);
+  border-bottom: 4rpx solid var(--text-primary);
+  transform: rotate(45deg);
+  margin-left: 6rpx;
+}
+
+/* 中间标题区域 */
+.nav-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-title {
+  font-size: 34rpx;
+  color: var(--text-primary);
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+/* 右侧胶囊避让区 */
+.nav-right {
+  min-width: 88rpx;
+}
+
+/* 导航栏占位 */
+.nav-placeholder {
+  width: 100%;
+}

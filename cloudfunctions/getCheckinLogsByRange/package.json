@@ -1,0 +1,9 @@
+{
+  "name": "getCheckinLogsByRange",
+  "version": "1.0.0",
+  "description": "获取指定日期范围内的打卡记录",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "latest"
+  }
+}

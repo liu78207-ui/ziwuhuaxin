@@ -1,92 +1,262 @@
-<view class="container">
-  <navigation-bar title="修习"></navigation-bar>
+<!--pages/habits/habits.wxml-->
+<!-- 修习页面 - 玉露丹青极致清透版 -->
 
-  <view class="tabs">
-    <view 
-      class="tab-item {{currentTab === index ? 'active' : ''}}" 
-      wx:for="{{categories}}" 
-      wx:key="index"
-      bindtap="switchTab" 
-      data-index="{{index}}">
-      {{item}}
+<view class="page-wrapper">
+  <!-- 固定头部区域 -->
+  <view class="header-fixed">
+    <!-- 导航栏标题 -->
+    <view class="nav-header">
+      <text class="nav-title">修习</text>
+    </view>
+
+    <!-- 顶部 Tab 切换器 -->
+    <view class="tabs-top">
+      <view 
+        class="tab-l-item {{currentTab === index ? 'active' : ''}}" 
+        wx:for="{{categories}}" 
+        wx:key="index"
+        bindtap="switchTab" 
+        data-index="{{index}}">
+        {{item}}
+      </view>
     </view>
   </view>
 
+  <!-- 习惯列表 -->
   <scroll-view class="habit-list" scroll-y>
-    <view class="habit-card" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" data-habit="{{item}}">
-      <view class="habit-icon">
-        <image src="{{item.icon_url}}" mode="aspectFit" wx:if="{{item.icon_url}}"></image>
-        <view class="icon-placeholder" wx:else>养</view>
+    <view class="list-card {{item.themeClass}}" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" bindlongpress="onHabitLongPress" data-habit="{{item}}">
+      <!-- 左侧图标 -->
+      <view class="lc-icon">
+        <image class="icon-img-sm" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
+        <text wx:else>{{item.emoji || '养'}}</text>
       </view>
-      <view class="habit-info">
-        <text class="habit-title">{{item.title}}</text>
-        <text class="habit-desc">{{item.description}}</text>
-        <view class="habit-tags">
-          <text class="tag">{{item.category}}</text>
-          <text class="tag" wx:if="{{item.default_duration}}">{{item.default_duration}}分钟</text>
-        </view>
+      
+      <!-- 中间信息 -->
+      <view class="card-info">
+        <text class="lc-title">{{item.title}}</text>
+        <text class="lc-desc">{{item.strategyText || item.frequencyText || '每日 · ' + item.default_duration + '分钟'}}</text>
       </view>
+      
+      <!-- 右侧添加按钮 -->
       <view class="add-btn {{item.hasStrategy ? 'added' : ''}}">
-        <text>{{item.hasStrategy ? '已添加' : '+'}}</text>
+        <text class="btn-icon">{{item.hasStrategy ? '✓' : '+'}}</text>
       </view>
     </view>
 
+    <!-- 空状态 -->
     <view class="empty-state" wx:if="{{filteredHabits.length === 0 && !loading}}">
-      <text>暂无该分类习惯</text>
+      <text class="empty-text">暂无该分类习惯</text>
       <button class="init-btn" bindtap="initHabits" wx:if="{{currentTab === 0}}">初始化习惯数据</button>
     </view>
   </scroll-view>
+</view>
 
-  <view class="modal-mask {{showModal ? 'show' : ''}}" bindtap="closeModal"></view>
-  <view class="strategy-modal {{showModal ? 'show' : ''}}">
-    <view class="modal-header">
-      <text class="modal-title">{{selectedHabit.title}}</text>
-      <text class="modal-close" bindtap="closeModal">×</text>
-    </view>
+<!-- 策略设置弹窗 -->
+<view class="modal-mask {{showModal ? 'show' : ''}}" bindtap="closeModal"></view>
+<view class="strategy-modal {{showModal ? 'show' : ''}}">
+  <!-- 顶部指示条 -->
+  <view class="modal-indicator"></view>
+  
+  <!-- 标题 -->
+  <view class="modal-header">
+    <text class="sh-title">{{selectedHabit.title}}策略</text>
+  </view>
 
-    <view class="modal-body">
-      <view class="form-item">
-        <text class="form-label">单次时长</text>
-        <picker mode="selector" range="{{durationOptions}}" bindchange="onDurationChange">
-          <view class="picker-value">
-            {{selectedDuration ? selectedDuration + ' 分钟' : '选择时长'}}
+  <scroll-view class="modal-body" scroll-y>
+    <!-- 第一组：单次目标（必选项） -->
+    <view class="setting-group">
+      <view class="setting-item" bindtap="openDurationPicker">
+        <view class="item-left">
+          <view class="check-icon checked">
+            <text>✓</text>
           </view>
-        </picker>
+          <text class="item-label">单次目标</text>
+        </view>
+        <view class="item-right">
+          <text class="item-value">{{selectedDuration || 20}} 分钟</text>
+          <text class="item-arrow">›</text>
+        </view>
       </view>
+    </view>
 
-      <view class="form-item">
-        <text class="form-label">打卡频次</text>
-        <radio-group class="freq-type-group" bindchange="onFreqTypeChange">
-          <label class="radio-item" wx:for="{{freqTypes}}" wx:key="value">
-            <radio value="{{item.value}}" checked="{{selectedFreqType === item.value}}" color="#C4786A"/>
-            <text>{{item.label}}</text>
-          </label>
-        </radio-group>
-      </view>
-
-      <view class="form-item" wx:if="{{selectedFreqType === 'weekly'}}">
-        <text class="form-label">选择星期</text>
-        <checkbox-group class="weekday-group" bindchange="onWeekdayChange">
-          <label class="weekday-item" wx:for="{{weekdays}}" wx:key="value">
-            <checkbox value="{{item.value}}" checked="{{selectedWeekdays.includes(item.value)}}" color="#C4786A"/>
-            <text>{{item.label}}</text>
-          </label>
-        </checkbox-group>
-      </view>
-
-      <view class="form-item" wx:if="{{selectedFreqType === 'interval'}}">
-        <text class="form-label">间隔天数</text>
-        <picker mode="selector" range="{{intervalOptions}}" bindchange="onIntervalChange">
-          <view class="picker-value">
-            {{selectedInterval ? '每 ' + selectedInterval + ' 天' : '选择间隔'}}
+    <!-- 频次选项：每天、每周、间隔天数 -->
+    <view class="setting-group">
+      <!-- 每天选项 -->
+      <view class="setting-item" bindtap="selectEveryday">
+        <view class="item-left">
+          <view class="check-icon {{freqCategory === 'everyday' ? 'checked' : ''}}">
+            <text wx:if="{{freqCategory === 'everyday'}}">✓</text>
           </view>
-        </picker>
+          <text class="item-label">每天</text>
+        </view>
+      </view>
+      <!-- 每周 -->
+      <view class="setting-item" bindtap="onWeeklyFixedClick">
+        <view class="item-left">
+          <view class="check-icon {{freqCategory === 'weekly' ? 'checked' : ''}}">
+            <text wx:if="{{freqCategory === 'weekly'}}">✓</text>
+          </view>
+          <text class="item-label">每周</text>
+        </view>
+        <view class="item-right">
+          <text class="item-value" wx:if="{{freqCategory === 'weekly'}}">{{selectedWeekdaysText}}</text>
+          <text class="item-value placeholder" wx:else>选择星期</text>
+          <text class="item-arrow">›</text>
+        </view>
+      </view>
+      <!-- 间隔天数选项 -->
+      <view class="setting-item" bindtap="onDailyIntervalClick">
+        <view class="item-left">
+          <view class="check-icon {{freqCategory === 'daily-interval' ? 'checked' : ''}}">
+            <text wx:if="{{freqCategory === 'daily-interval'}}">✓</text>
+          </view>
+          <text class="item-label">间隔天数</text>
+        </view>
+        <view class="item-right">
+          <text class="item-value" wx:if="{{freqCategory === 'daily-interval'}}">{{dailyInterval}} 天</text>
+          <text class="item-value placeholder" wx:else>选择天数</text>
+          <text class="item-arrow">›</text>
+        </view>
       </view>
     </view>
 
-    <view class="modal-footer">
-      <button class="btn-cancel" bindtap="closeModal">取消</button>
-      <button class="btn-confirm" bindtap="saveStrategy">保存</button>
+    <!-- 计划开始时间配置 -->
+    <view class="setting-group">
+      <!-- 开始时间 -->
+      <view class="setting-item">
+        <view class="item-left">
+          <view class="check-icon checked">
+            <text>✓</text>
+          </view>
+          <text class="item-label">开始时间</text>
+        </view>
+      </view>
+      <!-- 自定义选项：今天/明天/选择日期 -->
+      <view class="setting-item sub-item">
+        <view class="plan-start-options">
+          <view 
+            class="plan-start-option {{planStartDate === item.value ? 'selected' : ''}}" 
+            wx:for="{{planStartDateOptions}}" 
+            wx:key="value"
+            bindtap="onPlanStartOptionClick"
+            data-value="{{item.value}}">
+            <text>{{item.label}}</text>
+          </view>
+        </view>
+      </view>
+      <!-- 提示信息 -->
+      <view class="setting-item hint-item" wx:if="{{planStartHint}}">
+        <text class="plan-start-hint">{{planStartHint}}</text>
+      </view>
     </view>
+  </scroll-view>
+
+  <!-- 保存按钮 -->
+  <view class="modal-footer">
+    <button class="btn-save" bindtap="saveStrategy">保存策略</button>
+  </view>
+</view>
+
+<!-- 时长选择器弹窗 -->
+<view class="picker-modal-mask {{showDurationPickerModal ? 'show' : ''}}" bindtap="closeDurationPicker"></view>
+<view class="picker-modal {{showDurationPickerModal ? 'show' : ''}}">
+  <view class="picker-header-simple">
+    <text class="picker-simple-title">选择时长</text>
+    <text class="picker-close" bindtap="closeDurationPicker">✕</text>
+  </view>
+  <view class="date-picker-container">
+    <picker-view class="date-picker-view" value="{{durationPickerValue}}" bindchange="onDurationPickerChange">
+      <picker-view-column>
+        <view wx:for="{{durationOptions}}" wx:key="index" class="date-picker-item">{{item}} 分钟</view>
+      </picker-view-column>
+    </picker-view>
+  </view>
+  <view class="picker-footer">
+    <button class="btn-confirm" bindtap="confirmDurationPicker">确定</button>
+  </view>
+</view>
+
+<!-- 按天间隔选择器弹窗 -->
+<view class="picker-modal-mask {{showDailyIntervalPickerModal ? 'show' : ''}}" bindtap="closeDailyIntervalPicker"></view>
+<view class="picker-modal {{showDailyIntervalPickerModal ? 'show' : ''}}">
+  <view class="picker-header-simple">
+    <text class="picker-simple-title">选择间隔天数</text>
+    <text class="picker-close" bindtap="closeDailyIntervalPicker">✕</text>
+  </view>
+  <view class="date-picker-container">
+    <picker-view class="date-picker-view" value="{{dailyIntervalPickerValue}}" bindchange="onDailyIntervalPickerChange">
+      <picker-view-column>
+        <view wx:for="{{dailyIntervalOptions}}" wx:key="index" class="date-picker-item">{{item}} 天</view>
+      </picker-view-column>
+    </picker-view>
+  </view>
+  <view class="picker-footer">
+    <button class="btn-confirm" bindtap="confirmDailyIntervalPicker">确定</button>
+  </view>
+</view>
+
+<!-- 星期选择器弹窗 -->
+<view class="picker-modal-mask {{showWeekdayPicker ? 'show' : ''}}" bindtap="closeWeekdayPicker"></view>
+<view class="picker-modal {{showWeekdayPicker ? 'show' : ''}}">
+  <view class="picker-header-simple">
+    <text class="picker-simple-title">选择星期</text>
+    <text class="picker-close" bindtap="closeWeekdayPicker">✕</text>
+  </view>
+  <view class="weekday-list">
+    <view 
+      class="weekday-option {{item.checked ? 'checked' : ''}}" 
+      wx:for="{{weekdays}}" 
+      wx:key="index"
+      bindtap="toggleWeekday"
+      data-index="{{index}}">
+      <text class="weekday-label">{{item.label}}</text>
+      <text class="weekday-check" wx:if="{{item.checked}}">✓</text>
+    </view>
+  </view>
+  <view class="picker-footer">
+    <button class="btn-confirm" bindtap="confirmWeekday">确定</button>
+  </view>
+</view>
+
+<!-- 计划开始日期选择弹窗 -->
+<view class="picker-modal-mask {{showPlanStartDatePickerModal ? 'show' : ''}}" bindtap="closePlanStartDatePicker"></view>
+<view class="picker-modal {{showPlanStartDatePickerModal ? 'show' : ''}}">
+  <view class="picker-header-simple">
+    <text class="picker-simple-title">选择开始日期</text>
+    <text class="picker-close" bindtap="closePlanStartDatePicker">✕</text>
+  </view>
+  <view class="date-picker-container">
+    <picker-view class="date-picker-view" value="{{planStartDatePickerValue}}" bindchange="onPlanStartDatePickerChange">
+      <picker-view-column>
+        <view wx:for="{{planStartDateYears}}" wx:key="index" class="date-picker-item">{{item}}年</view>
+      </picker-view-column>
+      <picker-view-column>
+        <view wx:for="{{planStartDateMonths}}" wx:key="index" class="date-picker-item">{{item}}月</view>
+      </picker-view-column>
+      <picker-view-column>
+        <view wx:for="{{planStartDateDays}}" wx:key="index" class="date-picker-item">{{item}}日</view>
+      </picker-view-column>
+    </picker-view>
+  </view>
+  <view class="picker-footer">
+    <button class="btn-confirm" bindtap="confirmPlanStartDatePicker">确定</button>
+  </view>
+</view>
+
+<!-- 操作菜单弹窗（自定义，替代系统 ActionSheet） -->
+<view class="action-sheet-modal {{showActionMenu ? 'show' : ''}}">
+  <view class="action-sheet-mask" bindtap="closeActionMenu"></view>
+  <view class="action-sheet-content">
+    <view class="action-sheet-list">
+      <view 
+        class="action-sheet-item" 
+        wx:for="{{actionMenuItems}}" 
+        wx:key="index"
+        bindtap="onActionMenuSelect"
+        data-index="{{index}}">
+        <text class="action-sheet-item-text">{{item.text}}</text>
+      </view>
+    </view>
+    <view class="action-sheet-cancel" bindtap="closeActionMenu">取消</view>
   </view>
 </view>

@@ -1,0 +1,32 @@
+<!--components/tab-bar/tab-bar.wxml-->
+<!-- 悬浮毛玻璃底栏 - 玉露丹青极致清透版 -->
+
+<view class="tab-bar-container">
+  <view class="tab-bar">
+    <view 
+      class="tab-item {{activeIndex === index ? 'active' : ''}}" 
+      wx:for="{{tabs}}" 
+      wx:key="index"
+      data-index="{{index}}"
+      bindtap="handleTabTap"
+    >
+      <!-- 图标容器 -->
+      <view class="tab-icon-wrapper">
+        <view class="tab-icon {{activeIndex === index ? 'active' : ''}}">
+          <text class="icon-text">{{item.icon}}</text>
+        </view>
+        <!-- 选中态光晕 -->
+        <view class="tab-glow" wx:if="{{activeIndex === index}}"></view>
+      </view>
+      
+      <!-- 标签文字 -->
+      <text class="tab-label {{activeIndex === index ? 'active' : ''}}">{{item.label}}</text>
+    </view>
+  </view>
+  
+  <!-- 安全区占位 -->
+  <view class="safe-area-placeholder" style="height: {{safeAreaBottom}}px;"></view>
+</view>
+
+<!-- 底栏占位（防止内容被遮挡） -->
+<view class="tab-bar-placeholder" style="height: calc(120rpx + {{safeAreaBottom}}px);"></view>

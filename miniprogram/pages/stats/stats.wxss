@@ -1,154 +1,639 @@
-.container {
+/* pages/stats/stats.wxss */
+/* 观心页面 - 玉露丹青极致清透版 */
+
+.page-wrapper {
   min-height: 100vh;
-  background-color: #F5F0EB;
-  padding-bottom: 40rpx;
-}
-
-.week-selector {
+  background-color: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 32rpx;
-  background-color: #FDFBF7;
+  flex-direction: column;
 }
 
-.week-nav {
-  width: 80rpx;
-  height: 80rpx;
+/* ============================================
+   固定头部区域 - 复用修习页面样式
+   ============================================ */
+.header-fixed {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--bg-primary);
+  z-index: 100;
+  padding: 100rpx 48rpx 0;
+}
+
+/* ============================================
+   导航栏标题
+   ============================================ */
+.nav-header {
+  padding-bottom: 24rpx;
   display: flex;
+  justify-content: flex-start;
   align-items: center;
-  justify-content: center;
+  height: 88rpx;
+  box-sizing: border-box;
 }
 
-.nav-arrow {
-  font-size: 48rpx;
-  color: #C4786A;
+.nav-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.1em;
 }
 
-.week-range {
-  font-size: 28rpx;
-  color: #2C2C2C;
+/* ============================================
+   顶部 Tab 切换器
+   ============================================ */
+.tabs-top {
+  display: flex;
+  gap: 48rpx;
+  margin-bottom: 20rpx;
+  padding-bottom: 12rpx;
+}
+
+.seg-item {
+  font-size: 30rpx;
+  color: var(--text-tertiary);
+  padding: 12rpx 0;
+  position: relative;
+  transition: color 300ms ease;
   font-weight: 500;
 }
 
-.matrix-section {
-  margin: 24rpx;
-  background-color: #FFFFFF;
-  border-radius: 20rpx;
-  overflow: hidden;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-}
-
-.matrix-header {
-  display: flex;
-  background-color: #F5F0EB;
-}
-
-.matrix-corner {
-  width: 120rpx;
-  height: 60rpx;
-  flex-shrink: 0;
-}
-
-.weekday-header {
-  display: flex;
-  flex: 1;
-}
-
-.weekday-header text {
-  flex: 1;
-  text-align: center;
-  font-size: 22rpx;
-  color: #8B8578;
-  line-height: 60rpx;
-}
-
-.matrix-body {
-  overflow-x: auto;
-}
-
-.matrix-rows {
-  display: flex;
-  flex-direction: column;
-}
-
-.matrix-row {
-  display: flex;
-  align-items: center;
-  border-bottom: 1rpx solid #F5F0EB;
-}
-
-.matrix-row:last-child {
-  border-bottom: none;
-}
-
-.habit-name {
-  width: 120rpx;
-  padding: 20rpx 12rpx;
-  font-size: 22rpx;
-  color: #2C2C2C;
-  flex-shrink: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.day-cells {
-  display: flex;
-  flex: 1;
-  min-width: 420rpx;
-}
-
-.day-cell {
-  flex: 1;
-  height: 56rpx;
-  margin: 8rpx 4rpx;
-  border-radius: 8rpx;
-  background-color: #F5F0EB;
-}
-
-.day-cell.done {
-  background-color: #C4786A;
-}
-
-.day-cell.today {
-  border: 2rpx solid #C4786A;
-}
-
-.stats-cards {
-  display: flex;
-  flex-wrap: wrap;
-  padding: 0 16rpx;
-  gap: 16rpx;
-}
-
-.stat-card {
-  width: calc(50% - 8rpx);
-  background-color: #FFFFFF;
-  border-radius: 20rpx;
-  padding: 32rpx;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  box-shadow: 0 4rpx 16rpx rgba(0, 0, 0, 0.04);
-}
-
-.stat-value {
-  font-size: 48rpx;
-  color: #C4786A;
+.seg-item.active {
+  color: var(--text-primary);
   font-weight: 600;
 }
 
-.stat-label {
-  font-size: 24rpx;
-  color: #8B8578;
-  margin-top: 8rpx;
+/* Active 状态下方的短划线 - 绿色胶囊形 */
+.seg-item.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32rpx;
+  height: 6rpx;
+  background-color: var(--c-primary);
+  border-radius: 999rpx;
 }
 
-.loading {
+/* ============================================
+   可滚动内容区域
+   ============================================ */
+.content-scroll {
+  flex: 1;
+  padding: 290rpx 48rpx 200rpx;
+  box-sizing: border-box;
+}
+
+/* ============================================
+   日期切换控件
+   ============================================ */
+.date-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  padding: 24rpx 40rpx;
+  border-radius: 32rpx;
+  margin-bottom: 40rpx;
+  box-shadow: var(--shadow-card);
+}
+
+.dc-arrow {
+  font-size: 48rpx;
+  color: var(--text-sub);
+  font-weight: 300;
+  font-family: sans-serif;
+  line-height: 1;
+  padding: 20rpx 40rpx;
+  margin: -20rpx -40rpx;
+}
+
+.date-info {
+  display: flex;
+  align-items: center;
+}
+
+.dc-title {
+  font-size: 28rpx;
+  color: var(--ink-title);
+  font-weight: 600;
+}
+
+.dc-dot {
+  margin: 0 8rpx;
+  color: var(--text-sub);
+}
+
+.dc-num {
+  font-family: sans-serif;
+}
+
+/* ============================================
+   视图容器
+   ============================================ */
+.stat-view {
+  display: none;
+}
+
+.stat-view.active {
+  display: block;
+}
+
+/* ============================================
+   视图1：周报表
+   ============================================ */
+.card-panel {
+  background: var(--bg-card);
+  border-radius: 32rpx;
+  padding: 32rpx;
+  box-shadow: var(--shadow-card);
+  margin-bottom: 32rpx;
+}
+
+.cp-title {
+  font-size: 30rpx;
+  color: var(--ink-main);
+  margin-bottom: 24rpx;
+  font-weight: 600;
+}
+
+.week-tracker {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.wt-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4rpx;
+}
+
+.wt-icon {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 16rpx;
+}
+
+.wt-icon .iconfont {
+  font-size: 40rpx;
+}
+
+.wt-label {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  font-size: 26rpx;
+  color: var(--ink-title);
+  width: 200rpx;
+  flex-shrink: 0;
+}
+
+.wt-name {
+  font-weight: 600;
+}
+
+/* 直接控制图片大小，不带任何底色 */
+.stat-icon {
+  width: 32rpx;
+  height: 32rpx;
+  position: relative;
+  z-index: 1;
+}
+
+.wt-days {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12rpx;
+}
+
+.wt-dot {
+  width: 46rpx;
+  height: 46rpx;
+  border-radius: 16rpx;
+  background: #F4F6F8;
+  flex-shrink: 0;
+  box-sizing: border-box;
+}
+
+/* 已打卡 - 使用主题颜色 */
+.wt-dot.checked {
+  background: var(--theme-color);
+  border: 2rpx solid var(--theme-color);
+}
+
+/* 未打卡（打卡日）- 白色 + 主题色描边 */
+.wt-dot.unchecked {
+  background: #FFFFFF;
+  border: 2rpx solid var(--theme-color);
+}
+
+/* 非打卡日 - 浅灰色块 */
+.wt-dot.inactive {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+/* 已删除日期之后 - 浅灰色 */
+.wt-dot.deleted {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+.wt-dot.deleted.checked {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+/* ============================================
+   底部数据看板
+   ============================================ */
+.stat-board {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 28rpx;
+  margin-top: 32rpx;
+}
+
+.sb-card {
+  background: var(--bg-card);
+  border-radius: 32rpx;
+  padding: 32rpx;
+  box-shadow: var(--shadow-card);
+}
+
+.sb-name {
+  font-size: 28rpx;
+  color: var(--ink-main);
+  margin-bottom: 12rpx;
+  font-weight: 500;
+}
+
+.sb-val {
+  font-size: 60rpx;
+  color: var(--ink-title);
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  font-weight: 700;
+}
+
+.sb-val text {
+  font-size: 24rpx;
+  color: var(--ink-main);
+  margin-left: 8rpx;
+  font-weight: 500;
+}
+
+/* 打卡完成率 - 深灰色 */
+.sb-val {
+  color: var(--ink-title);
+}
+
+/* 累计修习 - 主色翡翠绿 */
+.sb-val.primary {
+  color: var(--c-primary);
+}
+
+/* 坚持时日 - 琥珀色 */
+.sb-val.accent {
+  color: var(--c-amber);
+}
+
+/* 最长连日 - 珊瑚色 */
+.sb-val.streak {
+  color: var(--c-coral);
+}
+
+/* ============================================
+   视图2：月报表
+   ============================================ */
+.month-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24rpx;
+}
+
+.m-card {
+  background: var(--bg-card);
+  border-radius: 32rpx;
+  padding: 24rpx 20rpx;
+  box-shadow: var(--shadow-card);
+  border: 1rpx solid var(--border-light);
+  display: flex;
+  flex-direction: column;
+}
+
+.mc-header {
   display: flex;
   justify-content: center;
-  padding: 40rpx;
-  color: #8B8578;
+  align-items: center;
+  margin-bottom: 24rpx;
+}
+
+.mc-content {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  position: relative;
+  padding: 8rpx 16rpx;
+}
+
+.mc-color-bg {
+  position: absolute;
+  height: 30%;
+  left: 0;
+  right: 0;
+  bottom: 14rpx;
+  border-radius: 999rpx;
+  z-index: 0;
+  background: var(--theme-bg);
+}
+
+.mc-icon {
+  font-size: 32rpx;
+  position: relative;
+  z-index: 1;
+}
+
+/* 月报表图标更大 */
+.m-card .stat-icon {
+  width: 40rpx;
+  height: 40rpx;
+}
+
+.mc-title {
+  position: relative;
+  font-size: 30rpx;
+  color: var(--ink-title);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.mc-cal {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8rpx 6rpx;
+  justify-items: center;
+}
+
+.mc-cell {
+  width: 92%;
+  aspect-ratio: 1;
+  border-radius: 8rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 20rpx;
+  font-family: sans-serif;
+  background: #F4F6F8;
+  color: #B0B0B0;
+  font-weight: 500;
+}
+
+.mc-cell.unchecked {
+  background: #FFFFFF;
+  border: 2rpx solid var(--theme-color);
+  color: var(--ink-title);
+  box-sizing: border-box;
+}
+
+.mc-cell.inactive,
+.mc-cell.deleted,
+.mc-cell.future {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+  color: #B0B0B0;
+  box-sizing: border-box;
+}
+
+.mc-cell.checked {
+  background: var(--theme-color);
+  color: #FFF;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.mc-cell.done {
+  background: var(--theme-color);
+  color: #FFF;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.mc-cell.empty {
+  background: transparent;
+}
+
+/* 统计信息 */
+.mc-stats {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 24rpx;
+  margin-top: 28rpx;
+  border-top: 1rpx solid rgba(0, 0, 0, 0.04);
+}
+
+.ms-item {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+
+.ms-icon {
+  font-size: 22rpx;
+}
+
+.ms-icon.done-icon {
+  color: var(--c-primary);
+}
+
+.ms-icon.day-icon {
+  color: #D4A574;
+}
+
+.ms-val {
   font-size: 24rpx;
+  color: var(--text-secondary);
+  font-family: sans-serif;
+  font-weight: 550;
+}
+
+/* ============================================
+   视图3：年报表
+   ============================================ */
+.year-list {
+  display: flex;
+  flex-direction: column;
+  gap: 32rpx;
+}
+
+.y-card {
+  background: var(--bg-card);
+  border-radius: 32rpx;
+  padding: 32rpx;
+  box-shadow: var(--shadow-card);
+  border: 1rpx solid var(--border-light);
+}
+
+.yc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24rpx;
+}
+
+.yc-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+/* 年报表图标更大 */
+.y-card .stat-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  background: var(--theme-bg);
+  padding: 12rpx;
+  box-sizing: border-box;
+}
+
+.yc-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 36rpx;
+  background: var(--theme-bg);
+}
+
+.yc-title {
+  font-size: 30rpx;
+  color: var(--ink-title);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.yc-total {
+  font-size: 28rpx;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: normal;
+}
+
+/* 热力图 */
+.yc-heatmap {
+  display: grid;
+  grid-template-columns: repeat(53, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 4rpx;
+}
+
+.yh-dot {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 2rpx;
+  background: #F4F6F8;
+}
+
+.yh-dot.level-1 {
+  background: var(--theme-color);
+  opacity: 0.3;
+}
+
+.yh-dot.level-2 {
+  background: var(--theme-color);
+  opacity: 0.6;
+}
+
+.yh-dot.level-3 {
+  background: var(--theme-color);
+  opacity: 0.9;
+}
+
+/* ============================================
+   主题色定义 - CSS 变量映射（使用全局规范色彩）
+   ============================================ */
+/* 红色主题 - 珊瑚色 */
+.theme-red, .t-red {
+  --theme-color: var(--c-coral);
+  --theme-bg: var(--c-coral-light);
+}
+
+/* 绿色主题 - 翡翠绿 */
+.theme-green, .t-green {
+  --theme-color: var(--c-primary);
+  --theme-bg: var(--c-primary-light);
+}
+
+/* 蓝色主题 - 湖水蓝 */
+.theme-blue, .t-blue {
+  --theme-color: var(--c-lake);
+  --theme-bg: var(--c-lake-light);
+}
+
+/* 黄色主题 - 琥珀色 */
+.theme-yellow, .t-yellow {
+  --theme-color: var(--c-amber);
+  --theme-bg: var(--c-amber-light);
+}
+
+/* 紫色主题 - 紫丁香 */
+.theme-purple, .t-purple {
+  --theme-color: var(--c-purple);
+  --theme-bg: var(--c-purple-light);
+}
+
+/* ============================================
+   已删除习惯样式
+   ============================================ */
+.wt-row.is-deleted {
+  opacity: 0.5;
+}
+
+.wt-row.is-deleted .wt-name {
+  color: var(--text-tertiary);
+  text-decoration: line-through;
+}
+
+.wt-row.is-deleted .wt-dot {
+  background: #E8E8E8;
+  border-color: #E8E8E8;
+}
+
+.wt-row.is-deleted .wt-dot.checked {
+  background: #E8E8E8;
+  border-color: #E8E8E8;
+}
+
+.m-card.is-deleted {
+  opacity: 0.5;
+}
+
+.m-card.is-deleted .mc-title {
+  color: var(--text-tertiary);
+}
+
+.y-card.is-deleted {
+  opacity: 0.5;
+}
+
+.y-card.is-deleted .yc-title {
+  color: var(--text-tertiary);
 }

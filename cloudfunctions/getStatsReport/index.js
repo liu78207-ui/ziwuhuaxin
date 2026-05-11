@@ -1,8 +1,17 @@
 const cloud = require('wx-server-sdk');
+
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command;
+
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  const normalized = String(dateStr).split('T')[0];
+  const [year, month, day] = normalized.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -11,167 +20,367 @@ function formatDate(date) {
   return `${year}-${month}-${day}`;
 }
 
-function parseDate(dateStr) {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  return new Date(year, month - 1, day);
+function compareDate(a, b) {
+  if (a === b) return 0;
+  return a < b ? -1 : 1;
 }
 
-async function calculateMaxStreak(openid, habitId) {
-  const logsRes = await db.collection('checkin_logs').where({
-    _openid: openid,
-    habit_id: habitId
-  }).orderBy('checkin_date', 'desc').get();
-  
-  if (logsRes.data.length === 0) {
-    return 0;
+function minDate(a, b) {
+  if (!a) return b || null;
+  if (!b) return a || null;
+  return compareDate(a, b) <= 0 ? a : b;
+}
+
+function dateDiff(endDateStr, startDateStr) {
+  const start = parseDate(startDateStr);
+  const end = parseDate(endDateStr);
+  if (!start || !end) return NaN;
+  return Math.floor((end - start) / (24 * 60 * 60 * 1000));
+}
+
+function buildDateRange(startDate, endDate) {
+  const current = parseDate(startDate);
+  const end = parseDate(endDate);
+  const dates = [];
+  if (!current || !end || current > end) return dates;
+  while (current <= end) {
+    dates.push(formatDate(current));
+    current.setDate(current.getDate() + 1);
   }
-  
-  const dates = logsRes.data.map(log => log.checkin_date).sort();
-  const dateSet = new Set(dates);
-  
-  let maxStreak = 0;
-  let currentStreak = 1;
-  
-  for (let i = 1; i < dates.length; i++) {
-    const prevDate = parseDate(dates[i - 1]);
-    const currDate = parseDate(dates[i]);
-    
-    const diffDays = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 1) {
-      currentStreak++;
-    } else {
-      maxStreak = Math.max(maxStreak, currentStreak);
-      currentStreak = 1;
+  return dates;
+}
+
+function getHabitId(habit) {
+  return String(habit.habitId || habit.habit_id || habit._id || '');
+}
+
+function getLogHabitId(log) {
+  return String(log.habitId || log.habit_id || log._habitId || '');
+}
+
+function getLogDate(log) {
+  return log.date || log.checkin_date || log.checkinDate || '';
+}
+
+function normalizeLogs(logs) {
+  const seen = new Set();
+  const result = [];
+  (logs || []).forEach(log => {
+    if (!log || log.sync_status === 2) return;
+    const habitId = getLogHabitId(log);
+    const date = String(getLogDate(log)).split('T')[0];
+    if (!habitId || !date) return;
+    const key = `${habitId}_${date}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push({ ...log, habitId, date });
+  });
+  return result;
+}
+
+function getDeletedDate(habit) {
+  return (habit.deletedAt || habit.deleted_at || '').split('T')[0] || null;
+}
+
+function isDeletedHabit(habit) {
+  return Boolean(habit && (habit.isDeleted || habit.is_deleted || habit.deleted || habit.deletedAt || habit.deleted_at));
+}
+
+function getPlanStartDate(source) {
+  if (!source) return null;
+  const freqRules = source.freq_rules;
+  return (
+    source.plan_start_date ||
+    source.planStartDate ||
+    (freqRules && typeof freqRules === 'object' && !Array.isArray(freqRules) && freqRules.startDate) ||
+    source.createdAt ||
+    source.created_at ||
+    null
+  );
+}
+
+function getEffectiveFreqType(source) {
+  if (source.freq_category === 'daily-interval' && source.freq_type === 'daily') {
+    return 'interval';
+  }
+  return source.freq_type || 'daily';
+}
+
+function getIntervalDays(freqRules) {
+  if (freqRules && typeof freqRules === 'object' && !Array.isArray(freqRules)) {
+    return Math.max(1, Number(freqRules.intervalDays || freqRules.interval_days || 1));
+  }
+  return Math.max(1, Number(freqRules || 1));
+}
+
+function isDueByStrategy(source, dateStr) {
+  const planStartDate = getPlanStartDate(source);
+  if (!planStartDate || compareDate(dateStr, planStartDate) < 0) return false;
+
+  const diff = dateDiff(dateStr, planStartDate);
+  if (Number.isNaN(diff) || diff < 0) return false;
+
+  const freqType = getEffectiveFreqType(source);
+  if (freqType === 'daily') return true;
+
+  if (freqType === 'weekly') {
+    const targetDays = Array.isArray(source.freq_rules) ? source.freq_rules : [];
+    if (targetDays.length === 0) return true;
+    const date = parseDate(dateStr);
+    const day = date.getDay();
+    const normalizedDay = day === 0 ? 7 : day;
+    return targetDays.includes(normalizedDay);
+  }
+
+  if (freqType === 'interval') {
+    const intervalDays = getIntervalDays(source.freq_rules);
+    const cycleDays = intervalDays + 1;
+    return diff >= intervalDays && (diff - intervalDays) % cycleDays === 0;
+  }
+
+  return true;
+}
+
+function normalizeSegments(habit) {
+  const versions = Array.isArray(habit.strategyVersions || habit.strategy_versions || habit.versions)
+    ? (habit.strategyVersions || habit.strategy_versions || habit.versions)
+    : [];
+
+  if (versions.length === 0) {
+    return [{
+      ...habit,
+      segmentStart: getPlanStartDate(habit),
+      segmentEnd: getDeletedDate(habit),
+      isDeletedSegment: false
+    }];
+  }
+
+  return versions
+    .map(version => {
+      const isDeletedSegment = Boolean(
+        version.deleted ||
+        version.isDeleted ||
+        version.is_deleted ||
+        version.type === 'deleted' ||
+        version.status === 'deleted'
+      );
+      return {
+        ...habit,
+        ...version,
+        segmentStart: version.start_date || version.startDate || getPlanStartDate(version),
+        segmentEnd: version.end_date || version.endDate || null,
+        plan_start_date: getPlanStartDate(version) || version.start_date || habit.plan_start_date,
+        isDeletedSegment
+      };
+    })
+    .filter(segment => segment.segmentStart)
+    .sort((a, b) => compareDate(a.segmentStart, b.segmentStart));
+}
+
+function getSegmentForDate(habit, dateStr) {
+  return normalizeSegments(habit).find(segment => {
+    if (!segment.segmentStart || compareDate(dateStr, segment.segmentStart) < 0) return false;
+    if (segment.segmentEnd && compareDate(dateStr, segment.segmentEnd) >= 0) return false;
+    return true;
+  }) || null;
+}
+
+function getDayStatus(habit, dateStr, checked, todayStr) {
+  if (todayStr && compareDate(dateStr, todayStr) > 0) {
+    return { isDue: false, shouldShow: false, status: 'future' };
+  }
+
+  const segment = getSegmentForDate(habit, dateStr);
+  if (segment && segment.isDeletedSegment) {
+    return { isDue: false, shouldShow: false, status: 'deleted' };
+  }
+
+  const deletedDate = getDeletedDate(habit);
+  if (deletedDate && compareDate(dateStr, deletedDate) >= 0) {
+    if (checked && compareDate(dateStr, deletedDate) === 0) {
+      return { isDue: true, shouldShow: true, status: 'checked' };
     }
+    return { isDue: false, shouldShow: false, status: 'deleted' };
   }
-  
-  maxStreak = Math.max(maxStreak, currentStreak);
-  
+
+  const isDue = segment ? isDueByStrategy(segment, dateStr) : false;
+  return {
+    isDue,
+    shouldShow: isDue,
+    status: isDue ? (checked ? 'checked' : 'unchecked') : 'inactive'
+  };
+}
+
+function buildHabitPeriodReport(habit, logs, startDate, endDate, todayStr) {
+  const habitId = getHabitId(habit);
+  const effectiveEndDate = todayStr ? minDate(endDate, todayStr) : endDate;
+  const normalizedLogs = normalizeLogs(logs);
+  const logDates = new Set(
+    normalizedLogs
+      .filter(log =>
+        log.habitId === habitId &&
+        log.date >= startDate &&
+        log.date <= endDate &&
+        (!todayStr || log.date <= todayStr)
+      )
+      .map(log => log.date)
+  );
+
+  let reportHabit = habit;
+  if (isDeletedHabit(habit) && !getDeletedDate(habit)) {
+    const lastLogDateInPeriod = [...logDates].sort().pop();
+    reportHabit = {
+      ...habit,
+      deletedAt: lastLogDateInPeriod || startDate
+    };
+  }
+
+  let dueCount = 0;
+  let doneCount = 0;
+  const days = buildDateRange(startDate, endDate).map(date => {
+    const checked = logDates.has(date);
+    const { isDue, shouldShow, status } = getDayStatus(reportHabit, date, checked, todayStr);
+    const inEffectiveRange = !effectiveEndDate || date <= effectiveEndDate;
+    const countsInDueDenominator = Boolean(isDue && inEffectiveRange);
+    const countsAsDone = Boolean(checked && isDue && inEffectiveRange);
+
+    if (countsInDueDenominator) dueCount++;
+    if (countsAsDone) doneCount++;
+
+    return {
+      date,
+      isDue,
+      isChecked: checked,
+      checked,
+      shouldShow,
+      status,
+      countsInDueDenominator,
+      countsAsDone
+    };
+  });
+
+  return {
+    habitId,
+    habit: reportHabit,
+    days,
+    dueCount,
+    doneCount,
+    visible: dueCount > 0 || doneCount > 0
+  };
+}
+
+function calculateNaturalMaxStreak(dates, startDate, endDate) {
+  const dateSet = new Set(dates.filter(date => date >= startDate && date <= endDate));
+  let maxStreak = 0;
+  let currentStreak = 0;
+  buildDateRange(startDate, endDate).forEach(date => {
+    if (dateSet.has(date)) {
+      currentStreak++;
+      maxStreak = Math.max(maxStreak, currentStreak);
+    } else {
+      currentStreak = 0;
+    }
+  });
   return maxStreak;
 }
 
-async function calculateAllHabitsMaxStreak(openid) {
-  const strategiesRes = await db.collection('user_strategies').where({
-    _openid: openid
-  }).get();
-  
-  const strategies = strategiesRes.data || [];
-  
-  let globalMaxStreak = 0;
-  
-  for (const strategy of strategies) {
-    const streak = await calculateMaxStreak(openid, strategy.habit_id);
-    globalMaxStreak = Math.max(globalMaxStreak, streak);
-  }
-  
-  return globalMaxStreak;
+function calculatePeriodReport(habits, logs, startDate, endDate, todayStr) {
+  const effectiveEndDate = todayStr ? minDate(endDate, todayStr) : endDate;
+  const habitReports = (habits || [])
+    .map(habit => buildHabitPeriodReport(habit, logs, startDate, endDate, todayStr))
+    .filter(report => report.visible);
+  const dueCount = habitReports.reduce((sum, report) => sum + report.dueCount, 0);
+  const doneCount = habitReports.reduce((sum, report) => sum + report.doneCount, 0);
+  const uniqueCheckinDates = [...new Set(
+    habitReports.flatMap(report =>
+      report.days.filter(day => day.countsAsDone).map(day => day.date)
+    )
+  )];
+
+  return {
+    habitReports,
+    stats: {
+      checkinRate: dueCount > 0 ? Math.round((doneCount / dueCount) * 100) : 0,
+      totalCount: doneCount,
+      checkinDays: uniqueCheckinDates.length,
+      maxStreak: effectiveEndDate ? calculateNaturalMaxStreak(uniqueCheckinDates, startDate, effectiveEndDate) : 0
+    }
+  };
 }
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
-  
   const { startDate, endDate } = event;
-  
+  const todayStr = formatDate(new Date());
+  const reportEndDate = endDate && todayStr && endDate > todayStr ? todayStr : endDate;
+
   if (!openid) {
     return { success: false, message: '无法获取用户信息' };
   }
-  
+
   if (!startDate || !endDate) {
     return { success: false, message: '缺少日期参数' };
   }
-  
+
   try {
-    const strategiesRes = await db.collection('user_strategies').where({
-      _openid: openid
-    }).get();
-    
+    const strategiesRes = await db.collection('user_strategies').where({ _openid: openid }).get();
     const strategies = strategiesRes.data || [];
-    
-    if (strategies.length === 0) {
-      return {
-        success: true,
-        data: {
-          matrix: [],
-          checkinRate: 0,
-          totalCount: 0,
-          checkinDays: 0,
-          maxStreak: 0
-        }
-      };
-    }
-    
-    const habitIds = strategies.map(s => s.habit_id);
-    
-    const habitsRes = await db.collection('habits').where({
-      _id: _.in(habitIds)
-    }).get();
-    
-    const habitsMap = {};
-    (habitsRes.data || []).forEach(h => {
-      habitsMap[h._id] = h;
+
+    const versionsRes = await db.collection('user_strategy_versions').where({ _openid: openid }).get();
+    const versions = versionsRes.data || [];
+    const versionMap = {};
+    versions.forEach(version => {
+      const habitId = String(version.habit_id);
+      if (!versionMap[habitId]) versionMap[habitId] = [];
+      versionMap[habitId].push(version);
     });
-    
+
     const logsRes = await db.collection('checkin_logs').where({
       _openid: openid,
-      checkin_date: _.gte(startDate).lte(endDate)
+      checkin_date: _.gte(startDate).lte(reportEndDate)
     }).get();
-    
-    const weekLogs = logsRes.data || [];
-    const uniqueDates = new Set(weekLogs.map(log => log.checkin_date));
-    const checkinDays = uniqueDates.size;
-    const totalCount = weekLogs.length;
-    
-    const startDateObj = parseDate(startDate);
-    const endDateObj = parseDate(endDate);
-    const totalDays = Math.round((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
-    
-    const expectedCount = strategies.length * totalDays;
-    const checkinRate = expectedCount > 0 ? Math.round((totalCount / expectedCount) * 100) : 0;
-    
-    const maxStreak = await calculateAllHabitsMaxStreak(openid);
-    
-    const matrix = strategies.map(strategy => {
-      const habit = habitsMap[strategy.habit_id];
-      const days = [];
-      
-      const currentDate = new Date(startDateObj);
-      const todayStr = formatDate(new Date());
-      
-      for (let i = 0; i < 7; i++) {
-        const dateStr = formatDate(currentDate);
-        const hasCheckin = weekLogs.some(
-          log => log.habit_id === strategy.habit_id && log.checkin_date === dateStr
-        );
-        
-        days.push({
-          date: dateStr,
-          status: hasCheckin ? 'done' : (dateStr === todayStr ? 'today' : ''),
-          dayIndex: i
-        });
-        
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-      
+    const logs = normalizeLogs(logsRes.data || []);
+
+    const habits = strategies.map(strategy => {
+      const habitId = String(strategy.habit_id);
       return {
-        habit_id: strategy.habit_id,
-        habit_name: habit?.title || '未知',
-        days
+        ...strategy,
+        habitId,
+        habit_id: habitId,
+        name: strategy.habit_title || strategy.name || habitId,
+        deletedAt: strategy.deletedAt || strategy.deleted_at || null,
+        strategyVersions: versionMap[habitId] || []
       };
     });
-    
+
+    const report = calculatePeriodReport(habits, logs, startDate, endDate, todayStr);
+    const matrix = report.habitReports.map(habitReport => ({
+      habit_id: habitReport.habitId,
+      habit_name: habitReport.habit.name,
+      dueCount: habitReport.dueCount,
+      doneCount: habitReport.doneCount,
+      days: habitReport.days.map((day, index) => ({
+        date: day.date,
+        status: day.status,
+        isDue: day.isDue,
+        isChecked: day.isChecked,
+        countsInDueDenominator: day.countsInDueDenominator,
+        countsAsDone: day.countsAsDone,
+        dayIndex: index
+      }))
+    }));
+
     return {
       success: true,
       data: {
         matrix,
-        checkinRate,
-        totalCount,
-        checkinDays,
-        maxStreak
+        checkinRate: report.stats.checkinRate,
+        totalCount: report.stats.totalCount,
+        checkinDays: report.stats.checkinDays,
+        maxStreak: report.stats.maxStreak
       }
     };
-    
   } catch (err) {
     console.error('getStatsReport error:', err);
     return { success: false, message: err.message };

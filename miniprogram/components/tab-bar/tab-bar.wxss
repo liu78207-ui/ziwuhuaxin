@@ -1,0 +1,134 @@
+/* components/tab-bar/tab-bar.wxss */
+/* 玉露丹青极致清透版 - 悬浮毛玻璃底栏 */
+
+/* 底栏容器 */
+.tab-bar-container {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+}
+
+/* 底栏主体 - 毛玻璃效果 */
+.tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  height: 120rpx;
+  margin: 0 32rpx 24rpx;
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: 60rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.5);
+  box-shadow: 
+    0 4px 24px rgba(0, 0, 0, 0.06),
+    0 1px 0 rgba(255, 255, 255, 0.6) inset;
+}
+
+/* Tab 项 */
+.tab-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  height: 100%;
+  position: relative;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 图标容器 */
+.tab-icon-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 图标 */
+.tab-icon {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: transparent;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  z-index: 2;
+}
+
+.icon-text {
+  font-size: 36rpx;
+  line-height: 1;
+  transition: all 300ms ease;
+}
+
+/* 选中态图标 */
+.tab-icon.active {
+  background: linear-gradient(135deg, var(--c-primary) 0%, var(--c-primary-light) 100%);
+  box-shadow:
+    0 4px 12px rgba(139, 154, 124, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.3) inset;
+  transform: translateY(-8rpx);
+}
+
+.tab-icon.active .icon-text {
+  color: #fff;
+  font-size: 32rpx;
+}
+
+/* 光晕效果 */
+.tab-glow {
+  position: absolute;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(139, 154, 124, 0.2) 0%, transparent 70%);
+  z-index: 1;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.3;
+  }
+}
+
+/* 标签文字 */
+.tab-label {
+  font-size: 20rpx;
+  color: var(--text-tertiary);
+  margin-top: 6rpx;
+  opacity: 0.8;
+  transform: translateY(0);
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 选中态文字 */
+.tab-label.active {
+  color: var(--primary);
+  opacity: 1;
+  font-weight: 500;
+  transform: translateY(-4rpx);
+}
+
+/* 安全区占位 */
+.safe-area-placeholder {
+  width: 100%;
+  background: transparent;
+}
+
+/* 底栏占位 */
+.tab-bar-placeholder {
+  width: 100%;
+  flex-shrink: 0;
+}

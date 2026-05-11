@@ -18,6 +18,18 @@
     "checkInvalidKey": true,
     "ignoreDevUnusedFiles": true
   },
-  "libVersion": "3.15.1",
-  "condition": {}
+  "libVersion": "2.29.2",
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "pages/home/home",
+          "pathName": "pages/home/home",
+          "query": "",
+          "scene": null,
+          "launchMode": "default"
+        }
+      ]
+    }
+  }
 }

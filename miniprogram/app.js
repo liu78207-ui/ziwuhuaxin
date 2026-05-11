@@ -1,0 +1,817 @@
+App({
+  globalData: {
+    userInfo: null,
+    openid: null,
+    fontsLoaded: false,
+
+    // ========== 调试配置 ==========
+    // 调试模式：模拟日期偏移（天数），0表示今天，1表示明天，-1表示昨天
+    DEBUG_DAY_OFFSET: 0,
+
+    // ========== 双表数据模型 ==========
+    // 表1: MyHabits - 用户的修习配置表（用户在修习页添加的习惯）
+    // 数据结构: [{ habitId: 'h_001', name: '古法艾灸', themeClass: 't-red', targetMinutes: 20, createdAt: '2026-04-13' }]
+    MyHabits: [],
+
+    // 表2: CheckinLogs - 打卡流水表（记录每一次打卡的真实动作）
+    // 数据结构: [{ logId: 'L_123', habitId: 'h_001', date: '2026-04-13', timestamp: 1712966400000, sync_status: 0 }]
+    // sync_status: 0=待同步, 1=已同步, 2=待删除
+    CheckinLogs: [],
+
+    // 网络状态
+    isOnline: true,
+    isSyncing: false
+  },
+
+  // 获取调试日期偏移
+  getDebugOffset() {
+    const offset = this.globalData.DEBUG_DAY_OFFSET;
+    return offset !== undefined ? offset : 0;
+  },
+
+  // 获取模拟日期（如果处于调试模式）
+  getSimulatedDate() {
+    const DEBUG_DAY_OFFSET = this.getDebugOffset();
+    const today = new Date();
+    if (DEBUG_DAY_OFFSET !== 0) {
+      today.setDate(today.getDate() + DEBUG_DAY_OFFSET);
+    }
+    return today;
+  },
+
+  // 获取模拟日期字符串
+  getSimulatedDateStr() {
+    const dateStr = this.getSimulatedDate().toISOString().split('T')[0];
+    console.log('getSimulatedDateStr:', dateStr, 'DEBUG_DAY_OFFSET:', this.getDebugOffset());
+    return dateStr;
+  },
+
+  onLaunch() {
+    console.log('App onLaunch')
+    // 初始化云开发
+    wx.cloud.init({
+      traceUser: true
+    })
+    // 从本地存储加载全局数据
+
+    this.loadGlobalDataFromStorage()
+    // 执行静默登录
+    this.checkAndDoLogin()
+    // 初始化网络状态监听
+    this.initNetworkListener()
+    // 启动时同步云端数据
+    this.syncFromCloud()
+  },
+
+  // ========== 静默登录与 OpenID 管理 ==========
+
+  // 检查并执行登录
+  checkAndDoLogin() {
+    // 先从本地缓存读取 openid
+    const cachedOpenid = wx.getStorageSync('user_openid')
+    if (cachedOpenid) {
+      this.globalData.openid = cachedOpenid
+      console.log('从缓存恢复 openid:', cachedOpenid)
+    } else {
+      // 本地没有，调用云函数获取
+      this.doLogin()
+    }
+  },
+
+  // 调用云函数获取 OpenID
+  doLogin() {
+    wx.cloud.callFunction({
+      name: 'login',
+      success: (res) => {
+        const openid = res.result.openid
+        if (openid) {
+          // 存储到本地缓存
+          wx.setStorageSync('user_openid', openid)
+          // 存储到全局数据
+          this.globalData.openid = openid
+          console.log('登录成功，openid:', openid)
+        } else {
+          console.error('云函数返回的 openid 为空')
+        }
+      },
+      fail: (err) => {
+        console.error('调用 login 云函数失败:', err)
+      }
+    })
+  },
+
+  // ========== 数据持久化 ==========
+  
+  // 从本地存储加载全局数据
+  loadGlobalDataFromStorage() {
+    try {
+      // 加载用户信息
+      const userInfo = wx.getStorageSync('userInfo')
+      if (userInfo) {
+        this.globalData.userInfo = userInfo
+      }
+
+      // 加载 MyHabits（用户修习配置表）- 优先使用新的存储键
+      let myHabits = wx.getStorageSync('MyHabits')
+      if (myHabits && Array.isArray(myHabits)) {
+        // 数据修复：确保每个习惯都有 freq_type 和 freq_rules
+        myHabits = myHabits.map(habit => {
+          if (!habit.freq_type) {
+            console.log('修复习惯数据，添加默认freq_type:', habit.name)
+            habit.freq_type = 'daily'
+            habit.freq_rules = 1
+          }
+          // 数据损坏检查：如果 freq_category 指示间隔打卡，但 freq_type 被保存为 'daily'
+          if (habit.freq_category === 'daily-interval' && habit.freq_type === 'daily') {
+            console.log('修复习惯数据，修正freq_type:', habit.name, '从 daily -> interval')
+            habit.freq_type = 'interval'
+          }
+          return habit
+        })
+        this.globalData.MyHabits = myHabits
+        // 如果有修复，保存回本地
+        this.saveMyHabits(myHabits)
+      } else {
+        // 兼容旧数据：尝试从 userStrategies 迁移
+        const oldStrategies = wx.getStorageSync('userStrategies')
+        if (oldStrategies && Array.isArray(oldStrategies)) {
+          this.globalData.MyHabits = oldStrategies.map(s => this.migrateOldStrategy(s))
+          this.saveMyHabits(this.globalData.MyHabits)
+        }
+      }
+
+      // 加载 CheckinLogs（打卡流水表）- 优先使用新的存储键
+      const checkinLogs = wx.getStorageSync('CheckinLogs')
+      if (checkinLogs && Array.isArray(checkinLogs)) {
+        this.globalData.CheckinLogs = checkinLogs
+      } else {
+        // 兼容旧数据：尝试从 checkin_records 迁移
+        const oldRecords = wx.getStorageSync('checkin_records')
+        if (oldRecords && typeof oldRecords === 'object') {
+          this.globalData.CheckinLogs = this.migrateOldRecords(oldRecords)
+          this.saveCheckinLogs(this.globalData.CheckinLogs)
+        }
+      }
+
+      console.log('全局数据已从本地存储加载:', {
+        MyHabits: this.globalData.MyHabits.length,
+        CheckinLogs: this.globalData.CheckinLogs.length
+      })
+    } catch (e) {
+      console.error('加载全局数据失败:', e)
+    }
+  },
+
+  // 迁移旧策略数据格式
+  migrateOldStrategy(oldStrategy) {
+    // 使用模拟日期作为创建日期（如果处于调试模式且没有指定createdAt）
+    const createdAt = oldStrategy.createdAt || this.getSimulatedDateStr()
+    // 计划开始日期，默认为今天
+    const planStartDate = oldStrategy.plan_start_date || this.getSimulatedDateStr()
+    return {
+      habitId: String(oldStrategy.habit_id || oldStrategy.habitId || Date.now()),
+      name: oldStrategy.habit_title || oldStrategy.name || '未知习惯',
+      themeClass: oldStrategy.themeClass || this.getThemeByCategory(oldStrategy.category),
+      targetMinutes: oldStrategy.duration || oldStrategy.targetMinutes || 20,
+      category: oldStrategy.category || '运动类',
+      freq_type: oldStrategy.freq_type || 'daily',
+      freq_rules: oldStrategy.freq_rules || 1,
+      freq_category: oldStrategy.freq_category || 'everyday',
+      createdAt: createdAt,
+      plan_start_date: planStartDate
+    }
+  },
+
+  // 迁移旧打卡记录格式
+  migrateOldRecords(oldRecords) {
+    const logs = []
+    const today = new Date()
+    for (const habitId in oldRecords) {
+      const dates = oldRecords[habitId]
+      if (Array.isArray(dates)) {
+        dates.forEach(dateStr => {
+          logs.push({
+            logId: `L_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            habitId: String(habitId),
+            date: dateStr,
+            timestamp: new Date(dateStr).getTime()
+          })
+        })
+      }
+    }
+    return logs
+  },
+
+  // 根据分类获取主题色
+  getThemeByCategory(category) {
+    const themeMap = {
+      '运动类': 'theme-red',
+      '理疗类': 'theme-orange',
+      '起居类': 'theme-jade'
+    }
+    return themeMap[category] || 'theme-jade'
+  },
+
+  // ========== MyHabits 表操作 ==========
+
+  // 保存 MyHabits 到本地存储
+  saveMyHabits(habits) {
+    this.globalData.MyHabits = habits
+    try {
+      wx.setStorageSync('MyHabits', habits)
+      console.log('MyHabits 已保存:', habits.length)
+    } catch (e) {
+      console.error('保存 MyHabits 失败:', e)
+    }
+  },
+
+  // 添加习惯到 MyHabits
+  addHabit(habit) {
+    const habits = this.globalData.MyHabits || []
+    const habitIdStr = String(habit.habitId)
+
+    // 检查是否已存在（包括已删除的）
+    const existingIndex = habits.findIndex(h => h.habitId === habitIdStr)
+
+    if (existingIndex > -1) {
+      // 如果习惯已存在且被标记为删除，则恢复它
+      if (habits[existingIndex].isDeleted) {
+        console.log('恢复已删除的习惯:', habit.name)
+        habits[existingIndex] = {
+          ...habits[existingIndex],
+          ...habit,
+          isDeleted: false,
+          deletedAt: null,
+          restoredAt: new Date().toISOString()
+        }
+        this.logOperation('restoreHabitOnAdd', { habitId: habitIdStr, name: habit.name })
+      } else {
+        // 更新已有习惯
+        habits[existingIndex] = { ...habits[existingIndex], ...habit }
+        this.logOperation('updateHabit', { habitId: habitIdStr, name: habit.name })
+      }
+    } else {
+      // 添加新习惯
+      // 使用模拟日期作为创建日期（如果处于调试模式）
+      const createdAt = habit.createdAt || this.getSimulatedDateStr()
+      habits.push({
+        ...habit,
+        habitId: habitIdStr,
+        createdAt: createdAt
+      })
+      this.logOperation('addHabit', { habitId: habitIdStr, name: habit.name })
+    }
+
+    this.saveMyHabits(habits)
+    return habitIdStr
+  },
+
+  // 从 MyHabits 移除习惯（软删除）
+  removeHabit(habitId) {
+    const habits = this.globalData.MyHabits || []
+    const habitIdStr = String(habitId)
+
+    console.log('removeHabit 被调用:', habitIdStr)
+    console.log('当前 MyHabits:', habits.map(h => ({ habitId: h.habitId, _id: h._id, name: h.name })))
+
+    // 同时匹配 habitId 和 _id（兼容不同数据源）
+    const habitIndex = habits.findIndex(h =>
+      h.habitId === habitIdStr || h._id === habitIdStr
+    )
+
+    if (habitIndex === -1) {
+      console.log('未找到要删除的习惯:', habitIdStr)
+      return false
+    }
+
+    const habitToRemove = habits[habitIndex]
+    console.log('找到要删除的习惯:', habitToRemove)
+
+    // 软删除：标记为已删除，而不是物理删除
+    habits[habitIndex] = {
+      ...habitToRemove,
+      isDeleted: true,
+      deletedAt: new Date().toISOString()
+    }
+
+    this.saveMyHabits(habits)
+
+    // 保存习惯信息到本地存储（用于历史数据显示和恢复）
+    this.saveDeletedHabitInfo(habitToRemove)
+
+    this.logOperation('removeHabit', { habitId: habitIdStr, name: habitToRemove.name })
+
+    console.log('习惯已软删除:', habitIdStr)
+    return true
+  },
+
+  // 保存已删除习惯的信息（用于历史数据显示）
+  saveDeletedHabitInfo(habit) {
+    try {
+      const allHabitsInfo = wx.getStorageSync('AllHabitsInfo') || {}
+      // 使用 habitId 或 _id 作为键（兼容不同数据源）
+      const habitId = habit.habitId || habit._id
+      
+      if (!habitId) {
+        console.error('无法保存已删除习惯信息：缺少 habitId')
+        return
+      }
+      
+      allHabitsInfo[habitId] = {
+        habitId: habitId,
+        name: habit.name,
+        category: habit.category,
+        targetMinutes: habit.targetMinutes,
+        themeClass: habit.themeClass,
+        freq_type: habit.freq_type,
+        freq_rules: habit.freq_rules,
+        createdAt: habit.createdAt,
+        plan_start_date: habit.plan_start_date,
+        deletedAt: new Date().toISOString()
+      }
+      wx.setStorageSync('AllHabitsInfo', allHabitsInfo)
+      console.log('已保存删除习惯信息:', habitId, habit.name)
+    } catch (e) {
+      console.error('保存已删除习惯信息失败:', e)
+    }
+  },
+
+  // 获取所有习惯（默认排除已删除的）
+  getAllHabits(includeDeleted = false) {
+    const habits = this.globalData.MyHabits || []
+    if (includeDeleted) {
+      return habits
+    }
+    return habits.filter(h => !h.isDeleted)
+  },
+
+  // 获取已删除的习惯
+  getDeletedHabits() {
+    const habits = this.globalData.MyHabits || []
+    return habits.filter(h => h.isDeleted)
+  },
+
+  // 恢复已删除的习惯
+  restoreHabit(habitId) {
+    const habits = this.globalData.MyHabits || []
+    const habitIdStr = String(habitId)
+
+    const habitIndex = habits.findIndex(h =>
+      (h.habitId === habitIdStr || h._id === habitIdStr) && h.isDeleted
+    )
+
+    if (habitIndex === -1) {
+      console.log('未找到要恢复的习惯:', habitIdStr)
+      return false
+    }
+
+    // 恢复习惯
+    habits[habitIndex] = {
+      ...habits[habitIndex],
+      isDeleted: false,
+      deletedAt: null,
+      restoredAt: new Date().toISOString()
+    }
+
+    this.saveMyHabits(habits)
+    this.logOperation('restoreHabit', { habitId: habitIdStr, name: habits[habitIndex].name })
+
+    console.log('习惯已恢复:', habitIdStr)
+    return true
+  },
+
+  // 打印所有打卡记录（调试用）
+  printAllLogs() {
+    const logs = this.globalData.CheckinLogs || []
+    console.log('=== 所有打卡记录 ===')
+    console.log('总记录数:', logs.length)
+    logs.forEach(log => {
+      console.log(`  ${log.date}: habitId=${log.habitId}`)
+    })
+    console.log('===================')
+  },
+
+  // 获取单个习惯
+  getHabitById(habitId) {
+    const habits = this.globalData.MyHabits || []
+    return habits.find(h => h.habitId === String(habitId))
+  },
+
+  // ========== CheckinLogs 表操作 ==========
+
+  // 保存 CheckinLogs 到本地存储
+  saveCheckinLogs(logs) {
+    this.globalData.CheckinLogs = logs
+    try {
+      wx.setStorageSync('CheckinLogs', logs)
+      console.log('CheckinLogs 已保存:', logs.length)
+    } catch (e) {
+      console.error('保存 CheckinLogs 失败:', e)
+    }
+  },
+
+  // 添加打卡记录
+  addCheckinLog(habitId, dateStr, syncStatus = 0) {
+    const logs = this.globalData.CheckinLogs || []
+    const habitIdStr = String(habitId)
+    const date = dateStr || new Date().toISOString().split('T')[0]
+
+    // 检查是否已存在今日记录
+    const existingIndex = logs.findIndex(log =>
+      log.habitId === habitIdStr && log.date === date
+    )
+
+    if (existingIndex === -1) {
+      // 添加新记录
+      logs.push({
+        logId: `L_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        habitId: habitIdStr,
+        date: date,
+        timestamp: new Date(date).getTime(),
+        sync_status: syncStatus, // 0=待同步, 1=已同步
+        created_at: new Date().toISOString()
+      })
+      this.saveCheckinLogs(logs)
+      this.logOperation('addCheckinLog', { habitId: habitIdStr, date, syncStatus })
+      return true
+    }
+    return false
+  },
+
+  // 取消打卡记录（软删除，标记为待删除）
+  removeCheckinLog(habitId, dateStr) {
+    let logs = this.globalData.CheckinLogs || []
+    const habitIdStr = String(habitId)
+    const date = dateStr || new Date().toISOString().split('T')[0]
+
+    const logIndex = logs.findIndex(log => log.habitId === habitIdStr && log.date === date)
+
+    if (logIndex > -1) {
+      if (logs[logIndex].sync_status === 1) {
+        // 已同步的记录，标记为待删除
+        logs[logIndex].sync_status = 2
+        logs[logIndex].deleted_at = new Date().toISOString()
+        console.log('标记为待删除:', habitIdStr, date)
+      } else {
+        // 未同步的记录，直接删除
+        logs.splice(logIndex, 1)
+        console.log('直接删除未同步记录:', habitIdStr, date)
+      }
+      this.saveCheckinLogs(logs)
+      this.logOperation('removeCheckinLog', { habitId: habitIdStr, date })
+    }
+  },
+
+  // 删除指定日期的所有打卡记录
+  removeLogsByDate(dateStr) {
+    let logs = this.globalData.CheckinLogs || []
+    const originalCount = logs.length
+    
+    logs = logs.filter(log => log.date !== dateStr)
+    const removedCount = originalCount - logs.length
+    
+    this.saveCheckinLogs(logs)
+    console.log(`已删除 ${dateStr} 的 ${removedCount} 条打卡记录`)
+    return removedCount
+  },
+
+  // 获取某个习惯的打卡记录
+  getLogsByHabitId(habitId) {
+    const logs = this.globalData.CheckinLogs || []
+    return logs.filter(log => log.habitId === String(habitId))
+  },
+
+  // 获取某天的打卡记录
+  getLogsByDate(dateStr) {
+    const logs = this.globalData.CheckinLogs || []
+    return logs.filter(log => log.date === dateStr)
+  },
+
+  // 检查某天是否已打卡
+  isCheckedOnDate(habitId, dateStr) {
+    const logs = this.globalData.CheckinLogs || []
+    return logs.some(log => 
+      log.habitId === String(habitId) && log.date === dateStr
+    )
+  },
+
+  // 移除某个习惯的所有打卡记录
+  removeHabitLogs(habitId) {
+    let logs = this.globalData.CheckinLogs || []
+    logs = logs.filter(log => log.habitId !== String(habitId))
+    this.saveCheckinLogs(logs)
+  },
+
+  // 获取日期范围内的打卡记录
+  getLogsByDateRange(startDate, endDate) {
+    const logs = this.globalData.CheckinLogs || []
+    return logs.filter(log => log.date >= startDate && log.date <= endDate)
+  },
+
+  // 计算习惯的累计打卡天数（所有历史打卡记录总数）
+  calculateStreak(habitId) {
+    const logs = this.getLogsByHabitId(habitId)
+    return logs.length
+  },
+
+  // 计算习惯的总打卡天数
+  calculateTotalDays(habitId) {
+    const logs = this.getLogsByHabitId(habitId)
+    // 去重后的日期数
+    const uniqueDates = new Set(logs.map(log => log.date))
+    return uniqueDates.size
+  },
+
+  // ========== 兼容旧 API（用于平滑过渡）==========
+
+  // 保存用户策略到本地存储（旧 API 兼容）
+  saveUserStrategies(strategies) {
+    // 转换为新格式并保存
+    const habits = strategies.map(s => this.migrateOldStrategy(s))
+    this.saveMyHabits(habits)
+  },
+
+  // 添加单个用户策略（旧 API 兼容）
+  addUserStrategy(strategy) {
+    const habit = this.migrateOldStrategy(strategy)
+    this.addHabit(habit)
+  },
+
+  // 移除用户策略（旧 API 兼容）
+  removeUserStrategy(habitId) {
+    this.removeHabit(habitId)
+  },
+
+  // ========== 其他功能 ==========
+
+  // 保存用户信息
+  saveUserInfo(userInfo) {
+    this.globalData.userInfo = userInfo
+    try {
+      wx.setStorageSync('userInfo', userInfo)
+    } catch (e) {
+      console.error('保存用户信息失败:', e)
+    }
+  },
+
+  // ========== 网络状态监听 ==========
+
+  // 初始化网络状态监听
+  initNetworkListener() {
+    // 获取当前网络状态
+    wx.getNetworkType({
+      success: (res) => {
+        this.globalData.isOnline = res.networkType !== 'none'
+        console.log('当前网络状态:', res.networkType, '在线:', this.globalData.isOnline)
+      }
+    })
+
+    // 监听网络状态变化
+    wx.onNetworkStatusChange((res) => {
+      const wasOffline = !this.globalData.isOnline
+      this.globalData.isOnline = res.isConnected
+      console.log('网络状态变化:', res.isConnected ? '在线' : '离线')
+
+      // 网络恢复时触发同步
+      if (res.isConnected && wasOffline) {
+        console.log('网络恢复，触发同步')
+        this.syncToCloud()
+      }
+    })
+  },
+
+  // 检查网络状态
+  checkNetworkStatus() {
+    return this.globalData.isOnline
+  },
+
+  // ========== 数据同步相关 ==========
+
+  // 从云端同步数据到本地（设备切换时调用）
+  async syncFromCloud() {
+    if (!this.globalData.isOnline) {
+      console.log('离线状态，跳过从云端同步')
+      return
+    }
+
+    if (this.globalData.isSyncing) {
+      console.log('同步进行中，跳过')
+      return
+    }
+
+    this.globalData.isSyncing = true
+    console.log('开始从云端同步数据...')
+
+    try {
+      // 获取云端打卡记录
+      const { result } = await wx.cloud.callFunction({
+        name: 'getCheckinLogsByRange',
+        data: {
+          startDate: '2020-01-01',
+          endDate: '2099-12-31'
+        }
+      })
+
+      if (result.success && result.logs) {
+        // 合并云端数据和本地数据，以云端为准
+        const cloudLogs = result.logs.map(log => ({
+          logId: `cloud_${log._id}`,
+          habitId: String(log.habit_id),
+          date: log.checkin_date,
+          timestamp: new Date(log.checkin_date).getTime(),
+          sync_status: 1,
+          cloud_id: log._id,
+          updated_at: log.created_at || new Date().toISOString()
+        }))
+
+        // 获取本地待同步的记录（sync_status=0）
+        const localLogs = this.globalData.CheckinLogs || []
+        const pendingLogs = localLogs.filter(log => log.sync_status === 0 || log.sync_status === undefined)
+
+        // 合并策略：云端数据覆盖本地已同步数据，保留本地待同步数据
+        const cloudHabitDateMap = new Map()
+        cloudLogs.forEach(log => {
+          const key = `${log.habitId}_${log.date}`
+          cloudHabitDateMap.set(key, log)
+        })
+
+        // 保留本地待同步记录，但检查是否与云端冲突
+        const mergedLogs = [...cloudLogs]
+        let conflictCount = 0
+
+        pendingLogs.forEach(localLog => {
+          const key = `${localLog.habitId}_${localLog.date}`
+          if (!cloudHabitDateMap.has(key)) {
+            // 云端没有这条记录，保留本地待同步
+            mergedLogs.push({
+              ...localLog,
+              sync_status: 0
+            })
+          } else {
+            // 冲突：以云端为准，丢弃本地记录
+            conflictCount++
+            console.log('数据冲突，以云端为准:', key)
+          }
+        })
+
+        // 保存合并后的数据
+        this.saveCheckinLogs(mergedLogs)
+        console.log(`从云端同步完成: ${cloudLogs.length} 条云端记录, 保留 ${pendingLogs.length - conflictCount} 条本地待同步记录`)
+
+        // 触发待同步数据上传
+        if (pendingLogs.length > conflictCount) {
+          this.syncToCloud()
+        }
+      }
+    } catch (e) {
+      console.error('从云端同步失败:', e)
+    } finally {
+      this.globalData.isSyncing = false
+    }
+  },
+
+  // 同步本地数据到云端
+  async syncToCloud() {
+    if (!this.globalData.isOnline) {
+      console.log('离线状态，无法同步到云端')
+      return
+    }
+
+    if (this.globalData.isSyncing) {
+      console.log('同步进行中，跳过')
+      return
+    }
+
+    const logs = this.globalData.CheckinLogs || []
+    const pendingLogs = logs.filter(log => log.sync_status === 0 || log.sync_status === undefined)
+    const toDeleteLogs = logs.filter(log => log.sync_status === 2)
+
+    if (pendingLogs.length === 0 && toDeleteLogs.length === 0) {
+      console.log('没有需要同步的数据')
+      return
+    }
+
+    this.globalData.isSyncing = true
+    console.log(`开始同步到云端: ${pendingLogs.length} 条待同步, ${toDeleteLogs.length} 条待删除`)
+
+    let successCount = 0
+    let failCount = 0
+
+    // 同步新增记录
+    for (const log of pendingLogs) {
+      try {
+        const { result } = await wx.cloud.callFunction({
+          name: 'doCheckin',
+          data: { habit_id: log.habitId }
+        })
+
+        if (result.success) {
+          // 更新本地记录状态为已同步
+          const logIndex = logs.findIndex(l => l.logId === log.logId)
+          if (logIndex > -1) {
+            logs[logIndex].sync_status = 1
+            logs[logIndex].sync_time = new Date().toISOString()
+          }
+          successCount++
+          console.log('同步成功:', log.habitId, log.date)
+        } else if (result.message === '今日已打卡') {
+          // 云端已存在，标记为已同步
+          const logIndex = logs.findIndex(l => l.logId === log.logId)
+          if (logIndex > -1) {
+            logs[logIndex].sync_status = 1
+          }
+          successCount++
+          console.log('云端已存在，标记为已同步:', log.habitId, log.date)
+        } else {
+          failCount++
+          console.error('同步失败:', result.message)
+        }
+      } catch (e) {
+        failCount++
+        console.error('同步异常:', e)
+      }
+    }
+
+    // 同步删除记录
+    for (const log of toDeleteLogs) {
+      try {
+        const { result } = await wx.cloud.callFunction({
+          name: 'undoCheckin',
+          data: { habit_id: log.habitId }
+        })
+
+        if (result.success) {
+          // 从本地彻底删除
+          const logIndex = logs.findIndex(l => l.logId === log.logId)
+          if (logIndex > -1) {
+            logs.splice(logIndex, 1)
+          }
+          successCount++
+          console.log('删除同步成功:', log.habitId, log.date)
+        } else {
+          failCount++
+          console.error('删除同步失败:', result.message)
+        }
+      } catch (e) {
+        failCount++
+        console.error('删除同步异常:', e)
+      }
+    }
+
+    // 保存更新后的记录
+    this.saveCheckinLogs(logs)
+    this.globalData.isSyncing = false
+
+    console.log(`同步完成: 成功 ${successCount}, 失败 ${failCount}`)
+
+    // 通知页面刷新
+    if (successCount > 0) {
+      this.notifyPagesToRefresh()
+    }
+  },
+
+  // 通知所有页面刷新数据
+  notifyPagesToRefresh() {
+    const pages = getCurrentPages()
+    pages.forEach(page => {
+      if (page.onSyncComplete) {
+        page.onSyncComplete()
+      }
+    })
+  },
+
+  // ========== 日志记录 ==========
+
+  // 记录操作日志
+  logOperation(action, data) {
+    const logEntry = {
+      timestamp: new Date().toISOString(),
+      action: action,
+      data: data,
+      networkStatus: this.globalData.isOnline ? 'online' : 'offline'
+    }
+
+    // 获取现有日志
+    let operationLogs = wx.getStorageSync('operationLogs') || []
+    operationLogs.push(logEntry)
+
+    // 只保留最近100条日志
+    if (operationLogs.length > 100) {
+      operationLogs = operationLogs.slice(-100)
+    }
+
+    wx.setStorageSync('operationLogs', operationLogs)
+    console.log('操作日志:', action, data)
+  },
+
+  // 获取操作日志
+  getOperationLogs() {
+    return wx.getStorageSync('operationLogs') || []
+  },
+
+  // 清空操作日志
+  clearOperationLogs() {
+    wx.removeStorageSync('operationLogs')
+  }
+
+})

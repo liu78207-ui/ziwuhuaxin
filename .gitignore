@@ -12,3 +12,28 @@ $RECYCLE.BIN/
 
 # Node.js
 node_modules/
+
+# Miniprogram
+/miniprogram/miniprogram_npm/
+/miniprogram/node_modules/
+/miniprogram/package-lock.json
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Test coverage
+coverage/
+
+# Logs
+*.log
+logs/
+
+# Cloud functions
+cloudfunctions/node_modules/
+cloudfunctions/package-lock.json

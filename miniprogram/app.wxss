@@ -1,10 +1,358 @@
-/**app.wxss**/
-.container {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  padding: 200rpx 0;
+/**app.wxss - V19 琉璃高饱和混血版**/
+
+/* ============================================
+   全局 CSS 变量定义 - V19 琉璃高饱和混血版
+   ============================================ */
+page {
+    /* ================= 1. 基础背景与文字 (高对比、极清透) ================= */
+    --bg-body: #F4F6F8; /* 极其通透的珍珠灰底色 */
+    --bg-card: #FFFFFF;
+    
+    --ink-title: #141618; /* 标题黑，强对比 */
+    --ink-main:  #50565C; /* 正文灰 */
+    --text-sub:  #8B959E; /* 辅助灰 */
+
+    /* ================= 2. 五大高饱和主题色 (主色 + 极淡背景色) ================= */
+    --c-primary: #38A385; /* 翠微绿 (主色/木) */
+    --c-primary-light: #E2F2ED;
+    
+    --c-coral:   #F0655B; /* 妃子红 (火) */
+    --c-coral-light: #FDE8E7;
+    
+    --c-amber:   #F2A93B; /* 栀子黄 (土) */
+    --c-amber-light: #FEF3E1;
+    
+    --c-lake:    #5A8CB6; /* 晴山蓝 (水) */
+    --c-lake-light: #E7F0F6;
+
+    --c-purple:  #9D7BB0; /* 紫丁香 (特殊/柔韧) */
+    --c-purple-light: #F3EBF6;
+
+    /* ================= 3. 琉璃质感边框与发光阴影 ================= */
+    --border-glass: 1.5px solid rgba(255, 255, 255, 0.9);
+    --shadow-glass: 0 12px 32px rgba(20, 22, 24, 0.03); /* 基础悬浮阴影，极弱不显脏 */
+    --shadow-btn: 0 8px 20px rgba(56, 163, 133, 0.25); /* 按钮主色发光 */
+
+  /* 三、圆角规范 */
+  --radius-icon: 50%;          /* 图标与头像 */
+  --radius-card: 16px;         /* 标准信息卡片 */
+  --radius-container: 20px;    /* 较大容器 */
+  --radius-sheet: 32px;        /* 底部弹窗顶部 */
+  
+  /* 四、空间与间距 */
+  --page-padding: 24px;        /* 页面左右安全边距 */
+  --gap-list: 14px;            /* 列表类间距 */
+  --gap-module: 24px;          /* 模块间距 */
+  
+  /* 五、字号阶梯 */
+  --text-giant: 48px;          /* 巨型数字/时辰 */
+  --text-h1: 22px;             /* 页面主标题 */
+  --text-h2: 17px;             /* 导航/卡片大标题 */
+  --text-body: 15px;           /* 正文信息 */
+  --text-caption: 12px;        /* 辅助与标签 */
+  
+  /* 六、特效 */
+  --glass-bg: rgba(255, 255, 255, 0.7);
+  --glass-blur: blur(16px);
+  
+  /* 兼容旧变量（逐步迁移） */
+  --bg-primary: var(--bg-body);
+  --text-primary: var(--ink-title);
+  --text-secondary: var(--ink-main);
+  --text-tertiary: var(--text-sub);
+  --primary: var(--c-primary);
+  --accent: var(--c-coral);
+  
+  --border-light: rgba(0, 0, 0, 0.04);
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.02);
+  --shadow-nav: 0 8px 32px rgba(0, 0, 0, 0.04);
+  --safe-bottom: env(safe-area-inset-bottom, 20px);
+
+  /* ============================================
+     图标颜色规范 - V19 琉璃高饱和混血版
+     ============================================ */
+  /* 1. 核心主题色 (用于图标线条颜色) */
+  --c-green: #38A385;   /* 翠微绿 / 木属性 - 运动类 */
+  --c-red: #F0655B;     /* 妃子红 / 火属性 - 理疗类 */
+  --c-yellow: #F2A93B;  /* 栀子黄 / 土属性 - 起居类 */
+  --c-blue: #5A8CB6;    /* 晴山蓝 / 水属性 - 其他类 */
+  --c-purple: #9D7BB0;  /* 紫丁香 / 特殊类 */
+
+  /* 2. 容器背景色 (极淡色块，用于图标底座) */
+  --bg-green: #E2F2ED;
+  --bg-red: #FDE8E7;
+  --bg-yellow: #FEF3E1;
+  --bg-blue: #E7F0F6;
+  --bg-purple: #F3EBF6;
+}
+
+/* 3. 动态主题挂载类 (在 WXML 中动态赋予) */
+/* 主题色分配与专属发光阴影 (使用 RGB 透明度) */
+.theme-green, .t-green {
+    --theme-color: var(--c-primary);
+    --theme-bg: var(--c-primary-light);
+    --icon-shadow: 0 8px 20px rgba(56, 163, 133, 0.08);
+}
+
+.theme-red, .t-red {
+    --theme-color: var(--c-coral);
+    --theme-bg: var(--c-coral-light);
+    --icon-shadow: 0 8px 20px rgba(240, 101, 91, 0.08);
+}
+
+.theme-yellow, .t-yellow {
+    --theme-color: var(--c-amber);
+    --theme-bg: var(--c-amber-light);
+    --icon-shadow: 0 8px 20px rgba(242, 169, 59, 0.08);
+}
+
+.theme-blue, .t-blue {
+    --theme-color: var(--c-lake);
+    --theme-bg: var(--c-lake-light);
+    --icon-shadow: 0 8px 20px rgba(90, 140, 182, 0.08);
+}
+
+.theme-purple, .t-purple {
+    --theme-color: var(--c-purple);
+    --theme-bg: var(--c-purple-light);
+    --icon-shadow: 0 8px 20px rgba(157, 123, 176, 0.08);
+}
+
+/* ============================================
+   全局基础重置 - 现代元气新国潮版
+   ============================================ */
+page, view, text, image, navigator, button, input, textarea, scroll-view, swiper, swiper-item, movable-area, movable-view, cover-view, cover-image, label, form, checkbox, checkbox-group, radio, radio-group, picker, picker-view, slider, switch, camera, video, live-player, live-pusher, map, canvas, web-view, official-account, open-data, ad {
   box-sizing: border-box;
-} 
+}
+
+page {
+  /* 苹果设备优先使用苹方，安卓使用系统黑体 */
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  background-color: var(--bg-body);
+  color: var(--ink-main);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================
+   现代黑体字重工具类
+   ============================================ */
+.text-regular { font-weight: 400; }
+.text-medium  { font-weight: 500; }
+.text-bold    { font-weight: 600; } /* 用于大多数标题和关键信息 */
+.text-heavy   { font-weight: 700; } /* 仅用于超大字号的时辰或数据展示 */
+
+/* ============================================
+   纸张肌理特效
+   ============================================ */
+.paper-grain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+  mix-blend-mode: multiply;
+}
+
+/* ============================================
+   通用布局原子类
+   ============================================ */
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-1 { flex: 1; }
+
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.truncate-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 玻璃拟态卡片 */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* 标准卡片 */
+.card {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* 容器卡片（较大） */
+.card-container {
+  background-color: var(--bg-card);
+  border-radius: var(--radius-container);
+  box-shadow: var(--shadow-card);
+}
+
+/* ============================================
+   顶层框架与导航
+   ============================================ */
+.nav-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.nav-text {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* ============================================
+   案台页 (Home)
+   ============================================ */
+/* 注意：案台页样式已迁移至 pages/home/home.wxss */
+
+.hero-desc {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+}
+
+.sec-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.gi-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.gi-sub {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+/* ============================================
+   修习页 (List)
+   ============================================ */
+.tab-l-item {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.tab-l-item.active {
+  font-weight: 600;
+}
+
+.lc-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.lc-desc {
+  font-size: 12px;
+  font-weight: 400;
+}
+
+/* ============================================
+   观心页 (Stats)
+   ============================================ */
+.seg-item {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.seg-item.active {
+  font-weight: 600;
+}
+
+.dc-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cp-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sb-val {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.sb-name {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mc-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.yc-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.yc-total {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ============================================
+   归藏页 (Profile) 与阻尼弹窗 (Sheet)
+   ============================================ */
+.pv-name {
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.pv-tag {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.pv-list-row {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.sh-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.sh-label {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.sh-val {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-submit {
+  font-size: 16px;
+  font-weight: 600;
+}

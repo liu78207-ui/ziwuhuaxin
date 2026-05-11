@@ -1,0 +1,41 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/habits/habits",
+    "pages/stats/stats",
+    "pages/profile/profile"
+  ],
+  "window": {
+    "navigationBarTextStyle": "black",
+    "navigationStyle": "custom",
+    "backgroundColor": "#F5F0EB",
+    "backgroundTextStyle": "dark"
+  },
+  "tabBar": {
+    "custom": true,
+    "color": "#8B8578",
+    "selectedColor": "#C4786A",
+    "backgroundColor": "#FDFBF7",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/home/home",
+        "text": "案台"
+      },
+      {
+        "pagePath": "pages/habits/habits",
+        "text": "修习"
+      },
+      {
+        "pagePath": "pages/stats/stats",
+        "text": "观心"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "归藏"
+      }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}

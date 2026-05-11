@@ -1,43 +1,78 @@
-<view class="container">
-  <navigation-bar title="子午花信" showTitle="{{true}}"></navigation-bar>
-  
-  <!-- 时间区块 -->
-  <view class="time-section">
-    <view class="time-main">
-      <text class="shichen-big">{{timeInfo.shichen}}</text>
-      <text class="meridian-small">· {{timeInfo.meridian}}</text>
-    </view>
-    <view class="flower-decoration">
-      <image src="/assets/images/Frame 59.png" mode="aspectFit" class="flower-img"></image>
-    </view>
+<!--pages/home/home.wxml-->
+<!-- 案台首页 - 子午花信 -->
+
+<view class="page-wrapper">
+  <!-- 固定导航栏 -->
+  <view class="nav-header-fixed" style="background-color: rgba(250, 250, 250, {{navBgOpacity}});">
+    <text class="nav-title">子午花信</text>
   </view>
 
-  <!-- 养生建议 -->
-  <view class="advice-section">
-    <view class="advice-line"></view>
-    <text class="advice-text">{{timeInfo.advice || '夜深水气重，宜温阳。去泡个脚吧，用热度驱散一天的疲惫。'}}</text>
-  </view>
+  <!-- 内容区域 -->
+  <view class="content-scroll">
+    <!-- 琉璃卡片头部 -->
+    <view class="hero-card">
+      <view class="hc-bg-glow"></view>
 
-  <!-- 习惯网格 -->
-  <view class="habits-grid">
-    <view class="habit-item" wx:for="{{taskList}}" wx:key="_id" bindtap="handleCheckin" data-habit-id="{{item._id}}" data-is-checked="{{item.isChecked}}">
-      <view class="habit-circle {{item.isChecked ? 'checked' : ''}}" style="background-color: {{item.bgColor || circleColors[index % 6]}}">
-        <image wx:if="{{item.icon}}" src="{{item.icon}}" class="habit-icon" mode="aspectFit"></image>
-        <text wx:else class="habit-emoji">{{item.emoji || '🧘'}}</text>
-        <view wx:if="{{item.isChecked}}" class="check-mark">✓</view>
+      <view class="hc-content">
+        <!-- 顶部：时辰 + 经络标签 -->
+        <view class="hc-header">
+          <text class="time-title text-heavy">{{timeInfo.shichen}}</text>
+          <view class="time-meridian-tag">{{timeInfo.meridian}}</view>
+        </view>
+        
+        <!-- 养生建议 -->
+        <view class="hero-desc">{{timeInfo.advice}}</view>
+        
+        <!-- 进度条 -->
+        <view class="progress-section">
+          <text class="progress-text">今日进度 {{checkedCount}}/{{totalCount}}</text>
+          <view class="progress-bar">
+            <view class="progress-fill" style="width: {{progressPercent}}%;"></view>
+          </view>
+        </view>
       </view>
-      <text class="habit-name">{{item.title}}</text>
-      <text class="habit-streak">已坚持 {{item.streak || 12}} 天</text>
+    </view>
+
+  <!-- 今日修习标题 -->
+  <view class="sec-title">今日修习</view>
+
+  <!-- 九宫格布局 -->
+  <view class="nine-grid" wx:if="{{taskList.length > 0}}">
+    <view 
+      class="grid-item {{item.themeClass}} {{item._id === pressingId ? 'pressing' : ''}}" 
+      wx:for="{{taskList}}" 
+      wx:key="_id"
+      bindtap="handleCheckin"
+      bindtouchstart="onTouchStart"
+      bindtouchend="onTouchEnd"
+      data-habit-id="{{item._id}}"
+      hover-class="grid-item-hover"
+      hover-stay-time="200"
+    >
+      <!-- 图标底板 -->
+      <view class="icon-circle {{item.isChecked ? 'checked' : ''}}">
+        <image class="icon-img" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"/>
+        <text class="habit-emoji" wx:else>{{item.emoji || '🧘'}}</text>
+        <!-- 印章角标 - 压在圆形背景上 -->
+        <view class="stamp-done" wx:if="{{item.isChecked}}">
+          <text class="stamp-icon">✓</text>
+        </view>
+      </view>
+      
+      <!-- 习惯信息 -->
+      <text class="gi-name">{{item.title}}</text>
+      <text class="gi-sub">{{item.isChecked ? '已坚持 ' + item.streak + ' 天' : (item.meta || '待完成')}}</text>
     </view>
   </view>
 
-  <!-- 空状态 -->
-  <view class="empty-state" wx:if="{{taskList.length === 0 && !loading}}">
-    <text class="empty-text">今日暂无打卡任务</text>
-    <text class="empty-hint">前往「修习」添加习惯吧</text>
+  <!-- 空状态 - 添加习惯占位 -->
+  <view class="nine-grid" wx:if="{{taskList.length === 0}}">
+    <view class="grid-item" bindtap="goToHabits">
+      <!-- 图标底板 -->
+      <view class="icon-circle empty-icon-base">
+        <text class="plus-icon">+</text>
+      </view>
+    </view>
   </view>
-
-  <view class="loading" wx:if="{{loading}}">
-    <text>加载中...</text>
   </view>
 </view>
