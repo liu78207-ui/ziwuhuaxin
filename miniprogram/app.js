@@ -39,9 +39,16 @@ App({
     return today;
   },
 
+  formatDateKey(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+
   // 获取模拟日期字符串
   getSimulatedDateStr() {
-    const dateStr = this.getSimulatedDate().toISOString().split('T')[0];
+    const dateStr = this.formatDateKey(this.getSimulatedDate());
     console.log('getSimulatedDateStr:', dateStr, 'DEBUG_DAY_OFFSET:', this.getDebugOffset());
     return dateStr;
   },
@@ -267,7 +274,7 @@ App({
   },
 
   // 从 MyHabits 移除习惯（软删除）
-  removeHabit(habitId) {
+  removeHabit(habitId, habitData) {
     const habits = this.globalData.MyHabits || []
     const habitIdStr = String(habitId)
 
@@ -297,7 +304,9 @@ App({
     this.saveMyHabits(habits)
 
     // 保存习惯信息到本地存储（用于历史数据显示和恢复）
-    this.saveDeletedHabitInfo(habitToRemove)
+    // 合并 habitData 中的额外信息
+    const habitInfo = habitData ? { ...habitToRemove, ...habitData } : habitToRemove;
+    this.saveDeletedHabitInfo(habitInfo)
 
     this.logOperation('removeHabit', { habitId: habitIdStr, name: habitToRemove.name })
 
@@ -317,14 +326,33 @@ App({
         return
       }
       
+      // 获取图标配置
+      const habitName = habit.name || habit.habit_title || habit.habitTitle || ''
+      let iconUrl = habit.iconUrl || ''
+      let themeClass = habit.themeClass || ''
+      if (!iconUrl && habitName) {
+        try {
+          const iconMap = require('./utils/iconMap.js')
+          const iconConfig = iconMap.getIconConfig(habitName)
+          if (iconConfig) {
+            iconUrl = iconConfig.iconUrl
+            themeClass = iconConfig.themeClass
+          }
+        } catch (e) {
+          console.error('获取图标配置失败:', e)
+        }
+      }
+      
       allHabitsInfo[habitId] = {
         habitId: habitId,
-        name: habit.name,
-        category: habit.category,
-        targetMinutes: habit.targetMinutes,
-        themeClass: habit.themeClass,
+        name: habit.name || habit.habit_title || habit.habitTitle || '未知习惯',
+        category: habit.category || '其他',
+        targetMinutes: habit.targetMinutes || habit.duration || 20,
+        themeClass: themeClass,
+        iconUrl: iconUrl,
         freq_type: habit.freq_type,
         freq_rules: habit.freq_rules,
+        freq_category: habit.freq_category,
         createdAt: habit.createdAt,
         plan_start_date: habit.plan_start_date,
         deletedAt: new Date().toISOString()
@@ -414,7 +442,7 @@ App({
   addCheckinLog(habitId, dateStr, syncStatus = 0) {
     const logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
-    const date = dateStr || new Date().toISOString().split('T')[0]
+    const date = dateStr || this.formatDateKey(new Date())
 
     // 检查是否已存在今日记录
     const existingIndex = logs.findIndex(log =>
@@ -442,7 +470,7 @@ App({
   removeCheckinLog(habitId, dateStr) {
     let logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
-    const date = dateStr || new Date().toISOString().split('T')[0]
+    const date = dateStr || this.formatDateKey(new Date())
 
     const logIndex = logs.findIndex(log => log.habitId === habitIdStr && log.date === date)
 
@@ -702,7 +730,7 @@ App({
       try {
         const { result } = await wx.cloud.callFunction({
           name: 'doCheckin',
-          data: { habit_id: log.habitId }
+          data: { habit_id: log.habitId, checkin_date: log.date }
         })
 
         if (result.success) {
@@ -737,7 +765,7 @@ App({
       try {
         const { result } = await wx.cloud.callFunction({
           name: 'undoCheckin',
-          data: { habit_id: log.habitId }
+          data: { habit_id: log.habitId, checkin_date: log.date }
         })
 
         if (result.success) {

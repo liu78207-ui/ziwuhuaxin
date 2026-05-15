@@ -440,16 +440,23 @@ Page({
     const app = getApp();
 
     // 1. 从用户策略中移除（自动同步到本地存储）
-    app.removeUserStrategy(habit._id);
+    app.removeUserStrategy(habit._id, habit);
 
     // 2. 保留打卡记录（用户可能想查看历史数据）
     // this.removeCheckinRecords(habit._id);
 
-    // 3. 从云端删除
+    // 3. 从云端删除（传递完整习惯信息）
     try {
       const { result } = await wx.cloud.callFunction({
         name: 'removeStrategy',
-        data: { habit_id: habit._id }
+        data: {
+          habit_id: habit._id,
+          habit_title: habit.title,
+          category: habit.category,
+          icon_url: habit.iconUrl || '',
+          theme_class: habit.themeClass || '',
+          target_minutes: habit.default_duration || 20
+        }
       });
 
       if (!result.success) {

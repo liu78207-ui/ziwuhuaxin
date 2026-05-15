@@ -10,6 +10,7 @@
 
 const iconMap = require('../../utils/iconMap.js');
 const reportCalculator = require('../../utils/reportCalculator.js');
+const lunarCalendar = require('../../utils/lunarCalendar.js');
 
 // 从全局获取调试配置
 const getDebugOffset = () => {
@@ -32,6 +33,8 @@ Page({
   data: {
     currentTab: 'week', // 'week', 'month' 或 'year'
     weekdays: ['一', '二', '三', '四', '五', '六', '日'],
+    dateTitle: '',
+    dateSubtitle: '',
     lunarDate: '',
     dateRange: '',
     habitMatrix: [],
@@ -135,6 +138,13 @@ Page({
     return `${month}.${day}`;
   },
 
+  formatFullDate(date) {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}.${month}.${day}`;
+  },
+
   // 格式化日期为 key (YYYY-MM-DD)
   formatDateKey(date) {
     const year = date.getFullYear();
@@ -143,53 +153,42 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 获取农历年份和月份
-  getLunarDate(year, month) {
-    const lunarYears = ['壬寅年', '癸卯年', '甲辰年', '乙巳年', '丙午年', '丁未年', '戊申年', '己酉年', '庚戌年', '辛亥年', '壬子年', '癸丑年'];
-    const lunarMonths = ['正月', '二月', '三月', '四月', '五月', '六月', '七月', '八月', '九月', '十月', '冬月', '腊月'];
-    
-    const lunarYearIndex = (year - 2022) % 12;
-    const lunarYear = lunarYears[lunarYearIndex < 0 ? lunarYearIndex + 12 : lunarYearIndex];
-    const lunarMonth = lunarMonths[month];
-    
-    return { lunarYear, lunarMonth };
-  },
-
   // 更新日期显示
   updateDateDisplay() {
     const currentTab = this.data.currentTab;
-    
-    let lunarDate = '';
-    let dateRange = '';
-    
+
+    let dateTitle = '';
+    let dateSubtitle = '';
+
     if (currentTab === 'week') {
-      // 周报表：农历年份+月份 + 周日期范围
       const weekStart = new Date(this.data.currentWeekStart);
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekEnd.getDate() + 6);
-      const { lunarYear, lunarMonth } = this.getLunarDate(weekStart.getFullYear(), weekStart.getMonth());
-      lunarDate = `${lunarYear}${lunarMonth}`;
-      dateRange = ` ${this.formatDate(weekStart)} - ${this.formatDate(weekEnd)}`;
+      dateTitle = `${this.formatFullDate(weekStart)} - ${this.formatDate(weekEnd)}`;
+      dateSubtitle = lunarCalendar.formatLunarRange(weekStart, weekEnd);
     } else if (currentTab === 'month') {
-      // 月报表：农历年份+月份 + 阳历日期范围
       const year = this.data.currentYear;
       const month = this.data.currentMonth;
       const monthStr = (month + 1).toString().padStart(2, '0');
       const lastDay = new Date(year, month + 1, 0).getDate();
-      const { lunarYear, lunarMonth } = this.getLunarDate(year, month);
-      lunarDate = `${lunarYear}${lunarMonth}`;
-      dateRange = ` ${monthStr}.01-${monthStr}.${lastDay}`;
+      const monthStart = new Date(year, month, 1);
+      const monthEnd = new Date(year, month, lastDay);
+      dateTitle = `${year}.${monthStr}`;
+      dateSubtitle = lunarCalendar.formatLunarRange(monthStart, monthEnd);
     } else if (currentTab === 'year') {
-      // 年报表：农历年份 + 阳历年
       const year = this.data.currentYear;
-      const { lunarYear } = this.getLunarDate(year, 0);
-      lunarDate = lunarYear;
-      dateRange = ` ${year}`;
+      dateTitle = `${year}`;
+      dateSubtitle = lunarCalendar.formatLunarRange(
+        new Date(year, 0, 1),
+        new Date(year, 11, 31)
+      );
     }
 
     this.setData({
-      lunarDate: lunarDate,
-      dateRange: dateRange
+      dateTitle,
+      dateSubtitle,
+      lunarDate: dateTitle,
+      dateRange: dateSubtitle
     });
   },
 
@@ -412,7 +411,6 @@ Page({
     const deletedHabits = deletedHabitIds.map(habitId => {
       if (allHabitsInfo[habitId]) {
         const habitInfo = allHabitsInfo[habitId];
-        const iconConfig = iconMap.getIconConfig(habitInfo.name);
         
         const habitLogs = allLogs
           .filter(log => String(log.habitId) === habitId)
@@ -447,10 +445,20 @@ Page({
           }
         }
         
+        let iconUrl = habitInfo.iconUrl || '';
+        let themeClass = habitInfo.themeClass || 't-green';
+        if (!iconUrl && habitInfo.name) {
+          const iconConfig = iconMap.getIconConfig(habitInfo.name);
+          if (iconConfig) {
+            iconUrl = iconConfig.iconUrl;
+            themeClass = iconConfig.themeClass;
+          }
+        }
+        
         return {
           ...habitInfo,
-          iconUrl: iconConfig?.iconUrl || '',
-          themeClass: iconConfig?.themeClass || habitInfo.themeClass || 't-green',
+          iconUrl: iconUrl,
+          themeClass: themeClass,
           freq_type,
           freq_rules,
           freq_category,
@@ -467,17 +475,37 @@ Page({
       const oldestDate = habitLogs.length > 0 ? habitLogs[0].date : null;
       const newestDate = habitLogs.length > 0 ? habitLogs[habitLogs.length - 1].date : null;
       
+      const habitInfo = allHabitsInfo[habitId] || {};
+      const habitName = habitInfo.name || '已删除习惯';
+      const habitCategory = habitInfo.category || '其他';
+      const habitTargetMinutes = habitInfo.targetMinutes || 15;
+      const habitThemeClass = habitInfo.themeClass || 't-green';
+      const habitFreqType = habitInfo.freq_type || 'daily';
+      const habitFreqRules = habitInfo.freq_rules || 1;
+      const habitFreqCategory = habitInfo.freq_category || 'everyday';
+      const habitIconUrl = habitInfo.iconUrl || '';
+      
+      let iconUrl = habitIconUrl;
+      let themeClass = habitThemeClass;
+      if (!iconUrl && habitName) {
+        const iconConfig = iconMap.getIconConfig(habitName);
+        if (iconConfig) {
+          iconUrl = iconConfig.iconUrl;
+          themeClass = iconConfig.themeClass;
+        }
+      }
+      
       return {
         habitId: habitId,
         _id: habitId,
-        name: '已删除习惯',
-        category: '其他',
-        targetMinutes: 15,
-        themeClass: 't-green',
-        freq_type: 'daily',
-        freq_rules: 1,
-        freq_category: 'everyday',
-        iconUrl: '',
+        name: habitName,
+        category: habitCategory,
+        targetMinutes: habitTargetMinutes,
+        themeClass: themeClass,
+        freq_type: habitFreqType,
+        freq_rules: habitFreqRules,
+        freq_category: habitFreqCategory,
+        iconUrl: iconUrl,
         isDeleted: true,
         deletedAt: newestDate || null,
         plan_start_date: oldestDate,

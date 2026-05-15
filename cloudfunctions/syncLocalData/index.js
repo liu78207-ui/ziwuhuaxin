@@ -77,7 +77,8 @@ exports.main = async (event, context) => {
         name: s.habit_title,
         category: s.category || '运动类',
         targetMinutes: s.duration || 20,
-        themeClass: 't-default',
+        themeClass: s.theme_class || 't-default',
+        iconUrl: s.icon_url || '',
         freq_type: s.freq_type,
         freq_rules: s.freq_rules,
         freq_category: s.freq_category || 'everyday',
@@ -95,7 +96,8 @@ exports.main = async (event, context) => {
         name: s.habit_title,
         category: s.category || '运动类',
         targetMinutes: s.duration || 20,
-        themeClass: 't-default'
+        themeClass: s.theme_class || 't-default',
+        iconUrl: s.icon_url || ''
       };
     });
 

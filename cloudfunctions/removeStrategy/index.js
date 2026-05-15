@@ -7,7 +7,7 @@ const _ = db.command;
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
-  const { habit_id } = event;
+  const { habit_id, habit_title, category, icon_url, theme_class, target_minutes } = event;
 
   if (!openid) {
     return { success: false, message: '无法获取用户信息' };
@@ -35,26 +35,23 @@ exports.main = async (event, context) => {
       return { success: false, message: '未找到该习惯策略' };
     }
 
-    // 软删除：将 deleted_at 字段设置为当前时间，保留打卡记录
+    // 软删除：将 deleted_at 字段设置为当前时间，同时保存习惯信息便于后续恢复
     const deletePromises = strategyRes.data.map(item => {
+      const updateData = {
+        deleted_at: new Date(),
+        habit_title: habit_title || item.habit_title,
+        category: category || item.category,
+        icon_url: icon_url || item.icon_url,
+        theme_class: theme_class || item.theme_class,
+        target_minutes: target_minutes || item.target_minutes
+      };
       return db.collection('user_strategies').doc(item._id).update({
-        data: {
-          deleted_at: new Date()
-        }
+        data: updateData
       });
     });
     await Promise.all(deletePromises);
 
     // 保留打卡记录（不清空）
-    // 如果需要真正删除，可以取消注释以下代码
-    // const logsRes = await db.collection('checkin_logs').where({
-    //   _openid: openid,
-    //   $or: [
-    //     { habit_id: habitIdStr },
-    //     { habit_id: habit_id },
-    //     { habit_id: Number(habit_id) }
-    //   ]
-    // }).get();
 
     return { success: true, message: '删除成功' };
 
