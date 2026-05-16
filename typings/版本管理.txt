@@ -27,7 +27,17 @@ git log        # 查看提交历史
 git diff       # 查看未提交的修改
 
 
+
+
 下载代码:
 git clone git@github.com:liu78207-ui/ziwuhuaxin.git
 
 代码提交修改，并推到远端git@github.com:liu78207-ui/ziwuhuaxin.git
+
+drwx------  2 liuhm liuhm 4096 May 11 20:32 ./
+drwxr-x--- 12 liuhm liuhm 4096 May 11 20:38 ../
+-rw-------  1 liuhm liuhm  411 May 11 21:19 id_ed25519
+-rw-r--r--  1 liuhm liuhm  100 May 11 21:19 id_ed25519.pub
+-rw-------  1 liuhm liuhm  978 May 11 20:32 known_hosts
+-rw-r--r--  1 liuhm liuhm  142 May 11 20:32 known_hosts.old
+liuhm@DESKTOP-URKF5AP:~/.ssh$ 

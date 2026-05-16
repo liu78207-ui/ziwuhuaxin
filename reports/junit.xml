@@ -1,115 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="296" failures="0" errors="0" time="0.801">
-  <testsuite name="用户流程 E2E 测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.314" tests="14">
-    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="用户打开小程序 -&gt; 自动登录 -&gt; 查看首页" time="0.001">
+<testsuites name="jest tests" tests="329" failures="0" errors="0" time="1.038">
+  <testsuite name="share menu and habits entry behavior" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:27" time="0.344" tests="7">
+    <testcase classname="share menu and habits entry behavior" name="home empty-state plus stores a one-shot sports tab intent before switching tabs" time="0.01">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="新用户添加第一个习惯 -&gt; 查看今日任务" time="0">
+    <testcase classname="share menu and habits entry behavior" name="habits page consumes sports tab intent once and shows sports habits" time="0.018">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="新用户完成首次打卡" time="0">
+    <testcase classname="share menu and habits entry behavior" name="habits page keeps the default mine tab on ordinary entry" time="0.003">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="老用户打开小程序 -&gt; 自动恢复登录 -&gt; 查看今日任务" time="0.001">
+    <testcase classname="share menu and habits entry behavior" name="home page enables menu sharing and exposes share payloads" time="0.007">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="用户连续打卡保持连续天数" time="0">
+    <testcase classname="share menu and habits entry behavior" name="habits page enables menu sharing and exposes share payloads" time="0.002">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="用户中断后重新开始" time="0">
+    <testcase classname="share menu and habits entry behavior" name="stats page enables menu sharing and exposes share payloads" time="0.006">
     </testcase>
-    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户添加多个习惯" time="0">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户删除习惯" time="0.001">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户修改习惯设置" time="0">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 数据统计流程" name="用户查看打卡统计" time="0">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 数据统计流程" name="用户查看月度报告" time="0">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="网络异常时重试机制" time="0.001">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="重复打卡应该被阻止" time="0">
-    </testcase>
-    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="未登录用户操作应该提示登录" time="0">
+    <testcase classname="share menu and habits entry behavior" name="profile page enables menu sharing and exposes share payloads" time="0.002">
     </testcase>
   </testsuite>
-  <testsuite name="reportCalculator" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.037" tests="14">
-    <testcase classname="reportCalculator" name="counts daily strategy from plan start date" time="0.002">
+  <testsuite name="manual strategy local loader" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:27" time="0.034" tests="2">
+    <testcase classname="manual strategy local loader" name="writes the fixed manual scenario to local storage and app globalData" time="0.004">
     </testcase>
-    <testcase classname="reportCalculator" name="treats interval 2 as first due after 2 days, then every 3 days" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="counts weekly strategy from plan start date when target weekday matches" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="caps current period at today and leaves future periods with no due days" time="0.001">
-    </testcase>
-    <testcase classname="reportCalculator" name="stops due days on deletion date unless deletion day already has a log" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="hides deleted habits in later periods when deletedAt is missing" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="keeps deleted habit history visible in periods with checkins when deletedAt is missing" time="0.001">
-    </testcase>
-    <testcase classname="reportCalculator" name="merges deleted and re-added strategy segments into one habit report" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="calculates period stats from unique natural checkin dates" time="0.001">
-    </testcase>
-    <testcase classname="reportCalculator" name="does not let non-due dirty logs expand due denominator or checked UI state" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="filters cancelled logs from cumulative practice count" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="counts habit history days uniquely across deletion and re-addition" time="0.001">
-    </testcase>
-    <testcase classname="reportCalculator" name="calculates lifetime effective practice days across years" time="0">
-    </testcase>
-    <testcase classname="reportCalculator" name="lifetime effective practice days follow strategy versions and ignore dirty logs" time="0.001">
+    <testcase classname="manual strategy local loader" name="production app does not expose the manual scenario loader" time="0.003">
     </testcase>
   </testsuite>
-  <testsuite name="修习页面 (habits) 测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.03" tests="22">
-    <testcase classname="修习页面 (habits) 测试 › 页面初始化测试" name="onLoad应该加载所有习惯并默认筛选我的习惯" time="0">
+  <testsuite name="getTodayTasks strategy version behavior" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:27" time="0.036" tests="7">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-01 using strategy versions" time="0.004">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 页面初始化测试" name="习惯数据应该正确加载" time="0">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-05 using strategy versions" time="0.002">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="默认应该显示我的习惯" time="0.001">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-08 using strategy versions" time="0.001">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到运动类应该只显示运动习惯" time="0">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-10 using strategy versions" time="0.001">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到理疗类应该只显示理疗习惯" time="0">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-12 using strategy versions" time="0.001">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到起居类应该只显示起居习惯" time="0">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns Test A due tasks for 2026-04-15 using strategy versions" time="0.001">
     </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切回我的应该只显示已添加习惯" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 添加习惯弹窗测试" name="点击习惯应该显示添加弹窗" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 添加习惯弹窗测试" name="关闭弹窗应该重置状态" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 时长选择测试" name="应该可以选择不同的时长" time="0.001">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 时长选择测试" name="时长选项应该包含常用值" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持每天频次" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持每周固定频次" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持间隔频次" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该选择星期几" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="再次点击应该取消选择" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="确认添加应该调用云函数" time="0.001">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="添加成功应该显示提示" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="应该传递正确的策略数据" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="每个习惯应该有完整字段" time="0.001">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="习惯分类应该正确" time="0">
-    </testcase>
-    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="默认时长应该在合理范围内" time="0.001">
+    <testcase classname="getTodayTasks strategy version behavior" name="returns a clear error when strategy version collection is missing" time="0.001">
     </testcase>
   </testsuite>
-  <testsuite name="saveStrategy 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.024" tests="29">
+  <testsuite name="manual strategy scenario data" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:27" time="0.038" tests="4">
+    <testcase classname="manual strategy scenario data" name="matches the expected daily home-page task list and counts" time="0.008">
+    </testcase>
+    <testcase classname="manual strategy scenario data" name="matches the expected period metrics" time="0.004">
+    </testcase>
+    <testcase classname="manual strategy scenario data" name="matches the expected due dates per habit" time="0.002">
+    </testcase>
+    <testcase classname="manual strategy scenario data" name="every generated checkin log lands on a real due date for that habit" time="0.005">
+    </testcase>
+  </testsuite>
+  <testsuite name="initTestData manual strategy scenario" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.025" tests="3">
+    <testcase classname="initTestData manual strategy scenario" name="is disabled by default to protect release environments" time="0.003">
+    </testcase>
+    <testcase classname="initTestData manual strategy scenario" name="scenario 6 seeds fixed manual strategy data and can force clear old data" time="0.002">
+    </testcase>
+    <testcase classname="initTestData manual strategy scenario" name="returns a clear message when strategy version collection is missing" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="saveStrategy 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.023" tests="29">
     <testcase classname="saveStrategy 云函数集成测试 › 【策略新建】UC-006 新建习惯策略" name="新建每日习惯策略应成功" time="0.001">
     </testcase>
-    <testcase classname="saveStrategy 云函数集成测试 › 【策略新建】UC-006 新建习惯策略" name="新建间隔习惯策略应成功" time="0.001">
+    <testcase classname="saveStrategy 云函数集成测试 › 【策略新建】UC-006 新建习惯策略" name="新建间隔习惯策略应成功" time="0">
     </testcase>
     <testcase classname="saveStrategy 云函数集成测试 › 【策略新建】UC-006 新建习惯策略" name="新建每周固定习惯策略应成功" time="0">
     </testcase>
@@ -119,9 +69,9 @@
     </testcase>
     <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时策略有变化应更新成功" time="0">
     </testcase>
-    <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时频率类型变更" time="0.001">
+    <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时频率类型变更" time="0">
     </testcase>
-    <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时间隔天数变更" time="0">
+    <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时间隔天数变更" time="0.001">
     </testcase>
     <testcase classname="saveStrategy 云函数集成测试 › 【策略变更】UC-007 修改习惯策略" name="更新策略时计划开始日期变更" time="0">
     </testcase>
@@ -166,34 +116,14 @@
     <testcase classname="saveStrategy 云函数集成测试 › 重复数据清理" name="同一习惯存在多条策略时应删除多余的" time="0">
     </testcase>
   </testsuite>
-  <testsuite name="Profile 页面测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.022" tests="12">
-    <testcase classname="Profile 页面测试 › 页面初始化测试" name="onLoad应该获取openid" time="0.001">
+  <testsuite name="getStatsReport cloud function" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.02" tests="2">
+    <testcase classname="getStatsReport cloud function" name="does not let non-due dirty logs expand denominator or cumulative count" time="0.002">
     </testcase>
-    <testcase classname="Profile 页面测试 › 页面初始化测试" name="getApp应该在onLoad中调用，不应在文件顶层" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 头像上传测试" name="应该生成正确的云存储路径" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 头像上传测试" name="应该正确更新用户头像" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 头像上传测试" name="头像上传失败应该显示错误提示" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 昵称输入测试" name="应该正确更新昵称" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 昵称输入测试" name="应该过滤空白字符" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 昵称输入测试" name="空昵称应该不更新" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 昵称输入测试" name="仅空白字符应该不更新" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › TabBar集成测试" name="onShow应该设置TabBar选中状态" time="0.001">
-    </testcase>
-    <testcase classname="Profile 页面测试 › TabBar集成测试" name="getTabBar不存在时不应报错" time="0">
-    </testcase>
-    <testcase classname="Profile 页面测试 › 数据同步测试" name="更新用户信息应该同步到全局和本地" time="0">
+    <testcase classname="getStatsReport cloud function" name="dedupes logs and ignores cancelled logs" time="0">
     </testcase>
   </testsuite>
-  <testsuite name="观心页统计功能测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.032" tests="55">
-    <testcase classname="观心页统计功能测试 › UC-011~UC-013: 报表功能" name="周报表应计算正确的应打卡次数" time="0.001">
+  <testsuite name="观心页统计功能测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.032" tests="55">
+    <testcase classname="观心页统计功能测试 › UC-011~UC-013: 报表功能" name="周报表应计算正确的应打卡次数" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › UC-011~UC-013: 报表功能" name="月报表应计算正确的应打卡次数" time="0">
     </testcase>
@@ -201,9 +131,9 @@
     </testcase>
     <testcase classname="观心页统计功能测试 › UC-011~UC-013: 报表功能" name="年报表（闰年）应计算正确的应打卡次数" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建每日习惯策略" name="新建每日习惯应在周报表中正确显示" time="0">
+    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建每日习惯策略" name="新建每日习惯应在周报表中正确显示" time="0.001">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建每日习惯策略" name="新建间隔习惯应在周报表中正确显示" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建每日习惯策略" name="新建间隔习惯应在周报表中正确显示" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建每日习惯策略" name="新建每周固定习惯应在周报表中正确显示" time="0">
     </testcase>
@@ -211,17 +141,17 @@
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建策略后首次打卡的报表计算" name="新建习惯首次打卡后应正确计算完成率" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建策略后首次打卡的报表计算" name="新建习惯多次打卡后应正确计算完成率" time="0">
+    <testcase classname="观心页统计功能测试 › 【策略新建】新建习惯策略的报表验证 › UC-006: 新建策略后首次打卡的报表计算" name="新建习惯多次打卡后应正确计算完成率" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：频率类型变更" name="从每日变更为间隔打卡后的周报表计算" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：频率类型变更" name="从间隔变更为每周固定后的月报表计算" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：频率类型变更" name="从间隔变更为每周固定后的月报表计算" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：间隔天数变更" name="从间隔2天变更为间隔3天" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：间隔天数变更" name="从间隔1天变更为间隔2天（更宽松）" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：每周固定日期变更" name="从周一三五变更为周二四六" time="0">
+    <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：每周固定日期变更" name="从周一三五变更为周二四六" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【策略中断】策略变更/中断场景的报表验证 › 策略中断场景：每周固定日期变更" name="从每周三天变更为每周五天" time="0">
     </testcase>
@@ -237,7 +167,7 @@
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：数据保留验证" name="删除习惯后历史打卡记录应保留" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：数据保留验证" name="删除后再添加原习惯应有独立的打卡记录" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：数据保留验证" name="删除后再添加原习惯应有独立的打卡记录" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：周报表验证" name="删除前后的周报表应正确分段计算" time="0">
     </testcase>
@@ -245,51 +175,51 @@
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：周报表验证" name="删除后重新添加但使用不同频率" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：月报表验证" name="跨月的删除再添加应正确计算" time="0">
+    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：月报表验证" name="跨月的删除再添加应正确计算" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：月报表验证" name="删除后再添加使用间隔打卡" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：年报表验证" name="跨年的删除再添加应正确计算" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：年报表验证" name="多年使用的习惯打卡统计" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：年报表验证" name="多年使用的习惯打卡统计" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：已删除习惯信息保留" name="已删除习惯的信息应能从AllHabitsInfo恢复" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：已删除习惯信息保留" name="恢复后的习惯应使用新策略" time="0">
+    <testcase classname="观心页统计功能测试 › 【删除场景】删除习惯后再添加的报表验证 › 删除后再添加：已删除习惯信息保留" name="恢复后的习惯应使用新策略" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 周报表数据链" name="同一习惯在连续两周的报表数据应连贯" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 周报表数据链" name="周报表数据应与月报表数据一致" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 月报表数据链" name="各月报表数据应与年报表数据累计一致" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 月报表数据链" name="各月报表数据应与年报表数据累计一致" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 月报表数据链" name="月报表完成率计算应精确" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 年报表数据链" name="年报表应包含完整的12个月数据" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 年报表数据链" name="年报表应正确处理闰年" time="0">
+    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 年报表数据链" name="年报表应正确处理闰年" time="0.001">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 年报表数据链" name="年热力图数据应与打卡记录一致" time="0.001">
+    <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 年报表数据链" name="年热力图数据应与打卡记录一致" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 跨报表周期数据一致性" name="周月年三级报表打卡数累计应一致" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › 【报表数据链】周/月/年报表数据一致性验证 › 跨报表周期数据一致性" name="删除习惯后的报表数据应正确分段" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › COM-003: 混合频率策略" name="每日习惯应每天显示" time="0">
+    <testcase classname="观心页统计功能测试 › COM-003: 混合频率策略" name="每日习惯应每天显示" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › COM-003: 混合频率策略" name="间隔习惯应按间隔天数显示" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › COM-003: 混合频率策略" name="每周固定习惯应只显示指定星期" time="0.001">
+    <testcase classname="观心页统计功能测试 › COM-003: 混合频率策略" name="每周固定习惯应只显示指定星期" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › COM-006: 计划开始日期为未来" name="计划开始日期之前的习惯不应显示" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › COM-006: 计划开始日期为未来" name="计划开始日期当天应显示" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › COM-008: 已删除习惯历史查看" name="已删除但有打卡记录的习惯应被合并" time="0">
+    <testcase classname="观心页统计功能测试 › COM-008: 已删除习惯历史查看" name="已删除但有打卡记录的习惯应被合并" time="0.001">
     </testcase>
     <testcase classname="观心页统计功能测试 › COM-008: 已删除习惯历史查看" name="没有打卡记录的已删除习惯不应合并" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › EX-011: 计划开始日期校验" name="计划开始日期早于创建日期应被拒绝" time="0.001">
+    <testcase classname="观心页统计功能测试 › EX-011: 计划开始日期校验" name="计划开始日期早于创建日期应被拒绝" time="0">
     </testcase>
     <testcase classname="观心页统计功能测试 › EX-012: 未选择星期几" name="未选择星期应有默认值（每天）" time="0">
     </testcase>
@@ -301,169 +231,39 @@
     </testcase>
     <testcase classname="观心页统计功能测试 › 频率计算边界情况" name="结束日期早于计划开始日期应返回0" time="0">
     </testcase>
-    <testcase classname="观心页统计功能测试 › 频率计算边界情况" name="间隔天数为1时应每2天打卡" time="0">
+    <testcase classname="观心页统计功能测试 › 频率计算边界情况" name="间隔天数为1时应每2天打卡" time="0.001">
     </testcase>
   </testsuite>
-  <testsuite name="iconMap 工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.023" tests="20">
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为已知习惯返回图标配置" time="0">
+  <testsuite name="stats date display" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.022" tests="3">
+    <testcase classname="stats date display" name="week report shows Gregorian title and lunar range subtitle" time="0.002">
     </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为火属性习惯返回t-red主题" time="0">
+    <testcase classname="stats date display" name="month report shows Gregorian month and lunar first-to-last-day range" time="0.002">
     </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为木属性习惯返回t-green主题" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为土属性习惯返回t-yellow主题" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为水属性习惯返回t-blue主题" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为特殊类习惯返回t-purple主题" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="未知习惯应该返回null" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该支持所有预定义的习惯" time="0.001">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconPath 函数测试" name="应该返回正确的图标路径" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getIconPath 函数测试" name="未知习惯应该返回null" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeClass 函数测试" name="应该返回正确的主题类名" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeClass 函数测试" name="未知习惯应该返回默认主题t-blue" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="运动类应该返回t-green" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="理疗类应该返回t-red" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="起居类应该返回t-yellow" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="未知分类应该返回默认主题t-blue" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="应该包含所有习惯定义" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="每个习惯应该有file和theme属性" time="0.001">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="图标文件名应该以habit-开头" time="0">
-    </testcase>
-    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="主题类名应该是有效的" time="0.001">
+    <testcase classname="stats date display" name="year report shows Gregorian year and lunar year-spanning subtitle" time="0.001">
     </testcase>
   </testsuite>
-  <testsuite name="修习策略弹窗计划开始时间" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.022" tests="3">
-    <testcase classname="修习策略弹窗计划开始时间" name="模板只保留开始时间选项组" time="0.004">
-    </testcase>
-    <testcase classname="修习策略弹窗计划开始时间" name="新增策略默认使用开始时间并选中今天" time="0.001">
-    </testcase>
-    <testcase classname="修习策略弹窗计划开始时间" name="修改策略时今天、明天、自定义日期都能正确回显" time="0.001">
+  <testsuite name="undoCheckin real cloud function" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.017" tests="1">
+    <testcase classname="undoCheckin real cloud function" name="INT-005: cancels the requested checkin_date instead of always using today" time="0.002">
     </testcase>
   </testsuite>
-  <testsuite name="子午流注工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.023" tests="11">
-    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="应该包含12个时辰数据" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="每个时辰数据应该包含必要字段" time="0.002">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="时辰名称应该正确" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="id应该从0到11连续" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="应该返回当前时辰对象" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="返回的时辰应该在有效范围内" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="子时(23:00-01:00)应该返回正确数据" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="午时(11:00-13:00)应该返回正确数据" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="应该返回完整的时间信息对象" time="0">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="hour和minute应该是两位数格式" time="0.001">
-    </testcase>
-    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="date格式应该正确" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="getStatsReport cloud function" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.02" tests="2">
-    <testcase classname="getStatsReport cloud function" name="does not let non-due dirty logs expand denominator or cumulative count" time="0.003">
-    </testcase>
-    <testcase classname="getStatsReport cloud function" name="dedupes logs and ignores cancelled logs" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="getTodayTasks cloud function behavior" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.018" tests="8">
-    <testcase classname="getTodayTasks cloud function behavior" name="daily strategies are due from plan start date" time="0.001">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="weekly strategies are due only on selected weekdays" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="interval 2 is first due after two days, then every three days" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="deleted strategies are not returned on or after deleted_at" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="marks checked status from today logs" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="calculates lifetime effective practice days from strategy-valid logs" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="returns empty array when user has no strategies" time="0">
-    </testcase>
-    <testcase classname="getTodayTasks cloud function behavior" name="handles missing habit details gracefully" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="Habits 页面时长选择器测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.02" tests="21">
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="openDurationPicker 应该打开时长选择弹窗" time="0.001">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="closeDurationPicker 应该关闭时长选择弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="selectDuration 应该更新选中时长" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="selectDurationAndClose 应该选择时长并关闭弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="confirmDuration 应该关闭弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="时长选项应该包含常用值" time="0.001">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="时长选项应该按升序排列" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="openDailyIntervalPicker 应该打开间隔天数选择弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="closeDailyIntervalPicker 应该关闭弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="selectDailyInterval 应该更新间隔天数" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="间隔天数选项应该从1到7" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="openWeekdayPicker 应该打开星期选择弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="closeWeekdayPicker 应该关闭弹窗" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="toggleWeekday 应该切换星期选中状态" time="0.001">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="再次点击应该取消选中" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="选中的星期应该正确更新文本" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="没有选中时应该显示默认文本" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="所有星期应该正确初始化" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="openDurationPicker 函数应该只定义一次" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="closeDurationPicker 函数应该只定义一次" time="0">
-    </testcase>
-    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="confirmDuration 函数应该只定义一次" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="App.js 功能测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.033" tests="27">
-    <testcase classname="App.js 功能测试 › UC-026: 本地数据加载" name="应正确加载MyHabits数据" time="0.001">
+  <testsuite name="App.js 功能测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.021" tests="27">
+    <testcase classname="App.js 功能测试 › UC-026: 本地数据加载" name="应正确加载MyHabits数据" time="0">
     </testcase>
     <testcase classname="App.js 功能测试 › UC-026: 本地数据加载" name="应正确加载CheckinLogs数据" time="0">
     </testcase>
     <testcase classname="App.js 功能测试 › UC-026: 本地数据加载" name="应处理本地存储为空的情况" time="0">
     </testcase>
-    <testcase classname="App.js 功能测试 › EX-006: 本地数据损坏修复" name="缺少freq_type应添加默认值" time="0">
+    <testcase classname="App.js 功能测试 › EX-006: 本地数据损坏修复" name="缺少freq_type应添加默认值" time="0.001">
     </testcase>
     <testcase classname="App.js 功能测试 › EX-006: 本地数据损坏修复" name="freq_category与freq_type不匹配应修正" time="0">
     </testcase>
-    <testcase classname="App.js 功能测试 › EX-007: 数据迁移" name="应迁移旧策略数据格式" time="0.001">
+    <testcase classname="App.js 功能测试 › EX-007: 数据迁移" name="应迁移旧策略数据格式" time="0">
     </testcase>
     <testcase classname="App.js 功能测试 › EX-007: 数据迁移" name="应迁移旧打卡记录格式" time="0">
     </testcase>
     <testcase classname="App.js 功能测试 › COM-005: 调试模式日期偏移" name="DEBUG_DAY_OFFSET为0应返回今天" time="0">
     </testcase>
-    <testcase classname="App.js 功能测试 › COM-005: 调试模式日期偏移" name="DEBUG_DAY_OFFSET为1应返回明天" time="0">
+    <testcase classname="App.js 功能测试 › COM-005: 调试模式日期偏移" name="DEBUG_DAY_OFFSET为1应返回明天" time="0.001">
     </testcase>
     <testcase classname="App.js 功能测试 › COM-005: 调试模式日期偏移" name="DEBUG_DAY_OFFSET为-1应返回昨天" time="0">
     </testcase>
@@ -473,11 +273,11 @@
     </testcase>
     <testcase classname="App.js 功能测试 › COM-007: 软删除后恢复" name="不存在的习惯恢复应返回false" time="0">
     </testcase>
-    <testcase classname="App.js 功能测试 › EX-014: 同步冲突处理" name="应正确合并云端和本地数据" time="0.001">
+    <testcase classname="App.js 功能测试 › EX-014: 同步冲突处理" name="应正确合并云端和本地数据" time="0">
     </testcase>
     <testcase classname="App.js 功能测试 › EX-014: 同步冲突处理" name="冲突时应以云端数据为准" time="0">
     </testcase>
-    <testcase classname="App.js 功能测试 › EX-015: 部分同步失败" name="应正确统计成功和失败数量" time="0">
+    <testcase classname="App.js 功能测试 › EX-015: 部分同步失败" name="应正确统计成功和失败数量" time="0.001">
     </testcase>
     <testcase classname="App.js 功能测试 › EX-015: 部分同步失败" name="失败记录应保留待同步状态" time="0">
     </testcase>
@@ -502,8 +302,378 @@
     <testcase classname="App.js 功能测试 › MyHabits操作" name="应移除习惯（软删除）" time="0">
     </testcase>
   </testsuite>
-  <testsuite name="首页 (home) 页面测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.019" tests="15">
-    <testcase classname="首页 (home) 页面测试 › 页面生命周期测试" name="onLoad应该初始化时间信息和加载数据" time="0">
+  <testsuite name="Habits 页面时长选择器测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.021" tests="21">
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="openDurationPicker 应该打开时长选择弹窗" time="0.001">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="closeDurationPicker 应该关闭时长选择弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="selectDuration 应该更新选中时长" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="selectDurationAndClose 应该选择时长并关闭弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="confirmDuration 应该关闭弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="时长选项应该包含常用值" time="0.001">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 时长选择器测试" name="时长选项应该按升序排列" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="openDailyIntervalPicker 应该打开间隔天数选择弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="closeDailyIntervalPicker 应该关闭弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="selectDailyInterval 应该更新间隔天数" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 间隔天数选择器测试" name="间隔天数选项应该从1到7" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="openWeekdayPicker 应该打开星期选择弹窗" time="0.001">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="closeWeekdayPicker 应该关闭弹窗" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="toggleWeekday 应该切换星期选中状态" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="再次点击应该取消选中" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="选中的星期应该正确更新文本" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="没有选中时应该显示默认文本" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 星期选择器测试" name="所有星期应该正确初始化" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="openDurationPicker 函数应该只定义一次" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="closeDurationPicker 函数应该只定义一次" time="0">
+    </testcase>
+    <testcase classname="Habits 页面时长选择器测试 › 函数唯一性测试" name="confirmDuration 函数应该只定义一次" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="getTodayTasks cloud function behavior" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.018" tests="8">
+    <testcase classname="getTodayTasks cloud function behavior" name="daily strategies are due from plan start date" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="weekly strategies are due only on selected weekdays" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="interval 2 is due on plan start date, then every three days" time="0.001">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="deleted strategies are not returned on or after deleted_at" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="marks checked status from today logs" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="calculates lifetime effective practice days from strategy-valid logs" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="returns empty array when user has no strategies" time="0">
+    </testcase>
+    <testcase classname="getTodayTasks cloud function behavior" name="handles missing habit details gracefully" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="doCheckin 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.019" tests="13">
+    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="缺少openid应该返回错误" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="缺少habit_id应该返回错误" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="habit_id为空字符串应该返回错误" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 重复打卡测试" name="今日已打卡应该返回提示" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 重复打卡测试" name="不同习惯可以分别打卡" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 策略验证测试" name="未找到策略应该返回错误" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 策略验证测试" name="找到策略应该允许打卡" time="0.001">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 数据存储测试" name="打卡成功应该保存正确数据" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 数据存储测试" name="habit_id应该统一保存为字符串" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 异常处理测试" name="数据库错误应该返回错误信息" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 异常处理测试" name="添加记录失败应该返回错误" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 数据隔离测试" name="用户只能看到自己的打卡记录" time="0">
+    </testcase>
+    <testcase classname="doCheckin 云函数集成测试 › 数据隔离测试" name="不同用户的打卡记录互不影响" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="reportCalculator" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.022" tests="14">
+    <testcase classname="reportCalculator" name="counts daily strategy from plan start date" time="0.001">
+    </testcase>
+    <testcase classname="reportCalculator" name="treats interval 2 as due on plan start date, then every 3 days" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="counts weekly strategy from plan start date when target weekday matches" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="caps current period at today and leaves future periods with no due days" time="0.001">
+    </testcase>
+    <testcase classname="reportCalculator" name="stops due days on deletion date unless deletion day already has a log" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="hides deleted habits in later periods when deletedAt is missing" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="keeps deleted habit history visible in periods with checkins when deletedAt is missing" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="merges deleted and re-added strategy segments into one habit report" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="calculates period stats from unique natural checkin dates" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="does not let non-due dirty logs expand due denominator or checked UI state" time="0.001">
+    </testcase>
+    <testcase classname="reportCalculator" name="filters cancelled logs from cumulative practice count" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="counts habit history days uniquely across deletion and re-addition" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="calculates lifetime effective practice days across years" time="0">
+    </testcase>
+    <testcase classname="reportCalculator" name="lifetime effective practice days follow strategy versions and ignore dirty logs" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="修习策略弹窗计划开始时间" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.019" tests="3">
+    <testcase classname="修习策略弹窗计划开始时间" name="模板只保留开始时间选项组" time="0.001">
+    </testcase>
+    <testcase classname="修习策略弹窗计划开始时间" name="新增策略默认使用开始时间并选中今天" time="0.001">
+    </testcase>
+    <testcase classname="修习策略弹窗计划开始时间" name="修改策略时今天、明天、自定义日期都能正确回显" time="0.001">
+    </testcase>
+  </testsuite>
+  <testsuite name="用户流程 E2E 测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.02" tests="14">
+    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="用户打开小程序 -&gt; 自动登录 -&gt; 查看首页" time="0.001">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="新用户添加第一个习惯 -&gt; 查看今日任务" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 新用户首次使用流程" name="新用户完成首次打卡" time="0.001">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="老用户打开小程序 -&gt; 自动恢复登录 -&gt; 查看今日任务" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="用户连续打卡保持连续天数" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 老用户日常使用流程" name="用户中断后重新开始" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户添加多个习惯" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户删除习惯" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 习惯管理流程" name="用户修改习惯设置" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 数据统计流程" name="用户查看打卡统计" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 数据统计流程" name="用户查看月度报告" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="网络异常时重试机制" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="重复打卡应该被阻止" time="0">
+    </testcase>
+    <testcase classname="用户流程 E2E 测试 › 异常流程处理" name="未登录用户操作应该提示登录" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="子午流注工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.022" tests="11">
+    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="应该包含12个时辰数据" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="每个时辰数据应该包含必要字段" time="0.002">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="时辰名称应该正确" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › ZIWU_DATA 数据结构测试" name="id应该从0到11连续" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="应该返回当前时辰对象" time="0.001">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="返回的时辰应该在有效范围内" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="子时(23:00-01:00)应该返回正确数据" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getCurrentZiwu 函数测试" name="午时(11:00-13:00)应该返回正确数据" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="应该返回完整的时间信息对象" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="hour和minute应该是两位数格式" time="0">
+    </testcase>
+    <testcase classname="子午流注工具函数测试 › getTimeInfo 函数测试" name="date格式应该正确" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="undoCheckin 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.021" tests="12">
+    <testcase classname="undoCheckin 云函数集成测试 › UC-021: 取消打卡（云端）" name="今日已打卡应成功取消" time="0.001">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › UC-021: 取消打卡（云端）" name="取消应删除正确的记录" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › EX-005: 取消打卡但云端无记录" name="今日未打卡应返回错误提示" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › EX-005: 取消打卡但云端无记录" name="不同习惯应独立判断" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="缺少openid应返回错误" time="0.001">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="缺少habit_id应返回错误" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="habit_id为空字符串应返回错误" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 数据类型处理" name="数字类型habit_id应统一转为字符串" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 异常处理" name="数据库错误应返回错误信息" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 异常处理" name="删除失败应返回错误信息" time="0.001">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 数据隔离" name="用户只能删除自己的打卡记录" time="0">
+    </testcase>
+    <testcase classname="undoCheckin 云函数集成测试 › 数据隔离" name="不同用户的记录互不影响" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="通用工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.02" tests="7">
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确格式化日期时间" time="0.001">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理个位数月份和日期" time="0">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理年末日期" time="0">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理闰年2月29日" time="0">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="格式应该符合YYYY/MM/DD HH:mm:ss" time="0">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理边界时间 00:00:00" time="0">
+    </testcase>
+    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理边界时间 23:59:59" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="iconMap 工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.023" tests="20">
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为已知习惯返回图标配置" time="0.001">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为火属性习惯返回t-red主题" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为木属性习惯返回t-green主题" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为土属性习惯返回t-yellow主题" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为水属性习惯返回t-blue主题" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该为特殊类习惯返回t-purple主题" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="未知习惯应该返回null" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconConfig 函数测试" name="应该支持所有预定义的习惯" time="0.002">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconPath 函数测试" name="应该返回正确的图标路径" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getIconPath 函数测试" name="未知习惯应该返回null" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeClass 函数测试" name="应该返回正确的主题类名" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeClass 函数测试" name="未知习惯应该返回默认主题t-blue" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="运动类应该返回t-green" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="理疗类应该返回t-red" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="起居类应该返回t-yellow" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › getThemeByCategory 函数测试" name="未知分类应该返回默认主题t-blue" time="0.001">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="应该包含所有习惯定义" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="每个习惯应该有file和theme属性" time="0">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="图标文件名应该以habit-开头" time="0.001">
+    </testcase>
+    <testcase classname="iconMap 工具函数测试 › HABIT_ICONS 数据结构测试" name="主题类名应该是有效的" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="login 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.02" tests="8">
+    <testcase classname="login 云函数集成测试 › 登录功能测试" name="应该返回用户openid" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 登录功能测试" name="openid不应该为空" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 登录功能测试" name="不同用户应该返回不同openid" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 登录功能测试" name="相同用户多次登录应该返回相同openid" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 上下文信息测试" name="应该返回完整的上下文信息" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 上下文信息测试" name="应该返回环境ID" time="0">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 参数传递测试" name="应该原样返回传入的参数" time="0.001">
+    </testcase>
+    <testcase classname="login 云函数集成测试 › 参数传递测试" name="空参数应该正常处理" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="修习页面 (habits) 测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.025" tests="22">
+    <testcase classname="修习页面 (habits) 测试 › 页面初始化测试" name="onLoad应该加载所有习惯并默认筛选我的习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 页面初始化测试" name="习惯数据应该正确加载" time="0.001">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="默认应该显示我的习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到运动类应该只显示运动习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到理疗类应该只显示理疗习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切换到起居类应该只显示起居习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 分类筛选测试" name="切回我的应该只显示已添加习惯" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 添加习惯弹窗测试" name="点击习惯应该显示添加弹窗" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 添加习惯弹窗测试" name="关闭弹窗应该重置状态" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 时长选择测试" name="应该可以选择不同的时长" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 时长选择测试" name="时长选项应该包含常用值" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持每天频次" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持每周固定频次" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该支持间隔频次" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="应该选择星期几" time="0.001">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 频次设置测试" name="再次点击应该取消选择" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="确认添加应该调用云函数" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="添加成功应该显示提示" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 确认添加测试" name="应该传递正确的策略数据" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="每个习惯应该有完整字段" time="0.001">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="习惯分类应该正确" time="0">
+    </testcase>
+    <testcase classname="修习页面 (habits) 测试 › 习惯数据结构测试" name="默认时长应该在合理范围内" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="lunarCalendar" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.02" tests="6">
+    <testcase classname="lunarCalendar" name="converts Gregorian date to exact lunar date" time="0.001">
+    </testcase>
+    <testcase classname="lunarCalendar" name="formats a same lunar month range without lunar prefix or year" time="0">
+    </testcase>
+    <testcase classname="lunarCalendar" name="formats a same lunar year cross-month range without year" time="0">
+    </testcase>
+    <testcase classname="lunarCalendar" name="formats a cross lunar year range with both Ganzhi year names but no prefix" time="0">
+    </testcase>
+    <testcase classname="lunarCalendar" name="formats leap lunar month names without prefix or year" time="0.001">
+    </testcase>
+    <testcase classname="lunarCalendar" name="returns empty subtitle outside supported conversion range" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="Profile 页面测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.021" tests="12">
+    <testcase classname="Profile 页面测试 › 页面初始化测试" name="onLoad应该获取openid" time="0.001">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 页面初始化测试" name="getApp应该在onLoad中调用，不应在文件顶层" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 头像上传测试" name="应该生成正确的云存储路径" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 头像上传测试" name="应该正确更新用户头像" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 头像上传测试" name="头像上传失败应该显示错误提示" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 昵称输入测试" name="应该正确更新昵称" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 昵称输入测试" name="应该过滤空白字符" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 昵称输入测试" name="空昵称应该不更新" time="0.001">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 昵称输入测试" name="仅空白字符应该不更新" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › TabBar集成测试" name="onShow应该设置TabBar选中状态" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › TabBar集成测试" name="getTabBar不存在时不应报错" time="0">
+    </testcase>
+    <testcase classname="Profile 页面测试 › 数据同步测试" name="更新用户信息应该同步到全局和本地" time="0">
+    </testcase>
+  </testsuite>
+  <testsuite name="首页 (home) 页面测试" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.022" tests="15">
+    <testcase classname="首页 (home) 页面测试 › 页面生命周期测试" name="onLoad应该初始化时间信息和加载数据" time="0.001">
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 页面生命周期测试" name="onShow应该刷新时间信息和数据" time="0">
     </testcase>
@@ -515,7 +685,7 @@
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 任务列表测试" name="空任务列表应该正常显示" time="0">
     </testcase>
-    <testcase classname="首页 (home) 页面测试 › 任务列表测试" name="加载失败应该处理错误" time="0.001">
+    <testcase classname="首页 (home) 页面测试 › 任务列表测试" name="加载失败应该处理错误" time="0">
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 打卡功能测试" name="打卡成功应该显示成功提示" time="0">
     </testcase>
@@ -523,7 +693,7 @@
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 打卡功能测试" name="打卡应该传递正确的habitId" time="0">
     </testcase>
-    <testcase classname="首页 (home) 页面测试 › 页面导航测试" name="点击添加应该跳转到修习页面" time="0">
+    <testcase classname="首页 (home) 页面测试 › 页面导航测试" name="点击添加应该跳转到修习页面" time="0.001">
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 页面滚动效果测试" name="滚动应该改变导航栏透明度" time="0">
     </testcase>
@@ -531,103 +701,15 @@
     </testcase>
     <testcase classname="首页 (home) 页面测试 › 页面滚动效果测试" name="滚动为0时透明度应该为0" time="0">
     </testcase>
-    <testcase classname="首页 (home) 页面测试 › 养生建议测试" name="应该根据时辰显示正确的养生建议" time="0.001">
+    <testcase classname="首页 (home) 页面测试 › 养生建议测试" name="应该根据时辰显示正确的养生建议" time="0">
     </testcase>
   </testsuite>
-  <testsuite name="undoCheckin 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.018" tests="12">
-    <testcase classname="undoCheckin 云函数集成测试 › UC-021: 取消打卡（云端）" name="今日已打卡应成功取消" time="0.001">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › UC-021: 取消打卡（云端）" name="取消应删除正确的记录" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › EX-005: 取消打卡但云端无记录" name="今日未打卡应返回错误提示" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › EX-005: 取消打卡但云端无记录" name="不同习惯应独立判断" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="缺少openid应返回错误" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="缺少habit_id应返回错误" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 参数验证" name="habit_id为空字符串应返回错误" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 数据类型处理" name="数字类型habit_id应统一转为字符串" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 异常处理" name="数据库错误应返回错误信息" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 异常处理" name="删除失败应返回错误信息" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 数据隔离" name="用户只能删除自己的打卡记录" time="0">
-    </testcase>
-    <testcase classname="undoCheckin 云函数集成测试 › 数据隔离" name="不同用户的记录互不影响" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="修习页面我的Tab" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.018" tests="3">
+  <testsuite name="修习页面我的Tab" errors="0" failures="0" skipped="0" timestamp="2026-05-16T00:10:28" time="0.021" tests="3">
     <testcase classname="修习页面我的Tab" name="第一个Tab文案为我的" time="0.001">
     </testcase>
     <testcase classname="修习页面我的Tab" name="我的Tab只显示已添加且正在进行的习惯" time="0.001">
     </testcase>
     <testcase classname="修习页面我的Tab" name="分类Tab仍按分类展示全部可添加习惯" time="0.001">
-    </testcase>
-  </testsuite>
-  <testsuite name="login 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.018" tests="8">
-    <testcase classname="login 云函数集成测试 › 登录功能测试" name="应该返回用户openid" time="0.001">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 登录功能测试" name="openid不应该为空" time="0">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 登录功能测试" name="不同用户应该返回不同openid" time="0">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 登录功能测试" name="相同用户多次登录应该返回相同openid" time="0">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 上下文信息测试" name="应该返回完整的上下文信息" time="0">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 上下文信息测试" name="应该返回环境ID" time="0.001">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 参数传递测试" name="应该原样返回传入的参数" time="0">
-    </testcase>
-    <testcase classname="login 云函数集成测试 › 参数传递测试" name="空参数应该正常处理" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="doCheckin 云函数集成测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.019" tests="13">
-    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="缺少openid应该返回错误" time="0.001">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="缺少habit_id应该返回错误" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 参数验证测试" name="habit_id为空字符串应该返回错误" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 重复打卡测试" name="今日已打卡应该返回提示" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 重复打卡测试" name="不同习惯可以分别打卡" time="0.001">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 策略验证测试" name="未找到策略应该返回错误" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 策略验证测试" name="找到策略应该允许打卡" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 数据存储测试" name="打卡成功应该保存正确数据" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 数据存储测试" name="habit_id应该统一保存为字符串" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 异常处理测试" name="数据库错误应该返回错误信息" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 异常处理测试" name="添加记录失败应该返回错误" time="0.001">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 数据隔离测试" name="用户只能看到自己的打卡记录" time="0">
-    </testcase>
-    <testcase classname="doCheckin 云函数集成测试 › 数据隔离测试" name="不同用户的打卡记录互不影响" time="0">
-    </testcase>
-  </testsuite>
-  <testsuite name="通用工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-05-09T14:36:26" time="0.017" tests="7">
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确格式化日期时间" time="0">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理个位数月份和日期" time="0.001">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理年末日期" time="0">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理闰年2月29日" time="0">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="格式应该符合YYYY/MM/DD HH:mm:ss" time="0">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理边界时间 00:00:00" time="0">
-    </testcase>
-    <testcase classname="通用工具函数测试 › formatTime 函数测试" name="应该正确处理边界时间 23:59:59" time="0">
     </testcase>
   </testsuite>
 </testsuites>
