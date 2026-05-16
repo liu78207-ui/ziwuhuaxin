@@ -155,7 +155,7 @@ page {
   height: 100%;
   background: #FFFFFF;
   border-radius: 4px;
-  transition: width 0.3s ease;
+  transition: width 520ms cubic-bezier(0.22, 1.18, 0.34, 1);
 }
 
 /* 旧版样式兼容 - 可删除 */
@@ -416,25 +416,9 @@ page {
 /* 图标点击微交互 - 使用 hover-class 实现 */
 .grid-item-hover .icon-circle,
 .grid-item.pressing .icon-circle {
-  transform: scale(0.88) !important;
-  box-shadow: 0 8rpx 24rpx rgba(56, 163, 133, 0.25) !important;
-  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.12s ease;
+  transform: translate3d(0, 2rpx, 0) scale(0.94) !important;
+  box-shadow: 0 7rpx 22rpx rgba(56, 163, 133, 0.22) !important;
+  transition: transform 180ms cubic-bezier(0.22, 1.18, 0.34, 1), box-shadow 160ms ease;
 }
 
 /* 图标文字点击反馈 */
-.grid-item-hover .gi-name,
-.grid-item.pressing .gi-name {
-  transform: scale(0.96);
-  transition: transform 0.12s ease;
-}
-
-.grid-item-hover .gi-sub,
-.grid-item.pressing .gi-sub {
-  opacity: 0.7;
-  transition: opacity 0.12s ease;
-}
-
-.grid-item-hover,
-.grid-item.pressing {
-  opacity: 0.9;
-}
