@@ -14,7 +14,7 @@ function formatDate(date) {
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
-  const { habit_id } = event;
+  const { habit_id, checkin_date } = event;
 
   if (!openid) {
     return { success: false, message: '无法获取用户信息' };
@@ -24,8 +24,7 @@ exports.main = async (event, context) => {
     return { success: false, message: '缺少习惯ID' };
   }
 
-  const today = new Date();
-  const todayStr = formatDate(today);
+  const targetDate = checkin_date || formatDate(new Date());
 
   // 统一使用字符串类型的 habit_id
   const habitIdStr = String(habit_id);
@@ -35,9 +34,9 @@ exports.main = async (event, context) => {
     const existingLog = await db.collection('checkin_logs').where({
       _openid: openid,
       $or: [
-        { habit_id: habitIdStr, checkin_date: todayStr },
-        { habit_id: habit_id, checkin_date: todayStr },
-        { habit_id: Number(habit_id), checkin_date: todayStr }
+        { habit_id: habitIdStr, checkin_date: targetDate },
+        { habit_id: habit_id, checkin_date: targetDate },
+        { habit_id: Number(habit_id), checkin_date: targetDate }
       ]
     }).get();
 

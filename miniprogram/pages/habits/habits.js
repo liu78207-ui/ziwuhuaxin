@@ -1,4 +1,5 @@
 const iconMap = require('../../utils/iconMap.js');
+const share = require('../../utils/share.js');
 
 Page({
   data: {
@@ -127,10 +128,13 @@ Page({
   },
 
   onShow() {
+    share.enableShareMenu();
+
     console.log('habits页面 onShow');
 
     // 每次显示页面时重新加载用户习惯状态
     this.loadUserHabitsStatus();
+    this.consumePendingTabIntent();
 
     // 设置自定义 TabBar 选中状态
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
@@ -138,6 +142,20 @@ Page({
         selected: 1
       });
     }
+  },
+
+  consumePendingTabIntent() {
+    const app = getApp();
+    const pendingTab = app && app.globalData && app.globalData.pendingHabitsTab;
+    if (pendingTab !== 'sports') {
+      return;
+    }
+
+    delete app.globalData.pendingHabitsTab;
+    this.setData({
+      currentTab: 1,
+      filteredHabits: this.filterHabits(this.data.habits, 1)
+    });
   },
 
   // 加载用户已添加的习惯状态
@@ -1033,5 +1051,13 @@ Page({
       default:
         return this.getTodayDate();
     }
+  },
+
+  onShareAppMessage() {
+    return share.appMessage('子午花信 · 选一项修习，从今天开始', '/pages/habits/habits');
+  },
+
+  onShareTimeline() {
+    return share.timeline('子午花信 · 选一项修习，从今天开始', 'from=timeline&page=habits');
   }
 });

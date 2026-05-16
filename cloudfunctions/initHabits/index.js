@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const releaseLog = () => {};
 
 const db = cloud.database();
 
@@ -33,7 +34,7 @@ const HABITS_DATA = [
 ];
 
 exports.main = async (event, context) => {
-  console.log('initHabits 开始执行');
+  releaseLog('initHabits 开始执行');
   
   try {
     // 使用批量添加
@@ -48,7 +49,7 @@ exports.main = async (event, context) => {
     });
     
     await Promise.all(tasks);
-    console.log('批量添加完成，数量:', HABITS_DATA.length);
+    releaseLog('批量添加完成，数量:', HABITS_DATA.length);
 
     return {
       success: true,

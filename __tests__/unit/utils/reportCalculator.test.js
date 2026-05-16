@@ -25,7 +25,7 @@ describe('reportCalculator', () => {
     expect(report.dueCount).toBe(3);
   });
 
-  test('treats interval 2 as first due after 2 days, then every 3 days', () => {
+  test('treats interval 2 as due on plan start date, then every 3 days', () => {
     const habit = {
       habitId: 'interval',
       freq_type: 'interval',
@@ -42,11 +42,12 @@ describe('reportCalculator', () => {
     );
 
     expect(report.days.filter(day => day.shouldShow).map(day => day.date)).toEqual([
-      '2026-05-03',
-      '2026-05-06',
-      '2026-05-09'
+      '2026-05-01',
+      '2026-05-04',
+      '2026-05-07',
+      '2026-05-10'
     ]);
-    expect(report.dueCount).toBe(3);
+    expect(report.dueCount).toBe(4);
   });
 
   test('counts weekly strategy from plan start date when target weekday matches', () => {
@@ -258,7 +259,7 @@ describe('reportCalculator', () => {
       { habitId: 'h1', date: '2026-05-04' },
       { habitId: 'h1', date: '2026-05-05' },
       { habitId: 'h2', date: '2026-05-03' },
-      { habitId: 'h2', date: '2026-05-06' }
+      { habitId: 'h2', date: '2026-05-07' }
     ];
 
     const report = reportCalculator.calculatePeriodReport(

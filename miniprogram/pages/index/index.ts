@@ -1,4 +1,6 @@
 // index.ts
+const releaseLog = () => {};
+
 Page({
   data: {
     motto: 'Hello World',
@@ -9,10 +11,10 @@ Page({
   },
 
   onLoad() {
-    console.log('Index page loaded');
+    releaseLog('Index page loaded');
   },
 
   onShow() {
-    console.log('Index page shown');
+    releaseLog('Index page shown');
   },
 });

@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const releaseLog = () => {};
 
 const db = cloud.database();
 const _ = db.command;
@@ -29,7 +30,7 @@ exports.main = async (event, context) => {
 
     const logsRes = await db.collection('checkin_logs').where(query).get();
 
-    console.log(`获取打卡记录: ${logsRes.data.length} 条, openid: ${openid}`);
+    releaseLog(`获取打卡记录: ${logsRes.data.length} 条, openid: ${openid}`);
 
     return {
       success: true,

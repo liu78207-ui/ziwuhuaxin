@@ -8,6 +8,23 @@ function parseDate(dateStr) {
   return new Date(year, month - 1, day);
 }
 
+function formatDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function toDateStr(value) {
+  if (!value) {
+    return '';
+  }
+  if (value instanceof Date) {
+    return formatDate(value);
+  }
+  return String(value).split('T')[0];
+}
+
 function dateDiff(endDateStr, startDateStr) {
   return Math.floor((parseDate(endDateStr) - parseDate(startDateStr)) / (24 * 60 * 60 * 1000));
 }
@@ -24,13 +41,17 @@ function getIntervalDays(freqRules) {
 }
 
 function isDueByStrategy(strategy, dateStr, dayOfWeek) {
-  const deletedDate = (strategy.deleted_at || strategy.deletedAt || '').split('T')[0];
+  if (strategy.deleted || strategy.type === 'deleted') {
+    return false;
+  }
+
+  const deletedDate = toDateStr(strategy.deleted_at || strategy.deletedAt);
   if (deletedDate && dateStr >= deletedDate) {
     return false;
   }
 
-  const planStartDate = getPlanStartDate(strategy) || dateStr;
-  if (dateStr < String(planStartDate).split('T')[0]) {
+  const planStartDate = toDateStr(getPlanStartDate(strategy)) || dateStr;
+  if (dateStr < planStartDate) {
     return false;
   }
 
@@ -50,7 +71,7 @@ function isDueByStrategy(strategy, dateStr, dayOfWeek) {
     const diff = dateDiff(dateStr, String(planStartDate).split('T')[0]);
     const intervalDays = getIntervalDays(strategy.freq_rules);
     const cycleDays = intervalDays + 1;
-    return diff >= intervalDays && (diff - intervalDays) % cycleDays === 0;
+    return diff >= 0 && diff % cycleDays === 0;
   }
 
   return true;
@@ -75,8 +96,8 @@ function normalizeSegments(strategy, versions) {
     .map(version => ({
       ...strategy,
       ...version,
-      segmentStart: (version.start_date || version.startDate || getPlanStartDate(version) || getPlanStartDate(strategy) || '').split('T')[0],
-      segmentEnd: (version.end_date || version.endDate || '').split('T')[0] || null,
+      segmentStart: toDateStr(version.start_date || version.startDate || getPlanStartDate(version) || getPlanStartDate(strategy)),
+      segmentEnd: toDateStr(version.end_date || version.endDate) || null,
       plan_start_date: getPlanStartDate(version) || version.start_date || getPlanStartDate(strategy)
     }))
     .filter(segment => segment.segmentStart)
@@ -94,6 +115,18 @@ function getSegmentForDate(strategy, versions, dateStr) {
     }
     return true;
   }) || null;
+}
+
+function getEffectiveStrategyForDate(strategy, versions, dateStr) {
+  return getSegmentForDate(strategy, versions, dateStr) || strategy;
+}
+
+function getHabitKey(habit) {
+  return String(habit._id || habit.habit_id || habit.habitId || '');
+}
+
+function getHabitTitle(habitInfo, strategy) {
+  return habitInfo.title || habitInfo.name || strategy.habit_title || strategy.name;
 }
 
 function calculateLifetimeEffectivePracticeDays(strategy, logs, todayStr, versions) {
@@ -131,28 +164,14 @@ exports.main = async (event, context) => {
       .get();
     
     const allStrategies = strategiesRes.data;
-
-    const todayTasksRaw = allStrategies.filter(strategy =>
-      isDueByStrategy(strategy, dateStr, dayOfWeek)
-    );
-
-    if (todayTasksRaw.length === 0) {
-      return { success: true, data: [] };
-    }
-
-    const habitIds = todayTasksRaw.map(task => task.habit_id);
-
-    const habitsRes = await db.collection('habits')
-      .where({ _id: _.in(habitIds) })
-      .get();
-    const habitsData = habitsRes.data;
+    const allHabitIds = allStrategies.map(strategy => String(strategy.habit_id));
 
     let versionsByHabitId = {};
     try {
       const versionsRes = await db.collection('user_strategy_versions')
         .where({
           _openid: openid,
-          habit_id: _.in(habitIds.map(id => String(id)))
+          habit_id: _.in(allHabitIds)
         })
         .get();
       versionsByHabitId = (versionsRes.data || []).reduce((map, version) => {
@@ -165,6 +184,43 @@ exports.main = async (event, context) => {
       }, {});
     } catch (versionErr) {
       console.error('get strategy versions failed:', versionErr);
+      return {
+        success: false,
+        message: `user_strategy_versions collection is required: ${versionErr.message}`,
+        error: versionErr.message
+      };
+    }
+
+    const todayTasksRaw = allStrategies
+      .map(strategy => {
+        const effectiveStrategy = getEffectiveStrategyForDate(
+          strategy,
+          versionsByHabitId[String(strategy.habit_id)] || [],
+          dateStr
+        );
+        return {
+          strategy,
+          effectiveStrategy
+        };
+      })
+      .filter(item => isDueByStrategy(item.effectiveStrategy, dateStr, dayOfWeek));
+
+    if (todayTasksRaw.length === 0) {
+      return { success: true, data: [] };
+    }
+
+    const habitIds = todayTasksRaw.map(task => String(task.strategy.habit_id));
+
+    const habitsRes = await db.collection('habits')
+      .where({ habit_id: _.in(habitIds) })
+      .get();
+    let habitsData = habitsRes.data || [];
+    const missingIds = habitIds.filter(id => !habitsData.some(habit => getHabitKey(habit) === id));
+    if (missingIds.length > 0) {
+      const habitsByIdRes = await db.collection('habits')
+        .where({ _id: _.in(missingIds) })
+        .get();
+      habitsData = habitsData.concat(habitsByIdRes.data || []);
     }
 
     const checkinLogsRes = await db.collection('checkin_logs')
@@ -176,8 +232,8 @@ exports.main = async (event, context) => {
     const todayLogs = checkinLogsRes.data.filter(log => log.sync_status !== 2);
     const finishedHabitIds = todayLogs.map(log => String(log.habit_id));
 
-    const finalTasks = await Promise.all(todayTasksRaw.map(async (strategy) => {
-      const habitInfo = habitsData.find(h => h._id === strategy.habit_id) || {};
+    const finalTasks = await Promise.all(todayTasksRaw.map(async ({ strategy, effectiveStrategy }) => {
+      const habitInfo = habitsData.find(h => getHabitKey(h) === String(strategy.habit_id)) || {};
       const isDone = finishedHabitIds.includes(String(strategy.habit_id));
 
       const logsRes = await db.collection('checkin_logs').where({
@@ -195,9 +251,9 @@ exports.main = async (event, context) => {
       return {
         strategy_id: strategy._id,
         habit_id: strategy.habit_id,
-        title: habitInfo.title,
+        title: getHabitTitle(habitInfo, strategy),
         icon_url: habitInfo.icon_url,
-        duration: strategy.duration,
+        duration: effectiveStrategy.duration || strategy.duration,
         is_done: isDone,
         streak_days: streakDays
       };
@@ -210,6 +266,6 @@ exports.main = async (event, context) => {
 
   } catch (err) {
     console.error(err);
-    return { success: false, error: err.message };
+    return { success: false, message: err.message, error: err.message };
   }
 };

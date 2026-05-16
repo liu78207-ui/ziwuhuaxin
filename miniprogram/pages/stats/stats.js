@@ -11,6 +11,7 @@
 const iconMap = require('../../utils/iconMap.js');
 const reportCalculator = require('../../utils/reportCalculator.js');
 const lunarCalendar = require('../../utils/lunarCalendar.js');
+const share = require('../../utils/share.js');
 
 // 从全局获取调试配置
 const getDebugOffset = () => {
@@ -86,6 +87,8 @@ Page({
   },
 
   onShow() {
+    share.enableShareMenu();
+
     // 调试：检查本地存储中的数据
     this.debugStorageData();
     
@@ -1517,5 +1520,13 @@ Page({
       checkinDays: checkinDays.size,
       maxStreak
     };
+  },
+
+  onShareAppMessage() {
+    return share.appMessage('子午花信 · 观心报表', '/pages/stats/stats');
+  },
+
+  onShareTimeline() {
+    return share.timeline('子午花信 · 观心报表', 'from=timeline&page=stats');
   }
 });

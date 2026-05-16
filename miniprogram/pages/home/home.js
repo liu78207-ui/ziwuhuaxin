@@ -11,6 +11,7 @@
 const ziwu = require('../../utils/ziwu.js');
 const iconMap = require('../../utils/iconMap.js');
 const reportCalculator = require('../../utils/reportCalculator.js');
+const share = require('../../utils/share.js');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -48,6 +49,13 @@ const getDebugOffset = () => {
   return offset !== undefined ? offset : 0;
 };
 
+const formatDateKey = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 // 判断习惯今天是否应该显示（根据频率策略）
 function shouldShowHabitToday(habit) {
   // 调试模式：可以模拟不同日期
@@ -57,7 +65,7 @@ function shouldShowHabitToday(habit) {
     today.setDate(today.getDate() + DEBUG_DAY_OFFSET);
   }
   
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = formatDateKey(today);
   const deletedDate = (habit.deletedAt || habit.deleted_at || '').split('T')[0];
   if (deletedDate && todayStr >= deletedDate) {
     return false;
@@ -173,6 +181,11 @@ Page({
 
   // 跳转到修习页面
   goToHabits() {
+    const app = getApp();
+    if (app && app.globalData) {
+      app.globalData.pendingHabitsTab = 'sports';
+    }
+
     wx.switchTab({
       url: '/pages/habits/habits'
     });
@@ -197,6 +210,8 @@ Page({
   },
 
   onShow() {
+    share.enableShareMenu();
+
     console.log('=== onShow 触发 ===');
     this.initTimeInfo();
 
@@ -291,7 +306,7 @@ Page({
     if (DEBUG_DAY_OFFSET !== 0) {
       todayDate.setDate(todayDate.getDate() + DEBUG_DAY_OFFSET);
     }
-    const today = todayDate.toISOString().split('T')[0];
+    const today = formatDateKey(todayDate);
     console.log('模拟日期:', today, 'DEBUG_DAY_OFFSET:', DEBUG_DAY_OFFSET);
 
     if (!myHabits || myHabits.length === 0) {
@@ -444,7 +459,7 @@ Page({
     if (DEBUG_DAY_OFFSET !== 0) {
       todayDate.setDate(todayDate.getDate() + DEBUG_DAY_OFFSET);
     }
-    const today = todayDate.toISOString().split('T')[0];
+    const today = formatDateKey(todayDate);
 
     // 本地校验：检查是否已打卡（防止重复打卡）
     if (!isChecked) {
@@ -493,13 +508,13 @@ Page({
       if (app.addCheckinLog) {
         app.addCheckinLog(habitId, today, 0); // sync_status = 0 待同步
       }
-      await this.syncCheckinToCloud(habitId, true);
+      await this.syncCheckinToCloud(habitId, true, today);
     } else {
       // 取消打卡：从 CheckinLogs 移除或标记为待删除
       if (app.removeCheckinLog) {
         app.removeCheckinLog(habitId, today);
       }
-      await this.syncCheckinToCloud(habitId, false);
+      await this.syncCheckinToCloud(habitId, false, today);
     }
 
     // 清除防抖状态
@@ -508,7 +523,7 @@ Page({
   },
 
   // 同步打卡状态到云端
-  async syncCheckinToCloud(habitId, isCheckin) {
+  async syncCheckinToCloud(habitId, isCheckin, checkinDate) {
     const app = getApp();
 
     // 调试模式下跳过云端同步（因为云端使用真实日期）
@@ -542,13 +557,13 @@ Page({
       const cloudFuncName = isCheckin ? 'doCheckin' : 'undoCheckin';
       const { result } = await wx.cloud.callFunction({
         name: cloudFuncName,
-        data: { habit_id: habitId }
+        data: { habit_id: habitId, checkin_date: checkinDate }
       });
 
       if (result.success) {
         // 同步成功，更新本地记录状态
         const logs = app.globalData.CheckinLogs || [];
-        const today = new Date().toISOString().split('T')[0];
+        const today = checkinDate || formatDateKey(new Date());
         const logIndex = logs.findIndex(log =>
           log.habitId === String(habitId) && log.date === today
         );
@@ -561,13 +576,13 @@ Page({
         }
 
         wx.showToast({
-          title: isCheckin ? '打卡成功 ✅' : '已取消打卡',
+          title: isCheckin ? '打卡成功' : '已取消打卡',
           icon: 'none'
         });
       } else if (result.message === '今日已打卡') {
         // 云端已存在，标记本地为已同步
         const logs = app.globalData.CheckinLogs || [];
-        const today = new Date().toISOString().split('T')[0];
+        const today = checkinDate || formatDateKey(new Date());
         const logIndex = logs.findIndex(log =>
           log.habitId === String(habitId) && log.date === today
         );
@@ -607,11 +622,14 @@ Page({
     const { timeInfo, taskList } = this.data;
     const checkedCount = taskList.filter(item => item.isChecked).length;
     const totalCount = taskList.length;
-    
-    return {
-      title: `子午花信 · ${timeInfo.shichen} | 今日已打卡 ${checkedCount}/${totalCount} 项修习`,
-      path: '/pages/home/home',
-      imageUrl: '/images/share-cover.png'
-    };
+
+    return share.appMessage(
+      `子午花信 · ${timeInfo.shichen || '今日修习'} | 今日已打卡 ${checkedCount}/${totalCount} 项`,
+      '/pages/home/home'
+    );
+  },
+
+  onShareTimeline() {
+    return share.timeline('子午花信 · 顺时修习，日日有信', 'from=timeline&page=home');
   }
 });

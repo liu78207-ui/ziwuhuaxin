@@ -43,7 +43,7 @@ function isDueByStrategy(strategy, dateStr, dayOfWeek) {
     const diffDays = Math.floor((parseDate(dateStr) - parseDate(planStartDate)) / (24 * 60 * 60 * 1000));
     const intervalDays = Math.max(1, Number(strategy.freq_rules || 1));
     const cycleDays = intervalDays + 1;
-    return diffDays >= intervalDays && (diffDays - intervalDays) % cycleDays === 0;
+    return diffDays >= 0 && diffDays % cycleDays === 0;
   }
 
   return true;
@@ -148,7 +148,7 @@ describe('getTodayTasks cloud function behavior', () => {
     expect(result.data[0].habit_id).toBe('h1');
   });
 
-  test('interval 2 is first due after two days, then every three days', async () => {
+  test('interval 2 is due on plan start date, then every three days', async () => {
     mockDb.get
       .mockResolvedValueOnce({
         data: [{ _id: 's1', habit_id: 'h1', freq_type: 'interval', freq_rules: 2, duration: 20, plan_start_date: '2026-04-10' }]
@@ -157,7 +157,7 @@ describe('getTodayTasks cloud function behavior', () => {
       .mockResolvedValueOnce({ data: [] })
       .mockResolvedValueOnce({ data: [] });
 
-    const dueResult = await main({ dateStr: '2026-04-12', dayOfWeek: 7 });
+    const dueResult = await main({ dateStr: '2026-04-13', dayOfWeek: 1 });
     expect(dueResult.data).toHaveLength(1);
 
     jest.clearAllMocks();
@@ -165,7 +165,7 @@ describe('getTodayTasks cloud function behavior', () => {
       data: [{ _id: 's1', habit_id: 'h1', freq_type: 'interval', freq_rules: 2, duration: 20, plan_start_date: '2026-04-10' }]
     });
 
-    const inactiveResult = await main({ dateStr: '2026-04-13', dayOfWeek: 1 });
+    const inactiveResult = await main({ dateStr: '2026-04-12', dayOfWeek: 7 });
     expect(inactiveResult.data).toEqual([]);
   });
 

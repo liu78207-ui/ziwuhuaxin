@@ -111,7 +111,7 @@ describe('首页 (home) 页面测试', () => {
             if (res.result.success) {
               wx.showToast({
                 title: '打卡成功',
-                icon: 'success'
+                icon: 'none'
               });
               this.loadHabitsData();
             } else {
@@ -240,7 +240,7 @@ describe('首页 (home) 页面测试', () => {
       pageConfig.onCheckin(mockEvent);
 
       expect(wx.showToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: '打卡成功', icon: 'success' })
+        expect.objectContaining({ title: '打卡成功', icon: 'none' })
       );
     });
 

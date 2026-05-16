@@ -7,16 +7,31 @@
  * wx.cloud.callFunction({
  *   name: 'initTestData',
  *   data: { scenario: 0 },
- *   success: res => console.log(res)
+ *   success: res => releaseLog(res)
  * })
  * 
  * scenario: 0=全部场景, 1-5=单个场景
  */
 const cloud = require('wx-server-sdk');
+const { createManualStrategyScenario } = require('./manualStrategyScenario.js');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const releaseLog = () => {};
 
 const db = cloud.database();
 const _ = db.command;
+const TEST_DATA_CONFIRMATION = 'ALLOW_TEST_DATA_WRITE';
+
+function isTestDataFunctionEnabled(event = {}) {
+  return process.env.ALLOW_TEST_DATA_FUNCTIONS === 'true' &&
+    event.confirmTestDataWrite === TEST_DATA_CONFIRMATION;
+}
+
+function testDataFunctionDisabledResponse() {
+  return {
+    success: false,
+    message: '测试数据云函数默认禁用。仅测试环境可设置 ALLOW_TEST_DATA_FUNCTIONS=true 并传入 confirmTestDataWrite 后执行。'
+  };
+}
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -76,6 +91,63 @@ function generateUUID() {
   return 'xxxxxxxxxxxx'.replace(/x/g, () => 
     Math.floor(Math.random() * 16).toString(16)
   );
+}
+
+async function clearCollectionsForUser(openid) {
+  const collections = ['user_strategies', 'checkin_logs', 'user_strategy_versions', 'habits'];
+  const details = {};
+
+  for (const collectionName of collections) {
+    try {
+      const result = await db.collection(collectionName).where({ _openid: openid }).remove();
+      details[collectionName] = result.deleted || 0;
+    } catch (err) {
+      details[collectionName] = 0;
+      releaseLog(`${collectionName} 清理失败或集合不存在，跳过`, err.message);
+    }
+  }
+
+  return details;
+}
+
+function isCollectionMissingError(err, collectionName) {
+  const message = String((err && (err.message || err.errMsg)) || err || '');
+  return message.includes(collectionName) && (
+    message.includes('-502005') ||
+    message.includes('collection not exists') ||
+    message.includes('Db or Table not exist') ||
+    message.includes('DATABASE_COLLECTION_NOT_EXIST')
+  );
+}
+
+async function ensureCollectionsExist(openid, collectionNames) {
+  for (const collectionName of collectionNames) {
+    await db.collection(collectionName).where({ _openid: openid }).get();
+  }
+}
+
+async function seedManualStrategyScenario(openid) {
+  await ensureCollectionsExist(openid, ['user_strategies', 'checkin_logs', 'user_strategy_versions', 'habits']);
+
+  const scenario = createManualStrategyScenario(openid);
+
+  for (const strategy of scenario.strategies) {
+    await db.collection('user_strategies').add({ data: strategy });
+  }
+
+  for (const version of scenario.strategyVersions) {
+    await db.collection('user_strategy_versions').add({ data: version });
+  }
+
+  for (const log of scenario.logs) {
+    await db.collection('checkin_logs').add({ data: log });
+  }
+
+  for (const habit of scenario.habits) {
+    await db.collection('habits').add({ data: habit });
+  }
+
+  return scenario;
 }
 
 // 场景1：正常使用场景（连续打卡）
@@ -462,18 +534,60 @@ exports.main = async (event, context) => {
     return { success: false, message: '无法获取用户信息' };
   }
 
+  if (!isTestDataFunctionEnabled(event)) {
+    return testDataFunctionDisabledResponse();
+  }
+
   const scenario = event.scenario || 0;
+  const force = Boolean(event.force);
 
   try {
+    if (scenario === 6 || scenario === 'manualStrategy') {
+      if (force) {
+        releaseLog('force=true，先清空当前用户测试数据...');
+        await clearCollectionsForUser(openid);
+      }
+
+      const existingStrategies = await db.collection('user_strategies').where({
+        _openid: openid
+      }).get();
+
+      if (!force && existingStrategies.data && existingStrategies.data.length > 0) {
+        releaseLog('发现已有数据:', existingStrategies.data.length, '条策略');
+        return {
+          success: false,
+          message: '已有测试数据，请传入 { scenario: 6, force: true } 后覆盖当前用户测试数据',
+          existingCount: existingStrategies.data.length
+        };
+      }
+
+      const manualScenario = await seedManualStrategyScenario(openid);
+
+      return {
+        success: true,
+        message: '连续日期策略人工测试数据构造完成',
+        summary: {
+          scenario: manualScenario.name,
+          totalStrategies: manualScenario.strategies.length,
+          totalStrategyVersions: manualScenario.strategyVersions.length,
+          totalLogs: manualScenario.logs.length,
+          totalHabits: manualScenario.habits.length,
+          startDate: manualScenario.expected.startDate,
+          endDate: manualScenario.expected.endDate
+        },
+        expected: manualScenario.expected
+      };
+    }
+
     // 先检查是否已有数据
-    console.log('检查现有数据...');
+    releaseLog('检查现有数据...');
     
     const existingStrategies = await db.collection('user_strategies').where({
       _openid: openid
     }).get();
     
     if (existingStrategies.data && existingStrategies.data.length > 0) {
-      console.log('发现已有数据:', existingStrategies.data.length, '条策略');
+      releaseLog('发现已有数据:', existingStrategies.data.length, '条策略');
       return {
         success: false,
         message: '已有测试数据，请先清空或直接使用现有数据',
@@ -482,7 +596,7 @@ exports.main = async (event, context) => {
       };
     }
     
-    console.log('未发现现有数据，开始构造...');
+    releaseLog('未发现现有数据，开始构造...');
 
     const scenarios = [];
     if (scenario === 0 || scenario === 1) scenarios.push(createScenario1(openid));
@@ -496,33 +610,33 @@ exports.main = async (event, context) => {
 
     // 收集所有数据
     for (const s of scenarios) {
-      console.log(`处理 ${s.name}...`);
+      releaseLog(`处理 ${s.name}...`);
       allStrategies.push(...s.strategies);
       allLogs.push(...s.logs);
     }
 
     // 插入策略
-    console.log('开始插入策略...');
+    releaseLog('开始插入策略...');
     for (const strategy of allStrategies) {
       await db.collection('user_strategies').add({
         data: strategy
       });
     }
-    console.log(`已插入 ${allStrategies.length} 个策略`);
+    releaseLog(`已插入 ${allStrategies.length} 个策略`);
 
     // 插入打卡记录
-    console.log('开始插入打卡记录...');
+    releaseLog('开始插入打卡记录...');
     for (const log of allLogs) {
       await db.collection('checkin_logs').add({
         data: log
       });
     }
-    console.log(`已插入 ${allLogs.length} 条打卡记录`);
+    releaseLog(`已插入 ${allLogs.length} 条打卡记录`);
 
     // 保存习惯信息到 habits 集合（用于恢复已删除习惯的名称）
-    console.log('开始保存习惯信息...');
+    releaseLog('开始保存习惯信息...');
     await saveHabitInfo(openid);
-    console.log('习惯信息已保存');
+    releaseLog('习惯信息已保存');
 
     // 统计每个习惯的打卡次数
     const habitCountMap = {};
@@ -548,6 +662,13 @@ exports.main = async (event, context) => {
 
   } catch (err) {
     console.error('initTestData error:', err);
+    if (isCollectionMissingError(err, 'user_strategy_versions')) {
+      return {
+        success: false,
+        message: '缺少云数据库集合 user_strategy_versions，请先在云开发控制台创建该集合后重新执行 { scenario: 6, force: true }。',
+        originalMessage: err.message
+      };
+    }
     return { success: false, message: err.message };
   }
 };

@@ -114,22 +114,28 @@
 
 .date-info {
   display: flex;
+  flex-direction: column;
   align-items: center;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+  padding: 0 24rpx;
 }
 
 .dc-title {
   font-size: 28rpx;
   color: var(--ink-title);
   font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
 }
 
-.dc-dot {
-  margin: 0 8rpx;
+.dc-subtitle {
+  margin-top: 8rpx;
+  font-size: 22rpx;
   color: var(--text-sub);
-}
-
-.dc-num {
-  font-family: sans-serif;
+  line-height: 1.35;
+  text-align: center;
 }
 
 /* ============================================

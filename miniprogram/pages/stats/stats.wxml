@@ -23,7 +23,8 @@
     <view class="date-control">
       <text class="dc-arrow" bindtap="prevPeriod">‹</text>
       <view class="date-info">
-        <text class="dc-title">{{lunarDate}}<text class="dc-dot">·</text><text class="dc-num">{{dateRange}}</text></text>
+        <text class="dc-title">{{dateTitle}}</text>
+        <text class="dc-subtitle" wx:if="{{dateSubtitle}}">{{dateSubtitle}}</text>
       </view>
       <text class="dc-arrow" bindtap="nextPeriod">›</text>
     </view>

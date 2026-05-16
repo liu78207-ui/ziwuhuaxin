@@ -1,3 +1,4 @@
+const share = require('../../utils/share.js');
 const db = wx.cloud.database();
 
 Page({
@@ -21,6 +22,8 @@ Page({
   },
 
   onShow() {
+    share.enableShareMenu();
+
     // 设置自定义 TabBar 选中状态
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({
@@ -252,5 +255,13 @@ Page({
       title: '关于功能开发中',
       icon: 'none'
     });
+  },
+
+  onShareAppMessage() {
+    return share.appMessage('子午花信 · 顺时修习，日日有信', '/pages/profile/profile');
+  },
+
+  onShareTimeline() {
+    return share.timeline('子午花信 · 顺时修习，日日有信', 'from=timeline&page=profile');
   }
 });

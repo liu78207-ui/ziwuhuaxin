@@ -1,5 +1,6 @@
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const releaseLog = () => {};
 
 const db = cloud.database();
 const _ = db.command;
@@ -46,7 +47,7 @@ exports.main = async (event, context) => {
     }).get();
 
     if (existingLog.data && existingLog.data.length > 0) {
-      console.log('重复打卡拦截:', openid, habitIdStr, todayStr);
+      releaseLog('重复打卡拦截:', openid, habitIdStr, todayStr);
       return { success: false, message: '今日已打卡' };
     }
 
@@ -62,12 +63,12 @@ exports.main = async (event, context) => {
         }
       });
 
-      console.log('打卡成功:', addResult._id, openid, habitIdStr, todayStr);
+      releaseLog('打卡成功:', addResult._id, openid, habitIdStr, todayStr);
       return { success: true, message: '打卡成功', logId: addResult._id };
     } catch (addErr) {
       // 检查是否是重复键错误（唯一索引冲突）
       if (addErr.errCode === -502001 || addErr.message.includes('duplicate key')) {
-        console.log('唯一索引拦截重复打卡:', openid, habitIdStr, todayStr);
+        releaseLog('唯一索引拦截重复打卡:', openid, habitIdStr, todayStr);
         return { success: false, message: '今日已打卡' };
       }
       throw addErr;

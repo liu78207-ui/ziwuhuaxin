@@ -135,7 +135,7 @@ function isDueByStrategy(source, dateStr) {
   if (freqType === 'interval') {
     const intervalDays = getIntervalDays(source.freq_rules);
     const cycleDays = intervalDays + 1;
-    return diff >= intervalDays && (diff - intervalDays) % cycleDays === 0;
+    return diff % cycleDays === 0;
   }
 
   return true;

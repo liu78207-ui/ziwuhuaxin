@@ -7,14 +7,28 @@
  * wx.cloud.callFunction({
  *   name: 'clearTestData',
  *   data: { confirm: true },
- *   success: res => console.log(res)
+ *   success: res => releaseLog(res)
  * })
  */
 const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
+const releaseLog = () => {};
 
 const db = cloud.database();
 const _ = db.command;
+const TEST_DATA_CONFIRMATION = 'ALLOW_TEST_DATA_WRITE';
+
+function isTestDataFunctionEnabled(event = {}) {
+  return process.env.ALLOW_TEST_DATA_FUNCTIONS === 'true' &&
+    event.confirmTestDataWrite === TEST_DATA_CONFIRMATION;
+}
+
+function testDataFunctionDisabledResponse() {
+  return {
+    success: false,
+    message: '测试数据清理云函数默认禁用。仅测试环境可设置 ALLOW_TEST_DATA_FUNCTIONS=true 并传入 confirmTestDataWrite 后执行。'
+  };
+}
 
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
@@ -22,6 +36,10 @@ exports.main = async (event, context) => {
 
   if (!openid) {
     return { success: false, message: '无法获取用户信息' };
+  }
+
+  if (!isTestDataFunctionEnabled(event)) {
+    return testDataFunctionDisabledResponse();
   }
 
   if (!event.confirm) {
@@ -54,7 +72,7 @@ exports.main = async (event, context) => {
       }).remove();
       versionsRemoved = versionsRes.deleted || 0;
     } catch (e) {
-      console.log('user_strategy_versions 集合不存在，跳过');
+      releaseLog('user_strategy_versions 集合不存在，跳过');
     }
 
     let habitsRemoved = 0;
@@ -64,7 +82,7 @@ exports.main = async (event, context) => {
       }).remove();
       habitsRemoved = habitsRes.deleted || 0;
     } catch (e) {
-      console.log('habits 集合不存在，跳过');
+      releaseLog('habits 集合不存在，跳过');
     }
 
     return {

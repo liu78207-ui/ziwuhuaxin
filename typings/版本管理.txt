@@ -1,0 +1,33 @@
+Ubuntu Git 版本管理步骤
+1. 打开终端
+2. 配置 Git（只需做一次）
+git config --global user.name "Your Name"
+git config --global user.email "liu78207@gmail.com"
+3. 生成 SSH Key（只需做一次）
+ssh-keygen -t ed25519 -C "liu78207@gmail.com"
+一直按回车
+
+cat ~/.ssh/id_ed25519.pub
+复制输出的内容
+4. 在 GitHub 添加 SSH Key
+- 打开 https://github.com/settings/keys
+- 点击 New SSH key，粘贴公钥内容
+
+日常工作流程：
+# 查看修改
+git status
+# 添加文件到暂存区
+git add .
+# 提交（写清楚做了什么）
+git commit -m "描述本次修改"
+# 推送到云端
+git push
+查看历史：
+git log        # 查看提交历史
+git diff       # 查看未提交的修改
+
+
+下载代码:
+git clone git@github.com:liu78207-ui/ziwuhuaxin.git
+
+代码提交修改，并推到远端git@github.com:liu78207-ui/ziwuhuaxin.git
