@@ -456,9 +456,15 @@ Page({
   // 移除习惯策略
   async removeStrategy(habit) {
     const app = getApp();
+    const strategyHabitId = String(
+      (habit.strategy && habit.strategy.habit_id) ||
+      habit.habitId ||
+      habit.habit_id ||
+      habit._id
+    );
 
     // 1. 从用户策略中移除（自动同步到本地存储）
-    app.removeUserStrategy(habit._id, habit);
+    app.removeUserStrategy(strategyHabitId, habit);
 
     // 2. 保留打卡记录（用户可能想查看历史数据）
     // this.removeCheckinRecords(habit._id);
@@ -468,7 +474,7 @@ Page({
       const { result } = await wx.cloud.callFunction({
         name: 'removeStrategy',
         data: {
-          habit_id: habit._id,
+          habit_id: strategyHabitId,
           habit_title: habit.title,
           category: habit.category,
           icon_url: habit.iconUrl || '',

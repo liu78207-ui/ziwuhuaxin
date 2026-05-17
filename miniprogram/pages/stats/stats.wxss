@@ -233,14 +233,14 @@
 
 /* 已打卡 - 使用主题颜色 */
 .wt-dot.checked {
-  background: var(--theme-color);
-  border: 2rpx solid var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
+  border: 2rpx solid var(--theme-color, var(--c-primary));
 }
 
 /* 未打卡（打卡日）- 白色 + 主题色描边 */
 .wt-dot.unchecked {
   background: #FFFFFF;
-  border: 2rpx solid var(--theme-color);
+  border: 2rpx solid var(--theme-color, var(--c-primary));
 }
 
 /* 非打卡日 - 浅灰色块 */
@@ -256,8 +256,8 @@
 }
 
 .wt-dot.deleted.checked {
-  background: #F4F6F8;
-  border: 2rpx solid transparent;
+  background: var(--theme-color, var(--c-primary));
+  border: 2rpx solid var(--theme-color, var(--c-primary));
 }
 
 /* ============================================
@@ -412,7 +412,7 @@
 
 .mc-cell.unchecked {
   background: #FFFFFF;
-  border: 2rpx solid var(--theme-color);
+  border: 2rpx solid var(--theme-color, var(--c-primary));
   color: var(--ink-title);
   box-sizing: border-box;
 }
@@ -427,14 +427,14 @@
 }
 
 .mc-cell.checked {
-  background: var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
   color: #FFF;
   font-weight: 600;
   opacity: 0.9;
 }
 
 .mc-cell.done {
-  background: var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
   color: #FFF;
   font-weight: 600;
   opacity: 0.9;
@@ -559,17 +559,17 @@
 }
 
 .yh-dot.level-1 {
-  background: var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
   opacity: 0.3;
 }
 
 .yh-dot.level-2 {
-  background: var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
   opacity: 0.6;
 }
 
 .yh-dot.level-3 {
-  background: var(--theme-color);
+  background: var(--theme-color, var(--c-primary));
   opacity: 0.9;
 }
 
@@ -624,8 +624,8 @@
 }
 
 .wt-row.is-deleted .wt-dot.checked {
-  background: #E8E8E8;
-  border-color: #E8E8E8;
+  background: var(--theme-color, var(--c-primary));
+  border-color: var(--theme-color, var(--c-primary));
 }
 
 .m-card.is-deleted {

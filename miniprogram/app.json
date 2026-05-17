@@ -5,6 +5,7 @@
     "pages/stats/stats",
     "pages/profile/profile"
   ],
+  "lazyCodeLoading": "requiredComponents",
   "window": {
     "navigationBarTextStyle": "black",
     "navigationStyle": "custom",

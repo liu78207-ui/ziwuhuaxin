@@ -101,7 +101,7 @@ describe('reportCalculator', () => {
     expect(futurePeriod.visible).toBe(false);
   });
 
-  test('stops due days on deletion date unless deletion day already has a log', () => {
+  test('stops due days on deletion date but keeps real checkins visible', () => {
     const habit = {
       habitId: 'deleted',
       freq_type: 'daily',
@@ -122,9 +122,106 @@ describe('reportCalculator', () => {
 
     expect(report.days.find(day => day.date === '2026-05-04').status).toBe('unchecked');
     expect(report.days.find(day => day.date === '2026-05-05').status).toBe('checked');
-    expect(report.days.find(day => day.date === '2026-05-06').status).toBe('deleted');
+    expect(report.days.find(day => day.date === '2026-05-06').status).toBe('inactive');
     expect(report.dueCount).toBe(5);
     expect(report.doneCount).toBe(1);
+  });
+
+  test('deleted habits without real logs use inactive gray cells and are hidden in empty periods', () => {
+    const habit = {
+      habitId: 'deleted-empty',
+      freq_type: 'daily',
+      freq_rules: 1,
+      plan_start_date: '2026-05-01',
+      isDeleted: true,
+      deletedAt: '2026-05-05T09:00:00.000Z'
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [],
+      '2026-05-06',
+      '2026-05-10',
+      '2026-05-10'
+    );
+
+    expect(report.days.every(day => day.status === 'inactive')).toBe(true);
+    expect(report.dueCount).toBe(0);
+    expect(report.doneCount).toBe(0);
+    expect(report.visible).toBe(false);
+  });
+
+  test('keeps deletion-day checkin visible when deletedAt is a Date object from cloud sync', () => {
+    const habit = {
+      habitId: 'deleted-date-object',
+      freq_type: 'daily',
+      freq_rules: 1,
+      plan_start_date: '2026-05-01',
+      isDeleted: true,
+      deletedAt: new Date(2026, 4, 5, 9, 0, 0)
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [{ habitId: 'deleted-date-object', date: '2026-05-05' }],
+      '2026-05-01',
+      '2026-05-07',
+      '2026-05-07'
+    );
+
+    expect(report.days.find(day => day.date === '2026-05-05').status).toBe('checked');
+    expect(report.doneCount).toBe(1);
+    expect(report.visible).toBe(true);
+  });
+
+  test('keeps checked logs visible for deleted habits even when the date is not due by strategy', () => {
+    const habit = {
+      habitId: 'deleted-non-due',
+      freq_type: 'weekly',
+      freq_rules: [1],
+      freq_category: 'weekly',
+      plan_start_date: '2026-05-01',
+      isDeleted: true,
+      deletedAt: '2026-05-20T09:00:00.000Z'
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [{ habitId: 'deleted-non-due', date: '2026-05-16' }],
+      '2026-05-11',
+      '2026-05-17',
+      '2026-05-16'
+    );
+
+    const checkedDay = report.days.find(day => day.date === '2026-05-16');
+    expect(checkedDay.status).toBe('checked');
+    expect(checkedDay.countsAsDone).toBe(true);
+    expect(report.doneCount).toBe(1);
+    expect(report.visible).toBe(true);
+  });
+
+  test('does not keep cancelled logs visible for deleted habits', () => {
+    const habit = {
+      habitId: 'deleted-cancelled',
+      freq_type: 'weekly',
+      freq_rules: [1],
+      freq_category: 'weekly',
+      plan_start_date: '2026-05-01',
+      isDeleted: true,
+      deletedAt: '2026-05-20T09:00:00.000Z'
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [{ habitId: 'deleted-cancelled', date: '2026-05-16', sync_status: 2 }],
+      '2026-05-11',
+      '2026-05-17',
+      '2026-05-16'
+    );
+
+    const day = report.days.find(item => item.date === '2026-05-16');
+    expect(day.status).toBe('inactive');
+    expect(day.countsAsDone).toBe(false);
   });
 
   test('hides deleted habits in later periods when deletedAt is missing', () => {
@@ -148,7 +245,7 @@ describe('reportCalculator', () => {
     expect(laterReport.dueCount).toBe(0);
     expect(laterReport.doneCount).toBe(0);
     expect(laterReport.visible).toBe(false);
-    expect(laterReport.days.every(day => day.status === 'deleted')).toBe(true);
+    expect(laterReport.days.every(day => day.status === 'inactive')).toBe(true);
   });
 
   test('keeps deleted habit history visible in periods with checkins when deletedAt is missing', () => {
@@ -214,9 +311,9 @@ describe('reportCalculator', () => {
     expect(report.days.map(day => [day.date, day.status])).toEqual([
       ['2026-05-01', 'checked'],
       ['2026-05-02', 'unchecked'],
-      ['2026-05-03', 'deleted'],
-      ['2026-05-04', 'deleted'],
-      ['2026-05-05', 'deleted'],
+      ['2026-05-03', 'inactive'],
+      ['2026-05-04', 'inactive'],
+      ['2026-05-05', 'inactive'],
       ['2026-05-06', 'checked'],
       ['2026-05-07', 'unchecked']
     ]);
@@ -245,12 +342,12 @@ describe('reportCalculator', () => {
       '2026-05-07'
     );
 
-    expect(report.stats.totalCount).toBe(3);
-    expect(report.stats.checkinDays).toBe(3);
-    expect(report.stats.maxStreak).toBe(1);
+    expect(report.stats.totalCount).toBe(4);
+    expect(report.stats.checkinDays).toBe(4);
+    expect(report.stats.maxStreak).toBe(3);
   });
 
-  test('does not let non-due dirty logs expand due denominator or checked UI state', () => {
+  test('respects real checkin logs even when the date is not due by strategy', () => {
     const habits = [
       { habitId: 'h1', freq_type: 'weekly', freq_rules: [1], plan_start_date: '2026-05-01' },
       { habitId: 'h2', freq_type: 'interval', freq_rules: 2, plan_start_date: '2026-05-01' }
@@ -278,13 +375,83 @@ describe('reportCalculator', () => {
       .find(habitReport => habitReport.habitId === 'h1')
       .days.find(day => day.date === '2026-05-05');
 
-    expect(visibleCells).toBe(3);
-    expect(dirtyDay.isDue).toBe(false);
+    expect(visibleCells).toBe(4);
+    expect(dirtyDay.isDue).toBe(true);
     expect(dirtyDay.isChecked).toBe(true);
-    expect(dirtyDay.status).toBe('inactive');
-    expect(dirtyDay.countsInDueDenominator).toBe(false);
-    expect(report.stats.totalCount).toBe(2);
-    expect(report.stats.checkinRate).toBe(67);
+    expect(dirtyDay.status).toBe('checked');
+    expect(dirtyDay.countsInDueDenominator).toBe(true);
+    expect(dirtyDay.countsAsDone).toBe(true);
+    expect(report.stats.totalCount).toBe(3);
+    expect(report.stats.checkinRate).toBe(75);
+  });
+
+  test('keeps real logs visible inside deleted strategy segments after re-addition', () => {
+    const habit = {
+      habitId: 'readd-checked-gap',
+      freq_type: 'daily',
+      freq_rules: 1,
+      plan_start_date: '2026-05-06',
+      strategyVersions: [
+        {
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-01',
+          start_date: '2026-05-01',
+          end_date: '2026-05-03'
+        },
+        {
+          deleted: true,
+          start_date: '2026-05-03',
+          end_date: '2026-05-06'
+        },
+        {
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-06',
+          start_date: '2026-05-06',
+          end_date: null
+        }
+      ]
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [{ habitId: 'readd-checked-gap', date: '2026-05-04' }],
+      '2026-05-01',
+      '2026-05-07',
+      '2026-05-07'
+    );
+
+    const gapDay = report.days.find(day => day.date === '2026-05-04');
+    expect(gapDay.status).toBe('checked');
+    expect(gapDay.isDue).toBe(true);
+    expect(gapDay.countsInDueDenominator).toBe(true);
+    expect(gapDay.countsAsDone).toBe(true);
+    expect(report.doneCount).toBe(1);
+    expect(report.dueCount).toBe(5);
+  });
+
+  test('does not show future logs even when a real log exists', () => {
+    const habit = {
+      habitId: 'future-log',
+      freq_type: 'weekly',
+      freq_rules: [1],
+      plan_start_date: '2026-05-01'
+    };
+
+    const report = reportCalculator.buildHabitPeriodReport(
+      habit,
+      [{ habitId: 'future-log', date: '2026-05-16' }],
+      '2026-05-11',
+      '2026-05-17',
+      '2026-05-15'
+    );
+
+    const futureDay = report.days.find(day => day.date === '2026-05-16');
+    expect(futureDay.status).toBe('future');
+    expect(futureDay.countsInDueDenominator).toBe(false);
+    expect(futureDay.countsAsDone).toBe(false);
+    expect(report.doneCount).toBe(0);
   });
 
   test('filters cancelled logs from cumulative practice count', () => {
@@ -344,7 +511,7 @@ describe('reportCalculator', () => {
     expect(yearReport.doneCount).toBe(2);
   });
 
-  test('lifetime effective practice days follow strategy versions and ignore dirty logs', () => {
+  test('lifetime effective practice days follow real logs across strategy versions', () => {
     const habit = {
       habitId: 'versioned-life',
       freq_type: 'daily',
@@ -379,6 +546,6 @@ describe('reportCalculator', () => {
       { habitId: 'versioned-life', date: '2026-01-11' }
     ];
 
-    expect(reportCalculator.calculateLifetimeEffectivePracticeDays(habit, logs, '2026-01-11')).toBe(3);
+    expect(reportCalculator.calculateLifetimeEffectivePracticeDays(habit, logs, '2026-01-11')).toBe(5);
   });
 });

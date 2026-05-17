@@ -51,7 +51,7 @@ function buildDateRange(startDate, endDate) {
 }
 
 function getHabitId(habit) {
-  return String(habit.habitId || habit.habit_id || habit._id || '');
+  return String((habit.strategy && habit.strategy.habit_id) || habit.habitId || habit.habit_id || habit._id || '');
 }
 
 function getLogHabitId(log) {
@@ -60,6 +60,10 @@ function getLogHabitId(log) {
 
 function getLogDate(log) {
   return log.date || log.checkin_date || log.checkinDate || '';
+}
+
+function isDeletedHabit(habit) {
+  return Boolean(habit && (habit.isDeleted || habit.is_deleted || habit.deleted || habit.deletedAt || habit.deleted_at));
 }
 
 function normalizeLogs(logs) {
@@ -79,11 +83,13 @@ function normalizeLogs(logs) {
 }
 
 function getDeletedDate(habit) {
-  return (habit.deletedAt || habit.deleted_at || '').split('T')[0] || null;
-}
-
-function isDeletedHabit(habit) {
-  return Boolean(habit && (habit.isDeleted || habit.is_deleted || habit.deleted || habit.deletedAt || habit.deleted_at));
+  const value = habit.deletedAt || habit.deleted_at;
+  if (!value) return null;
+  if (value instanceof Date) return formatDate(value);
+  if (typeof value === 'string') return value.split('T')[0] || null;
+  if (typeof value.toDate === 'function') return formatDate(value.toDate());
+  if (typeof value.toISOString === 'function') return value.toISOString().split('T')[0] || null;
+  return String(value).split('T')[0] || null;
 }
 
 function getPlanStartDate(source) {
@@ -190,17 +196,18 @@ function getDayStatus(habit, dateStr, checked, todayStr) {
     return { isDue: false, shouldShow: false, status: 'future' };
   }
 
+  if (checked) {
+    return { isDue: true, shouldShow: true, status: 'checked' };
+  }
+
   const segment = getSegmentForDate(habit, dateStr);
   if (segment && segment.isDeletedSegment) {
-    return { isDue: false, shouldShow: false, status: 'deleted' };
+    return { isDue: false, shouldShow: false, status: 'inactive' };
   }
 
   const deletedDate = getDeletedDate(habit);
   if (deletedDate && compareDate(dateStr, deletedDate) >= 0) {
-    if (checked && compareDate(dateStr, deletedDate) === 0) {
-      return { isDue: true, shouldShow: true, status: 'checked' };
-    }
-    return { isDue: false, shouldShow: false, status: 'deleted' };
+    return { isDue: false, shouldShow: false, status: 'inactive' };
   }
 
   const isDue = segment ? isDueByStrategy(segment, dateStr) : false;
@@ -340,7 +347,6 @@ exports.main = async (event, context) => {
       _openid: openid,
       checkin_date: _.gte(startDate).lte(reportEndDate)
     }).get();
-    const logs = normalizeLogs(logsRes.data || []);
 
     const habits = strategies.map(strategy => {
       const habitId = String(strategy.habit_id);
@@ -353,7 +359,7 @@ exports.main = async (event, context) => {
         strategyVersions: versionMap[habitId] || []
       };
     });
-
+    const logs = normalizeLogs(logsRes.data || []);
     const report = calculatePeriodReport(habits, logs, startDate, endDate, todayStr);
     const matrix = report.habitReports.map(habitReport => ({
       habit_id: habitReport.habitId,

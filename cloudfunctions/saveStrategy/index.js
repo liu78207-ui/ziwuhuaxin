@@ -47,7 +47,9 @@ exports.main = async (event, context) => {
       }
 
       const currentStrategy = existingRes.data[0];
+      const isSoftDeleted = Boolean(currentStrategy.deleted_at || currentStrategy.deletedAt);
       const isStrategyChanged = 
+        isSoftDeleted ||
         currentStrategy.duration !== duration ||
         currentStrategy.freq_type !== freq_type ||
         JSON.stringify(currentStrategy.freq_rules) !== JSON.stringify(freq_rules) ||
@@ -77,6 +79,9 @@ exports.main = async (event, context) => {
           freq_type,
           freq_rules,
           plan_start_date: plan_start_date || null,
+          deleted_at: null,
+          deletedAt: null,
+          restored_at: isSoftDeleted ? new Date() : currentStrategy.restored_at || null,
           updated_at: new Date()
         }
       });

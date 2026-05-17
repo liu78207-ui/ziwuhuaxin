@@ -1,10 +1,10 @@
 /**
  * ============================================================
- * ⚠️ 安全提示 ⚠️
+ * 鈿狅笍 瀹夊叏鎻愮ず 鈿狅笍
  * ============================================================
- * 注意：本项目的 MyHabits 和 CheckinLogs 数据表，务必在云开发控制台中
- * 将其数据权限设置为【仅创建者可读写】。前端在执行 db.collection('CheckinLogs').add()
- * 时，系统会自动写入 _openid 字段，实现天然的数据隔离，无需在代码中手动拼接 openid。
+ * 娉ㄦ剰锛氭湰椤圭洰鐨?MyHabits 鍜?CheckinLogs 鏁版嵁琛紝鍔″繀鍦ㄤ簯寮€鍙戞帶鍒跺彴涓?
+ * 灏嗗叾鏁版嵁鏉冮檺璁剧疆涓恒€愪粎鍒涘缓鑰呭彲璇诲啓銆戙€傚墠绔湪鎵ц db.collection('CheckinLogs').add()
+ * 鏃讹紝绯荤粺浼氳嚜鍔ㄥ啓鍏?_openid 瀛楁锛屽疄鐜板ぉ鐒剁殑鏁版嵁闅旂锛屾棤闇€鍦ㄤ唬鐮佷腑鎵嬪姩鎷兼帴 openid銆?
  * ============================================================
  */
 
@@ -13,14 +13,14 @@ const reportCalculator = require('../../utils/reportCalculator.js');
 const lunarCalendar = require('../../utils/lunarCalendar.js');
 const share = require('../../utils/share.js');
 
-// 从全局获取调试配置
+// 浠庡叏灞€鑾峰彇璋冭瘯閰嶇疆
 const getDebugOffset = () => {
   const app = getApp();
   const offset = app.globalData.DEBUG_DAY_OFFSET;
   return offset !== undefined ? offset : 0;
 };
 
-// 获取模拟日期（如果处于调试模式）
+// 鑾峰彇妯℃嫙鏃ユ湡锛堝鏋滃浜庤皟璇曟ā寮忥級
 const getSimulatedDate = () => {
   const DEBUG_DAY_OFFSET = getDebugOffset();
   const today = new Date();
@@ -32,8 +32,8 @@ const getSimulatedDate = () => {
 
 Page({
   data: {
-    currentTab: 'week', // 'week', 'month' 或 'year'
-    weekdays: ['一', '二', '三', '四', '五', '六', '日'],
+    currentTab: 'week', // 'week', 'month' 鎴?'year'
+    weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
     dateTitle: '',
     dateSubtitle: '',
     lunarDate: '',
@@ -47,12 +47,12 @@ Page({
       checkinDays: 0,
       maxStreak: 0
     },
-    currentWeekStart: null, // 当前周开始日期
-    currentMonth: null, // 当前显示的月份 (0-11)
-    currentYear: null // 当前显示的年份
+    currentWeekStart: null, // 褰撳墠鍛ㄥ紑濮嬫棩鏈?
+    currentMonth: null, // 褰撳墠鏄剧ず鐨勬湀浠?(0-11)
+    currentYear: null // 褰撳墠鏄剧ず鐨勫勾浠?
   },
 
-  // 返回上一页
+  // 杩斿洖涓婁竴椤?
   goBack() {
     wx.navigateBack({
       fail: () => {
@@ -64,14 +64,14 @@ Page({
   },
 
   onLoad() {
-    // 初始化当前时间（考虑调试偏移）
+    // 鍒濆鍖栧綋鍓嶆椂闂达紙鑰冭檻璋冭瘯鍋忕Щ锛?
     const today = getSimulatedDate();
     const weekStart = this.getWeekStart(today);
     this.setData({
       currentWeekStart: weekStart.getTime(),
       currentMonth: today.getMonth(),
       currentYear: today.getFullYear(),
-      // 初始化空数据结构，避免渲染错误
+      // 鍒濆鍖栫┖鏁版嵁缁撴瀯锛岄伩鍏嶆覆鏌撻敊璇?
       habitMatrix: [],
       monthHabits: [],
       yearHabits: [],
@@ -89,16 +89,15 @@ Page({
   onShow() {
     share.enableShareMenu();
 
-    // 调试：检查本地存储中的数据
-    this.debugStorageData();
-    
-    // 每次显示页面时刷新数据（确保跨页面同步）
-    // 使用 wx.nextTick 避免与初次渲染冲突
+    // 璋冭瘯锛氭鏌ユ湰鍦板瓨鍌ㄤ腑鐨勬暟鎹?    this.debugStorageData();
+
+    // 姣忔鏄剧ず椤甸潰鏃跺埛鏂版暟鎹紙纭繚璺ㄩ〉闈㈠悓姝ワ級
+    // 浣跨敤 wx.nextTick 閬垮厤涓庡垵娆℃覆鏌撳啿绐?
     wx.nextTick(() => {
       this.loadRealData();
     });
 
-    // 设置自定义 TabBar 选中状态
+    // 璁剧疆鑷畾涔?TabBar 閫変腑鐘舵€?
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({
         selected: 2
@@ -106,25 +105,25 @@ Page({
     }
   },
 
-  // 调试：检查本地存储中的数据
+  // 璋冭瘯锛氭鏌ユ湰鍦板瓨鍌ㄤ腑鐨勬暟鎹?
   debugStorageData() {
     try {
       const allHabitsInfo = wx.getStorageSync('AllHabitsInfo') || {};
       const checkinLogs = wx.getStorageSync('CheckinLogs') || [];
       const myHabits = wx.getStorageSync('MyHabits') || [];
-      
-      console.log('=== 调试信息 ===');
-      console.log('AllHabitsInfo 键:', Object.keys(allHabitsInfo));
-      console.log('AllHabitsInfo 内容:', allHabitsInfo);
-      console.log('CheckinLogs 中的 habitIds:', [...new Set(checkinLogs.map(log => log.habitId))]);
-      console.log('MyHabits 中的 habitIds:', myHabits.map(h => h.habitId || h._id));
+
+      console.log('=== 璋冭瘯淇℃伅 ===');
+      console.log('AllHabitsInfo 閿?', Object.keys(allHabitsInfo));
+      console.log('AllHabitsInfo 鍐呭:', allHabitsInfo);
+      console.log('CheckinLogs 涓殑 habitIds:', [...new Set(checkinLogs.map(log => log.habitId))]);
+      console.log('MyHabits 涓殑 habitIds:', myHabits.map(h => h.habitId || h._id));
       console.log('===============');
     } catch (e) {
-      console.error('调试信息获取失败:', e);
+      console.error('璋冭瘯淇℃伅鑾峰彇澶辫触:', e);
     }
   },
 
-  // 获取周开始日期（周一）
+  // 鑾峰彇鍛ㄥ紑濮嬫棩鏈燂紙鍛ㄤ竴锛?
   getWeekStart(date) {
     const d = new Date(date);
     const day = d.getDay();
@@ -134,7 +133,7 @@ Page({
     return d;
   },
 
-  // 格式化日期（只显示月/日）
+  // 鏍煎紡鍖栨棩鏈燂紙鍙樉绀烘湀/鏃ワ級
   formatDate(date) {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
@@ -148,7 +147,7 @@ Page({
     return `${year}.${month}.${day}`;
   },
 
-  // 格式化日期为 key (YYYY-MM-DD)
+  // 鏍煎紡鍖栨棩鏈熶负 key (YYYY-MM-DD)
   formatDateKey(date) {
     const year = date.getFullYear();
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -156,7 +155,7 @@ Page({
     return `${year}-${month}-${day}`;
   },
 
-  // 更新日期显示
+  // 鏇存柊鏃ユ湡鏄剧ず
   updateDateDisplay() {
     const currentTab = this.data.currentTab;
 
@@ -195,22 +194,22 @@ Page({
     });
   },
 
-  // 切换报表类型
+  // 鍒囨崲鎶ヨ〃绫诲瀷
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab;
     this.setData({ currentTab: tab });
-    // 使用 wx.nextTick 确保 setData 完成后再加载数据
+    // 浣跨敤 wx.nextTick 纭繚 setData 瀹屾垚鍚庡啀鍔犺浇鏁版嵁
     wx.nextTick(() => {
       this.updateDateDisplay();
       this.loadRealData();
     });
   },
 
-  // 上一周期
+  // 涓婁竴鍛ㄦ湡
   prevPeriod() {
     console.log('prevPeriod clicked, currentTab:', this.data.currentTab);
     const currentTab = this.data.currentTab;
-    
+
     if (currentTab === 'week') {
       const weekStart = new Date(this.data.currentWeekStart);
       weekStart.setDate(weekStart.getDate() - 7);
@@ -237,11 +236,11 @@ Page({
     }
   },
 
-  // 下一周期
+  // 涓嬩竴鍛ㄦ湡
   nextPeriod() {
     console.log('nextPeriod clicked, currentTab:', this.data.currentTab);
     const currentTab = this.data.currentTab;
-    
+
     if (currentTab === 'week') {
       const weekStart = new Date(this.data.currentWeekStart);
       weekStart.setDate(weekStart.getDate() + 7);
@@ -268,64 +267,64 @@ Page({
     }
   },
 
-  // 加载真实数据（严格基于 MyHabits 和 CheckinLogs）
+  // 鍔犺浇鐪熷疄鏁版嵁锛堜弗鏍煎熀浜?MyHabits 鍜?CheckinLogs锛?
   async loadRealData() {
     const app = getApp();
     const currentTab = this.data.currentTab;
 
-    // 确保时间状态已初始化（考虑调试偏移）
+    // 纭繚鏃堕棿鐘舵€佸凡鍒濆鍖栵紙鑰冭檻璋冭瘯鍋忕Щ锛?
     if (currentTab === 'week' && !this.data.currentWeekStart) {
       const today = getSimulatedDate();
       const weekStart = this.getWeekStart(today);
       this.setData({ currentWeekStart: weekStart.getTime() });
     }
 
-    // 优先从本地存储读取 MyHabits（确保获取最新数据）
+    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?MyHabits锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
     let myHabits = [];
     try {
       const storedHabits = wx.getStorageSync('MyHabits');
       if (storedHabits && Array.isArray(storedHabits)) {
         myHabits = storedHabits;
-        // 同步到全局数据
+        // 鍚屾鍒板叏灞€鏁版嵁
         app.globalData.MyHabits = storedHabits;
-        console.log('从本地存储加载 MyHabits:', myHabits.length);
+        console.log('浠庢湰鍦板瓨鍌ㄥ姞杞?MyHabits:', myHabits.length);
       }
     } catch (e) {
-      console.error('从本地存储读取 MyHabits 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?MyHabits 澶辫触:', e);
     }
 
-    // 如果本地存储为空，再尝试从全局数据获取
+    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
     if (!myHabits || myHabits.length === 0) {
       myHabits = app.getAllHabits ? app.getAllHabits() : (app.globalData.MyHabits || []);
     }
 
-    // 同样优先从本地存储读取 CheckinLogs
+    // 鍚屾牱浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs
     try {
       const storedLogs = wx.getStorageSync('CheckinLogs');
       if (storedLogs && Array.isArray(storedLogs)) {
         app.globalData.CheckinLogs = storedLogs;
-        console.log('从本地存储加载 CheckinLogs:', storedLogs.length);
+        console.log('浠庢湰鍦板瓨鍌ㄥ姞杞?CheckinLogs:', storedLogs.length);
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
-    // 打印当前习惯的详细信息
-    console.log('当前习惯列表:');
+    // 鎵撳嵃褰撳墠涔犳儻鐨勮缁嗕俊鎭?
+    console.log('褰撳墠涔犳儻鍒楄〃:');
     myHabits.forEach(h => {
       console.log('  ', h.name, 'freq_type:', h.freq_type, 'freq_rules:', h.freq_rules, 'createdAt:', h.createdAt);
     });
-    
-    // 合并已删除但有打卡记录的习惯（用于显示历史数据）
+
+    // 鍚堝苟宸插垹闄や絾鏈夋墦鍗¤褰曠殑涔犳儻锛堢敤浜庢樉绀哄巻鍙叉暟鎹級
     myHabits = this.mergeWithDeletedHabits(myHabits);
-    
-    // 打印合并后的习惯列表
-    console.log('合并后的习惯列表:');
+
+    // 鎵撳嵃鍚堝苟鍚庣殑涔犳儻鍒楄〃
+    console.log('鍚堝苟鍚庣殑涔犳儻鍒楄〃:');
     myHabits.forEach(h => {
       console.log('  ', h.name, 'freq_type:', h.freq_type, 'isDeleted:', h.isDeleted);
     });
-    
-    // 如果没有习惯，显示空状态
+
+    // 濡傛灉娌℃湁涔犳儻锛屾樉绀虹┖鐘舵€?
     if (myHabits.length === 0) {
       this.setData({
         habitMatrix: [],
@@ -350,7 +349,7 @@ Page({
         await this.loadYearData(myHabits);
       }
     } catch (err) {
-      console.error('加载数据失败:', err);
+      console.error('鍔犺浇鏁版嵁澶辫触:', err);
       this.setData({
         habitMatrix: [],
         monthHabits: [],
@@ -365,7 +364,7 @@ Page({
     }
   },
 
-  // 合并已删除但有打卡记录的习惯
+  // 鍚堝苟宸插垹闄や絾鏈夋墦鍗¤褰曠殑涔犳儻
   mergeWithDeletedHabits(myHabits) {
     const app = getApp();
     let allLogs = [];
@@ -376,26 +375,29 @@ Page({
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
     if (!allLogs || allLogs.length === 0) {
       allLogs = app.globalData.CheckinLogs || [];
     }
-    
-    const habitIdsWithLogs = [...new Set(allLogs.map(log => String(log.habitId)))];
-    const currentHabitIds = myHabits.map(h => String(h.habitId || h._id));
+
+    const getHabitId = habit => String((habit.strategy && habit.strategy.habit_id) || habit.habitId || habit.habit_id || habit._id || '');
+    const getLogHabitId = log => String(log.habitId || log.habit_id || '');
+    const getLogDate = log => String(log.date || log.checkin_date || '').split('T')[0];
+    const habitIdsWithLogs = [...new Set(allLogs.map(getLogHabitId).filter(Boolean))];
+    const currentHabitIds = myHabits.map(getHabitId);
     const deletedHabitIds = habitIdsWithLogs.filter(id => !currentHabitIds.includes(id));
-    
+
     const allHabitsInfo = wx.getStorageSync('AllHabitsInfo') || {};
     const enrichedHabits = (myHabits || []).map(habit => {
-      const habitId = String(habit.habitId || habit.habit_id || habit._id || '');
+      const habitId = getHabitId(habit);
       const savedInfo = allHabitsInfo[habitId] || {};
       const habitLogs = allLogs
-        .filter(log => String(log.habitId || log.habit_id) === habitId)
-        .sort((a, b) => new Date(a.date || a.checkin_date) - new Date(b.date || b.checkin_date));
+        .filter(log => getLogHabitId(log) === habitId)
+        .sort((a, b) => new Date(getLogDate(a)) - new Date(getLogDate(b)));
       const newestLogDate = habitLogs.length > 0
-        ? String(habitLogs[habitLogs.length - 1].date || habitLogs[habitLogs.length - 1].checkin_date).split('T')[0]
+        ? getLogDate(habitLogs[habitLogs.length - 1])
         : null;
       const deletedAt = habit.deletedAt || habit.deleted_at || savedInfo.deletedAt || savedInfo.deleted_at || null;
 
@@ -410,16 +412,16 @@ Page({
 
       return habit;
     });
-    
+
     const deletedHabits = deletedHabitIds.map(habitId => {
       if (allHabitsInfo[habitId]) {
         const habitInfo = allHabitsInfo[habitId];
-        
+
         const habitLogs = allLogs
-          .filter(log => String(log.habitId) === habitId)
-          .sort((a, b) => new Date(a.date) - new Date(b.date));
-        const oldestDate = habitLogs.length > 0 ? habitLogs[0].date : null;
-        
+          .filter(log => getLogHabitId(log) === habitId)
+          .sort((a, b) => new Date(getLogDate(a)) - new Date(getLogDate(b)));
+        const oldestDate = habitLogs.length > 0 ? getLogDate(habitLogs[0]) : null;
+
         const deletedAt = habitInfo.deletedAt || null;
 
         let freq_type = habitInfo.freq_type || 'daily';
@@ -428,8 +430,8 @@ Page({
         if (habitLogs.length >= 3) {
           const intervals = [];
           for (let i = 1; i < habitLogs.length; i++) {
-            const prev = new Date(habitLogs[i - 1].date);
-            const curr = new Date(habitLogs[i].date);
+            const prev = new Date(getLogDate(habitLogs[i - 1]));
+            const curr = new Date(getLogDate(habitLogs[i]));
             intervals.push(Math.round((curr - prev) / (1000 * 60 * 60 * 24)));
           }
           const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
@@ -447,7 +449,7 @@ Page({
             freq_category = 'everyday';
           }
         }
-        
+
         let iconUrl = habitInfo.iconUrl || '';
         let themeClass = habitInfo.themeClass || 't-green';
         if (!iconUrl && habitInfo.name) {
@@ -457,7 +459,7 @@ Page({
             themeClass = iconConfig.themeClass;
           }
         }
-        
+
         return {
           ...habitInfo,
           iconUrl: iconUrl,
@@ -471,23 +473,23 @@ Page({
           createdAt: habitInfo.createdAt || oldestDate
         };
       }
-      
+
       const habitLogs = allLogs
-        .filter(log => String(log.habitId) === habitId)
-        .sort((a, b) => new Date(a.date) - new Date(b.date));
-      const oldestDate = habitLogs.length > 0 ? habitLogs[0].date : null;
-      const newestDate = habitLogs.length > 0 ? habitLogs[habitLogs.length - 1].date : null;
-      
+        .filter(log => getLogHabitId(log) === habitId)
+        .sort((a, b) => new Date(getLogDate(a)) - new Date(getLogDate(b)));
+      const oldestDate = habitLogs.length > 0 ? getLogDate(habitLogs[0]) : null;
+      const newestDate = habitLogs.length > 0 ? getLogDate(habitLogs[habitLogs.length - 1]) : null;
+
       const habitInfo = allHabitsInfo[habitId] || {};
-      const habitName = habitInfo.name || '已删除习惯';
-      const habitCategory = habitInfo.category || '其他';
+      const habitName = habitInfo.name || 'Deleted habit';
+      const habitCategory = habitInfo.category || '鍏朵粬';
       const habitTargetMinutes = habitInfo.targetMinutes || 15;
       const habitThemeClass = habitInfo.themeClass || 't-green';
       const habitFreqType = habitInfo.freq_type || 'daily';
       const habitFreqRules = habitInfo.freq_rules || 1;
       const habitFreqCategory = habitInfo.freq_category || 'everyday';
       const habitIconUrl = habitInfo.iconUrl || '';
-      
+
       let iconUrl = habitIconUrl;
       let themeClass = habitThemeClass;
       if (!iconUrl && habitName) {
@@ -497,7 +499,7 @@ Page({
           themeClass = iconConfig.themeClass;
         }
       }
-      
+
       return {
         habitId: habitId,
         _id: habitId,
@@ -515,46 +517,46 @@ Page({
         createdAt: oldestDate
       };
     });
-    
+
     return [...enrichedHabits, ...deletedHabits];
   },
 
-  // 加载周报表数据
+  // 鍔犺浇鍛ㄦ姤琛ㄦ暟鎹?
   async legacyLoadWeekData(myHabits) {
     const app = getApp();
 
-    // 获取当前周的7天日期
+    // 鑾峰彇褰撳墠鍛ㄧ殑7澶╂棩鏈?
     const weekDates = this.getWeekDates();
     const startDate = this.formatDateKey(weekDates[0]);
     const endDate = this.formatDateKey(weekDates[6]);
 
-    // 优先从本地存储读取 CheckinLogs（确保获取最新数据）
+    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
     let allLogs = [];
     try {
       const storedLogs = wx.getStorageSync('CheckinLogs');
       if (storedLogs && Array.isArray(storedLogs)) {
         allLogs = storedLogs;
-        // 同步到全局数据
+        // 鍚屾鍒板叏灞€鏁版嵁
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
-    // 如果本地存储为空，再尝试从全局数据获取
+    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
     if (!allLogs || allLogs.length === 0) {
       allLogs = app.globalData.CheckinLogs || [];
     }
 
-    // 从 CheckinLogs 获取日期范围内的打卡记录
+    // 浠?CheckinLogs 鑾峰彇鏃ユ湡鑼冨洿鍐呯殑鎵撳崱璁板綍
     const checkinLogs = allLogs.filter(log => log.date >= startDate && log.date <= endDate);
 
-    // 构建习惯矩阵（只显示 MyHabits 中的习惯）
+    // 鏋勫缓涔犳儻鐭╅樀锛堝彧鏄剧ず MyHabits 涓殑涔犳儻锛?
     const habitMatrix = myHabits.map((habit) => {
       const isDeleted = habit.isDeleted;
       const deletedAt = habit.deletedAt;
       const deletedDateStr = deletedAt ? deletedAt.split('T')[0] : null;
-      
+
       const days = weekDates.map(date => {
         const dateStr = this.formatDateKey(date);
         const shouldShow = this.shouldShowHabitOnDate(habit, date);
@@ -580,20 +582,20 @@ Page({
         };
       });
 
-      // 优先使用 habit 中已有的 iconUrl（对于已删除习惯）
+      // 浼樺厛浣跨敤 habit 涓凡鏈夌殑 iconUrl锛堝浜庡凡鍒犻櫎涔犳儻锛?
       let iconUrl = habit.iconUrl;
       let themeClass = habit.themeClass;
       let icon = null;
-      
-      // 如果没有 iconUrl，尝试从 iconMap 获取
+
+      // 濡傛灉娌℃湁 iconUrl锛屽皾璇曚粠 iconMap 鑾峰彇
       if (!iconUrl) {
         const iconConfig = iconMap.getIconConfig(habit.name);
         if (iconConfig) {
           iconUrl = iconConfig.iconUrl;
           themeClass = iconConfig.themeClass;
         } else {
-          icon = '🔥';
-          themeClass = themeClass || 'theme-jade';
+          icon = '馃敟';
+          themeClass = themeClass || 't-blue';
         }
       }
 
@@ -613,9 +615,9 @@ Page({
         freq_category: habit.freq_category
       };
     });
-    
-    // 过滤：只保留本周有应打卡日的习惯
-    // 对于已删除习惯，只要本周有应打卡日或删除前有打卡就保留
+
+    // 杩囨护锛氬彧淇濈暀鏈懆鏈夊簲鎵撳崱鏃ョ殑涔犳儻
+    // 瀵逛簬宸插垹闄や範鎯紝鍙鏈懆鏈夊簲鎵撳崱鏃ユ垨鍒犻櫎鍓嶆湁鎵撳崱灏变繚鐣?
     const filteredHabitMatrix = habitMatrix.filter(habit => {
       const hasDueDay = habit.days.some(day => day.shouldShow);
       const hasCheckinBeforeDeletion = habit.isDeleted && habit.deletedAt
@@ -625,10 +627,10 @@ Page({
       return hasDueDay || hasCheckinBeforeDeletion;
     });
 
-    // 计算统计数据（考虑策略）
-    console.log('[loadWeekData] habitMatrix 数量:', habitMatrix.length);
+    // 璁＄畻缁熻鏁版嵁锛堣€冭檻绛栫暐锛?
+    console.log('[loadWeekData] habitMatrix 鏁伴噺:', habitMatrix.length);
     habitMatrix.forEach((h, i) => {
-      console.log(`[loadWeekData] 习惯${i}: ${h.name}, freq_type=${h.freq_type}, freq_rules=${h.freq_rules}, plan_start_date=${h.plan_start_date}`);
+      console.log(`[loadWeekData] 涔犳儻${i}: ${h.name}, freq_type=${h.freq_type}, freq_rules=${h.freq_rules}, plan_start_date=${h.plan_start_date}`);
     });
     const stats = this.calculateStatsWithStrategy(habitMatrix, myHabits, weekDates);
 
@@ -640,7 +642,7 @@ Page({
     });
   },
 
-  // 加载月报表数据
+  // 鍔犺浇鏈堟姤琛ㄦ暟鎹?
   async legacyLoadMonthData(myHabits) {
     const app = getApp();
 
@@ -651,38 +653,38 @@ Page({
     const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
     const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-    // 优先从本地存储读取 CheckinLogs（确保获取最新数据）
+    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
     let allLogs = [];
     try {
       const storedLogs = wx.getStorageSync('CheckinLogs');
       if (storedLogs && Array.isArray(storedLogs)) {
         allLogs = storedLogs;
-        // 同步到全局数据
+        // 鍚屾鍒板叏灞€鏁版嵁
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
-    // 如果本地存储为空，再尝试从全局数据获取
+    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
     if (!allLogs || allLogs.length === 0) {
       allLogs = app.globalData.CheckinLogs || [];
     }
 
-    // 从 CheckinLogs 获取当月打卡记录
+    // 浠?CheckinLogs 鑾峰彇褰撴湀鎵撳崱璁板綍
     const checkinLogs = allLogs.filter(log => log.date >= startDate && log.date <= endDate);
 
-    // 生成月报表数据（只显示 MyHabits 中的习惯）
-    // 计算当月1号是星期几 (0=周日, 1=周一...)
+    // 鐢熸垚鏈堟姤琛ㄦ暟鎹紙鍙樉绀?MyHabits 涓殑涔犳儻锛?
+    // 璁＄畻褰撴湀1鍙锋槸鏄熸湡鍑?(0=鍛ㄦ棩, 1=鍛ㄤ竴...)
     const firstDayOfMonth = new Date(year, month, 1).getDay();
-    // 转换为周一开始 (0=周一, 6=周日)
+    // 杞崲涓哄懆涓€寮€濮?(0=鍛ㄤ竴, 6=鍛ㄦ棩)
     const startWeekday = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
-    
+
     const monthHabits = myHabits.map((habit) => {
       const days = [];
       let doneCount = 0;
-      
-      // 添加月初空白格子（让1号对齐正确的星期）
+
+      // 娣诲姞鏈堝垵绌虹櫧鏍煎瓙锛堣1鍙峰榻愭纭殑鏄熸湡锛?
       for (let i = 0; i < startWeekday; i++) {
         days.push({
           date: '',
@@ -690,25 +692,25 @@ Page({
           empty: true
         });
       }
-      
-      // 添加当月日期
+
+      // 娣诲姞褰撴湀鏃ユ湡
       for (let i = 1; i <= daysInMonth; i++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        // 只有 CheckinLogs 中有记录，才显示为已完成
-        const isDone = checkinLogs.some(log => 
+        // 鍙湁 CheckinLogs 涓湁璁板綍锛屾墠鏄剧ず涓哄凡瀹屾垚
+        const isDone = checkinLogs.some(log =>
           log.habitId === habit.habitId && log.date === dateStr
         );
-        
+
         if (isDone) doneCount++;
-        
+
         days.push({
           date: i,
           done: isDone,
           empty: false
         });
       }
-      
-      // 补齐末尾，使总数为7的倍数（完整周）
+
+      // 琛ラ綈鏈熬锛屼娇鎬绘暟涓?鐨勫€嶆暟锛堝畬鏁村懆锛?
       const totalCells = days.length;
       const remainingCells = (7 - (totalCells % 7)) % 7;
       for (let i = 0; i < remainingCells; i++) {
@@ -718,26 +720,26 @@ Page({
           empty: true
         });
       }
-      
+
       const rate = Math.round((doneCount / daysInMonth) * 100);
-      
-      // 优先使用 habit 中已有的 iconUrl（对于已删除习惯）
+
+      // 浼樺厛浣跨敤 habit 涓凡鏈夌殑 iconUrl锛堝浜庡凡鍒犻櫎涔犳儻锛?
       let iconUrl = habit.iconUrl;
       let themeClass = habit.themeClass;
       let icon = null;
-      
-      // 如果没有 iconUrl，尝试从 iconMap 获取
+
+      // 濡傛灉娌℃湁 iconUrl锛屽皾璇曚粠 iconMap 鑾峰彇
       if (!iconUrl) {
         const iconConfig = iconMap.getIconConfig(habit.name);
         if (iconConfig) {
           iconUrl = iconConfig.iconUrl;
           themeClass = iconConfig.themeClass;
         } else {
-          icon = '🔥';
-          themeClass = themeClass || 'theme-jade';
+          icon = '馃敟';
+          themeClass = themeClass || 't-blue';
         }
       }
-      
+
       return {
         habitId: habit.habitId,
         name: habit.name,
@@ -753,10 +755,10 @@ Page({
 
     this.setData({
       monthHabits: monthHabits,
-      // 月报表不显示 habitMatrix 和 yearHabits
+      // 鏈堟姤琛ㄤ笉鏄剧ず habitMatrix 鍜?yearHabits
       habitMatrix: [],
       yearHabits: [],
-      // 清空 stats 或计算月报表的 stats
+      // 娓呯┖ stats 鎴栬绠楁湀鎶ヨ〃鐨?stats
       stats: {
         checkinRate: 0,
         totalCount: 0,
@@ -766,7 +768,7 @@ Page({
     });
   },
 
-  // 加载年报表数据
+  // 鍔犺浇骞存姤琛ㄦ暟鎹?
   async legacyLoadYearData(myHabits) {
     const app = getApp();
 
@@ -775,90 +777,90 @@ Page({
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
 
-    // 优先从本地存储读取 CheckinLogs（确保获取最新数据）
+    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
     let allLogs = [];
     try {
       const storedLogs = wx.getStorageSync('CheckinLogs');
       if (storedLogs && Array.isArray(storedLogs)) {
         allLogs = storedLogs;
-        // 同步到全局数据
+        // 鍚屾鍒板叏灞€鏁版嵁
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
-    // 如果本地存储为空，再尝试从全局数据获取
+    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
     if (!allLogs || allLogs.length === 0) {
       allLogs = app.globalData.CheckinLogs || [];
     }
 
-    // 从 CheckinLogs 获取全年打卡记录
+    // 浠?CheckinLogs 鑾峰彇鍏ㄥ勾鎵撳崱璁板綍
     const checkinLogs = allLogs.filter(log => log.date >= startDate && log.date <= endDate);
 
-    // 生成年报表数据（只显示 MyHabits 中的习惯）
+    // 鐢熸垚骞存姤琛ㄦ暟鎹紙鍙樉绀?MyHabits 涓殑涔犳儻锛?
     const yearHabits = myHabits.map((habit) => {
-      // 生成一年的热力图数据（52周 x 7天 = 364个格子）
+      // 鐢熸垚涓€骞寸殑鐑姏鍥炬暟鎹紙52鍛?x 7澶?= 364涓牸瀛愶級
       const heatmap = [];
       let totalDays = 0;
-      
-      // 获取今年第一天是星期几
+
+      // 鑾峰彇浠婂勾绗竴澶╂槸鏄熸湡鍑?
       const firstDay = new Date(year, 0, 1);
-      const startWeekDay = firstDay.getDay(); // 0=周日, 1=周一...
-      
-      // 计算需要填充的空白格子
+      const startWeekDay = firstDay.getDay(); // 0=鍛ㄦ棩, 1=鍛ㄤ竴...
+
+      // 璁＄畻闇€瑕佸～鍏呯殑绌虹櫧鏍煎瓙
       const emptyCells = startWeekDay === 0 ? 6 : startWeekDay - 1;
-      
-      // 添加空白格子
+
+      // 娣诲姞绌虹櫧鏍煎瓙
       for (let i = 0; i < emptyCells; i++) {
         heatmap.push({ level: '' });
       }
-      
-      // 获取今年总天数
+
+      // 鑾峰彇浠婂勾鎬诲ぉ鏁?
       const daysInYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0) ? 366 : 365;
-      
-      // 生成每天的打卡状态
+
+      // 鐢熸垚姣忓ぉ鐨勬墦鍗＄姸鎬?
       for (let i = 0; i < daysInYear; i++) {
         const currentDate = new Date(year, 0, 1);
         currentDate.setDate(currentDate.getDate() + i);
         const dateStr = this.formatDateKey(currentDate);
-        
-        // 只有 CheckinLogs 中有记录，才显示为已打卡
-        const isDone = checkinLogs.some(log => 
+
+        // 鍙湁 CheckinLogs 涓湁璁板綍锛屾墠鏄剧ず涓哄凡鎵撳崱
+        const isDone = checkinLogs.some(log =>
           log.habitId === habit.habitId && log.date === dateStr
         );
-        
+
         if (isDone) {
           totalDays++;
-          heatmap.push({ level: 'level-1' }); // 有打卡记录
+          heatmap.push({ level: 'level-1' }); // 鏈夋墦鍗¤褰?
         } else {
-          heatmap.push({ level: '' }); // 无打卡记录，空白
+          heatmap.push({ level: '' }); // 鏃犳墦鍗¤褰曪紝绌虹櫧
         }
       }
-      
-      // 补充到完整的52周
+
+      // 琛ュ厖鍒板畬鏁寸殑52鍛?
       const remainingCells = 364 - heatmap.length;
       for (let i = 0; i < remainingCells; i++) {
         heatmap.push({ level: '' });
       }
-      
-      // 优先使用 habit 中已有的 iconUrl（对于已删除习惯）
+
+      // 浼樺厛浣跨敤 habit 涓凡鏈夌殑 iconUrl锛堝浜庡凡鍒犻櫎涔犳儻锛?
       let iconUrl = habit.iconUrl;
       let themeClass = habit.themeClass;
       let icon = null;
-      
-      // 如果没有 iconUrl，尝试从 iconMap 获取
+
+      // 濡傛灉娌℃湁 iconUrl锛屽皾璇曚粠 iconMap 鑾峰彇
       if (!iconUrl) {
         const iconConfig = iconMap.getIconConfig(habit.name);
         if (iconConfig) {
           iconUrl = iconConfig.iconUrl;
           themeClass = iconConfig.themeClass;
         } else {
-          icon = '🔥';
-          themeClass = themeClass || 'theme-jade';
+          icon = '馃敟';
+          themeClass = themeClass || 't-blue';
         }
       }
-      
+
       return {
         habitId: habit.habitId,
         name: habit.name,
@@ -873,10 +875,10 @@ Page({
 
     this.setData({
       yearHabits: yearHabits,
-      // 年报表不显示 habitMatrix 和 monthHabits
+      // 骞存姤琛ㄤ笉鏄剧ず habitMatrix 鍜?monthHabits
       habitMatrix: [],
       monthHabits: [],
-      // 清空 stats
+      // 娓呯┖ stats
       stats: {
         checkinRate: 0,
         totalCount: 0,
@@ -886,25 +888,25 @@ Page({
     });
   },
 
-  // 使用本地数据加载（后备方案）
+  // 浣跨敤鏈湴鏁版嵁鍔犺浇锛堝悗澶囨柟妗堬級
   loadLocalData(myHabits) {
     const app = getApp();
     const weekDates = this.getWeekDates();
 
-    // 优先从本地存储读取 CheckinLogs（确保获取最新数据）
+    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
     let allLogs = [];
     try {
       const storedLogs = wx.getStorageSync('CheckinLogs');
       if (storedLogs && Array.isArray(storedLogs)) {
         allLogs = storedLogs;
-        // 同步到全局数据
+        // 鍚屾鍒板叏灞€鏁版嵁
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
-    // 如果本地存储为空，再尝试从全局数据获取
+    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
     if (!allLogs || allLogs.length === 0) {
       allLogs = app.globalData.CheckinLogs || [];
     }
@@ -912,26 +914,26 @@ Page({
     const matrix = myHabits.map((habit) => {
       const days = weekDates.map(date => {
         const dateStr = this.formatDateKey(date);
-        const isChecked = allLogs.some(log => 
+        const isChecked = allLogs.some(log =>
           log.habitId === habit.habitId && log.date === dateStr
         );
         return { checked: isChecked };
       });
 
-      // 优先使用 habit 中已有的 iconUrl（对于已删除习惯）
+      // 浼樺厛浣跨敤 habit 涓凡鏈夌殑 iconUrl锛堝浜庡凡鍒犻櫎涔犳儻锛?
       let iconUrl = habit.iconUrl;
       let themeClass = habit.themeClass;
       let icon = null;
-      
-      // 如果没有 iconUrl，尝试从 iconMap 获取
+
+      // 濡傛灉娌℃湁 iconUrl锛屽皾璇曚粠 iconMap 鑾峰彇
       if (!iconUrl) {
         const iconConfig = iconMap.getIconConfig(habit.name);
         if (iconConfig) {
           iconUrl = iconConfig.iconUrl;
           themeClass = iconConfig.themeClass;
         } else {
-          icon = '🔥';
-          themeClass = themeClass || 'theme-jade';
+          icon = '馃敟';
+          themeClass = themeClass || 't-blue';
         }
       }
 
@@ -955,7 +957,7 @@ Page({
     });
   },
 
-  // 获取当前周的日期数组
+  // 鑾峰彇褰撳墠鍛ㄧ殑鏃ユ湡鏁扮粍
   getWeekDates() {
     const weekStart = new Date(this.data.currentWeekStart);
     const dates = [];
@@ -967,7 +969,7 @@ Page({
     return dates;
   },
 
-  // 计算统计数据
+  // 璁＄畻缁熻鏁版嵁
   calculateStats(habitMatrix, totalHabits) {
     let totalCount = 0;
     let checkinCount = 0;
@@ -977,7 +979,7 @@ Page({
     habitMatrix.forEach(habit => {
       let streak = 0;
       let maxHabitStreak = 0;
-      
+
       habit.days.forEach((day, index) => {
         totalCount++;
         if (day.checked) {
@@ -989,7 +991,7 @@ Page({
           streak = 0;
         }
       });
-      
+
       maxStreak = Math.max(maxStreak, maxHabitStreak);
     });
 
@@ -1013,7 +1015,7 @@ Page({
         app.globalData.CheckinLogs = storedLogs;
       }
     } catch (e) {
-      console.error('从本地存储读取 CheckinLogs 失败:', e);
+      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
     }
 
     if (!allLogs || allLogs.length === 0) {
@@ -1021,7 +1023,6 @@ Page({
     }
     return allLogs;
   },
-
   buildPeriodReport(myHabits, startDate, endDate) {
     const todayStr = this.formatDateKey(getSimulatedDate());
     return reportCalculator.calculatePeriodReport(
@@ -1033,19 +1034,59 @@ Page({
     );
   },
 
+  isValidReportTheme(themeClass) {
+    return [
+      't-red',
+      't-green',
+      't-yellow',
+      't-blue',
+      't-purple',
+      'theme-red',
+      'theme-green',
+      'theme-yellow',
+      'theme-blue',
+      'theme-purple'
+    ].includes(themeClass);
+  },
+
+  getReportThemeByCategory(category) {
+    const themeMap = {
+      sports: 't-green',
+      therapy: 't-red',
+      life: 't-yellow',
+      '运动类': 't-green',
+      '理疗类': 't-red',
+      '起居类': 't-yellow'
+    };
+    return themeMap[category] || iconMap.getThemeByCategory(category) || 't-blue';
+  },
+
+  getHabitDisplayName(habit) {
+    return habit.name || habit.title || habit.habit_title || habit.habitTitle || '';
+  },
+
   getHabitVisual(habit) {
-    let iconUrl = habit.iconUrl;
-    let themeClass = habit.themeClass;
+    const habitName = this.getHabitDisplayName(habit);
+    let iconUrl = habit.iconUrl || habit.icon_url;
+    let themeClass = habit.themeClass || habit.theme_class;
     let icon = null;
+    const iconConfig = iconMap.getIconConfig(habitName);
+
+    if (iconConfig && iconConfig.themeClass) {
+      themeClass = iconConfig.themeClass;
+    } else if (!this.isValidReportTheme(themeClass)) {
+      themeClass = this.getReportThemeByCategory(habit.category);
+    }
+
+    if (!this.isValidReportTheme(themeClass)) {
+      themeClass = 't-blue';
+    }
 
     if (!iconUrl) {
-      const iconConfig = iconMap.getIconConfig(habit.name);
       if (iconConfig) {
         iconUrl = iconConfig.iconUrl;
-        themeClass = iconConfig.themeClass;
       } else {
-        icon = '🔥';
-        themeClass = themeClass || 'theme-jade';
+        icon = '馃敟';
       }
     }
 
@@ -1057,11 +1098,12 @@ Page({
     const visual = this.getHabitVisual(habit);
     return {
       habitId: report.habitId,
-      name: habit.name,
+      name: this.getHabitDisplayName(habit),
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,
       days: report.days.map(day => ({
+        themeClass: visual.themeClass,
         checked: day.checked,
         isChecked: day.isChecked,
         isDue: day.isDue,
@@ -1089,13 +1131,14 @@ Page({
 
     const days = [];
     for (let i = 0; i < startWeekday; i++) {
-      days.push({ date: '', status: 'empty', empty: true, done: false });
+      days.push({ date: '', status: 'empty', empty: true, done: false, themeClass: visual.themeClass });
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       const item = dayMap[dateStr] || {};
       days.push({
+        themeClass: visual.themeClass,
         date: day,
         status: item.status || 'inactive',
         empty: false,
@@ -1111,12 +1154,12 @@ Page({
 
     const remainingCells = (7 - (days.length % 7)) % 7;
     for (let i = 0; i < remainingCells; i++) {
-      days.push({ date: '', status: 'empty', empty: true, done: false });
+      days.push({ date: '', status: 'empty', empty: true, done: false, themeClass: visual.themeClass });
     }
 
     return {
       habitId: report.habitId,
-      name: habit.name,
+      name: this.getHabitDisplayName(habit),
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,
@@ -1139,7 +1182,7 @@ Page({
     const firstDay = new Date(year, 0, 1);
     const emptyCells = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
     for (let i = 0; i < emptyCells; i++) {
-      heatmap.push({ level: '', empty: true });
+      heatmap.push({ level: '', empty: true, themeClass: visual.themeClass });
     }
 
     const daysInYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0) ? 366 : 365;
@@ -1149,6 +1192,7 @@ Page({
       const dateStr = this.formatDateKey(currentDate);
       const item = dayMap[dateStr] || {};
       heatmap.push({
+        themeClass: visual.themeClass,
         level: item.status === 'checked' ? 'level-1' : '',
         status: item.status || 'inactive'
       });
@@ -1156,12 +1200,12 @@ Page({
 
     const remainingCells = (7 - (heatmap.length % 7)) % 7;
     for (let i = 0; i < remainingCells; i++) {
-      heatmap.push({ level: '', empty: true });
+      heatmap.push({ level: '', empty: true, themeClass: visual.themeClass });
     }
 
     return {
       habitId: report.habitId,
-      name: habit.name,
+      name: this.getHabitDisplayName(habit),
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,
@@ -1187,7 +1231,7 @@ Page({
 
     this.setData({
       habitMatrix: report.habitReports
-        .filter(item => item.dueCount > 0)
+        .filter(item => this.shouldShowHabitReport(item))
         .map(item => this.mapWeekHabitReport(item)),
       monthHabits: [],
       yearHabits: [],
@@ -1354,7 +1398,7 @@ Page({
       const currentDate = new Date(dateStr);
       const diffDays = Math.floor((currentDate - planStart) / (1000 * 60 * 60 * 24));
       const isCheckinDay = diffDays >= 0 && diffDays % intervalDays === 0;
-      
+
       return isCheckinDay;
     }
 
@@ -1374,8 +1418,8 @@ Page({
     const dateStr = this.formatDateKey(date);
     const dayOfWeek = date.getDay();
 
-    // 调试日志：检查 habit 数据
-    if (habit.name === '经络拍打' || habit.name === '刮痧' || habit.name === '金刚功') {
+    // 璋冭瘯鏃ュ織锛氭鏌?habit 鏁版嵁
+    if (habit.name === 'Jingluo' || habit.name === 'Guasha' || habit.name === 'Jingang') {
       console.log(`[shouldShowHabitOnDate] ${habit.name} - ${dateStr}:`, {
         freq_type: habit.freq_type,
         freq_rules: habit.freq_rules,
@@ -1396,16 +1440,16 @@ Page({
       return true;
     }
 
-    // 检查 freq_category 是否指示间隔打卡，但 freq_type 被错误保存为 'daily'
+    // 妫€鏌?freq_category 鏄惁鎸囩ず闂撮殧鎵撳崱锛屼絾 freq_type 琚敊璇繚瀛樹负 'daily'
     let effectiveFreqType = habit.freq_type;
     if (habit.freq_category === 'daily-interval' && habit.freq_type === 'daily') {
-      // 数据损坏：freq_category 指示间隔打卡，但 freq_type 被保存为 'daily'
-      // 根据 freq_category 修正 freq_type
+      // 鏁版嵁鎹熷潖锛歠req_category 鎸囩ず闂撮殧鎵撳崱锛屼絾 freq_type 琚繚瀛樹负 'daily'
+      // 鏍规嵁 freq_category 淇 freq_type
       effectiveFreqType = 'interval';
-      console.warn(`数据修复: ${habit.name} 的 freq_type 从 'daily' 修正为 'interval'（根据 freq_category）`);
+      console.warn(`data repair: ${habit.name} freq_type daily -> interval`);
     }
-    
-    // 检查计划开始日期
+
+    // 妫€鏌ヨ鍒掑紑濮嬫棩鏈?
     const planStartDate = habit.plan_start_date || habit.createdAt;
     if (planStartDate && dateStr < planStartDate) {
       return false;
@@ -1424,8 +1468,8 @@ Page({
       }
       const startDate = (habit.freq_rules && habit.freq_rules.startDate) ? habit.freq_rules.startDate : planStartDate;
       if (!startDate) {
-        if (habit.name === '经络拍打' || habit.name === '刮痧' || habit.name === '金刚功') {
-          console.log(`[shouldShowHabitOnDate] ${habit.name} - ${dateStr}: 无startDate，默认为每日打卡`);
+        if (habit.name === 'Jingluo' || habit.name === 'Guasha' || habit.name === 'Jingang') {
+          console.log(`[shouldShowHabitOnDate] ${habit.name} - ${dateStr}: 鏃爏tartDate锛岄粯璁や负姣忔棩鎵撳崱`);
         }
         return true;
       }
@@ -1433,7 +1477,7 @@ Page({
       const currentDate = new Date(dateStr);
       const diffDays = Math.floor((currentDate - planStart) / (1000 * 60 * 60 * 24));
       const isDueDay = diffDays >= 0 && diffDays % intervalDays === 0;
-      if (habit.name === '经络拍打' || habit.name === '刮痧' || habit.name === '金刚功') {
+      if (habit.name === 'Jingluo' || habit.name === 'Guasha' || habit.name === 'Jingang') {
         console.log(`[shouldShowHabitOnDate] ${habit.name} - ${dateStr}: planStart=${planStartDate}, interval=${intervalDays}, diff=${diffDays}, isDue=${isDueDay}`);
       }
       return isDueDay;
@@ -1523,10 +1567,10 @@ Page({
   },
 
   onShareAppMessage() {
-    return share.appMessage('子午花信 · 观心报表', '/pages/stats/stats');
+    return share.appMessage('瀛愬崍鑺变俊 路 瑙傚績鎶ヨ〃', '/pages/stats/stats');
   },
 
   onShareTimeline() {
-    return share.timeline('子午花信 · 观心报表', 'from=timeline&page=stats');
+    return share.timeline('瀛愬崍鑺变俊 路 瑙傚績鎶ヨ〃', 'from=timeline&page=stats');
   }
 });

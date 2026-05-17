@@ -41,17 +41,17 @@ exports.main = async (event, context) => {
     }).get();
 
     if (!existingLog.data || existingLog.data.length === 0) {
-      return { success: false, message: '今日未打卡，无需取消' };
+      return { success: false, code: 'CHECKIN_NOT_FOUND', message: '今日未打卡，无需取消' };
     }
 
     // 删除打卡记录
     const logId = existingLog.data[0]._id;
     await db.collection('checkin_logs').doc(logId).remove();
 
-    return { success: true, message: '取消打卡成功' };
+    return { success: true, code: 'CHECKIN_REMOVED', message: '取消打卡成功' };
 
   } catch (err) {
     console.error('undoCheckin error:', err);
-    return { success: false, message: err.message };
+    return { success: false, code: 'UNDO_CHECKIN_FAILED', message: err.message };
   }
 };

@@ -39,7 +39,7 @@ describe('getStatsReport cloud function', () => {
     ({ main } = require('../../../cloudfunctions/getStatsReport/index.js'));
   });
 
-  test('does not let non-due dirty logs expand denominator or cumulative count', async () => {
+  test('respects real logs even when the date is not due by strategy', async () => {
     mockCollections.user_strategies = [
       {
         _id: 's1',
@@ -59,10 +59,10 @@ describe('getStatsReport cloud function', () => {
 
     expect(result.success).toBe(true);
     expect(result.data.checkinRate).toBe(100);
-    expect(result.data.totalCount).toBe(1);
-    expect(result.data.checkinDays).toBe(1);
-    expect(result.data.matrix[0].dueCount).toBe(1);
-    expect(result.data.matrix[0].days.find(day => day.date === '2026-04-14').status).toBe('inactive');
+    expect(result.data.totalCount).toBe(2);
+    expect(result.data.checkinDays).toBe(2);
+    expect(result.data.matrix[0].dueCount).toBe(2);
+    expect(result.data.matrix[0].days.find(day => day.date === '2026-04-14').status).toBe('checked');
   });
 
   test('dedupes logs and ignores cancelled logs', async () => {
@@ -88,5 +88,29 @@ describe('getStatsReport cloud function', () => {
     expect(result.data.totalCount).toBe(1);
     expect(result.data.checkinRate).toBe(33);
     expect(result.data.matrix[0].dueCount).toBe(3);
+  });
+
+  test('handles cloud Date deleted_at values when rendering deleted history', async () => {
+    mockCollections.user_strategies = [
+      {
+        _id: 's1',
+        habit_id: 'h1',
+        habit_title: 'deleted habit',
+        freq_type: 'daily',
+        freq_rules: 1,
+        plan_start_date: '2026-04-13',
+        deleted_at: new Date(2026, 3, 15, 9, 0, 0)
+      }
+    ];
+    mockCollections.checkin_logs = [
+      { habit_id: 'h1', checkin_date: '2026-04-14' }
+    ];
+
+    const result = await main({ startDate: '2026-04-13', endDate: '2026-04-16' }, {});
+
+    expect(result.success).toBe(true);
+    expect(result.data.totalCount).toBe(1);
+    expect(result.data.matrix[0].days.find(day => day.date === '2026-04-14').status).toBe('checked');
+    expect(result.data.matrix[0].days.find(day => day.date === '2026-04-16').status).toBe('inactive');
   });
 });

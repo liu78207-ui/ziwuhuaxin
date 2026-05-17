@@ -43,7 +43,7 @@
               <text class="wt-name">{{item.name}}</text>
             </view>
             <view class="wt-days {{item.themeClass}}">
-              <view class="wt-dot {{day.status}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
+              <view class="wt-dot {{day.status}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
             </view>
           </view>
         </view>
@@ -83,7 +83,7 @@
             </view>
           </view>
           <view class="mc-cal">
-            <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.status}} {{day.done ? 'done' : ''}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
+            <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.status}} {{day.done ? 'done' : ''}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
               {{day.date}}
             </view>
           </view>
@@ -114,7 +114,7 @@
             <view class="yc-total">{{item.totalDays}} 天</view>
           </view>
           <view class="yc-heatmap">
-            <view class="yh-dot {{dot.level}}" wx:for="{{item.heatmap}}" wx:for-item="dot" wx:key="index"></view>
+            <view class="yh-dot {{dot.level}} {{dot.themeClass}}" wx:for="{{item.heatmap}}" wx:for-item="dot" wx:key="index"></view>
           </view>
         </view>
       </view>

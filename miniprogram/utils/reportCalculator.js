@@ -39,7 +39,7 @@ function minDate(a, b) {
 }
 
 function getHabitId(habit) {
-  return String(habit.habitId || habit.habit_id || habit._id || '');
+  return String((habit.strategy && habit.strategy.habit_id) || habit.habitId || habit.habit_id || habit._id || '');
 }
 
 function getLogHabitId(log) {
@@ -67,7 +67,13 @@ function normalizeLogs(logs) {
 }
 
 function getDeletedDate(habit) {
-  return (habit.deletedAt || habit.deleted_at || '').split('T')[0] || null;
+  const value = habit.deletedAt || habit.deleted_at;
+  if (!value) return null;
+  if (value instanceof Date) return formatDate(value);
+  if (typeof value === 'string') return value.split('T')[0] || null;
+  if (typeof value.toDate === 'function') return formatDate(value.toDate());
+  if (typeof value.toISOString === 'function') return value.toISOString().split('T')[0] || null;
+  return String(value).split('T')[0] || null;
 }
 
 function isDeletedHabit(habit) {
@@ -226,28 +232,29 @@ function getDayStatus(habit, dateStr, checked, todayStr) {
     };
   }
 
+  if (checked) {
+    return {
+      isDue: true,
+      shouldShow: true,
+      status: 'checked'
+    };
+  }
+
   const segment = getSegmentForDate(habit, dateStr);
   if (segment && segment.isDeletedSegment) {
     return {
       isDue: false,
       shouldShow: false,
-      status: 'deleted'
+      status: 'inactive'
     };
   }
 
   const deletedDate = getDeletedDate(habit);
   if (deletedDate && compareDate(dateStr, deletedDate) >= 0) {
-    if (checked && compareDate(dateStr, deletedDate) === 0) {
-      return {
-        isDue: true,
-        shouldShow: true,
-        status: 'checked'
-      };
-    }
     return {
       isDue: false,
       shouldShow: false,
-      status: 'deleted'
+      status: 'inactive'
     };
   }
 

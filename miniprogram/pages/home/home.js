@@ -56,6 +56,15 @@ const formatDateKey = (date) => {
   return `${year}-${month}-${day}`;
 };
 
+const toDateStr = (value) => {
+  if (!value) return '';
+  if (value instanceof Date) return formatDateKey(value);
+  if (typeof value === 'string') return value.split('T')[0];
+  if (typeof value.toDate === 'function') return formatDateKey(value.toDate());
+  if (typeof value.toISOString === 'function') return value.toISOString().split('T')[0];
+  return String(value).split('T')[0];
+};
+
 // 判断习惯今天是否应该显示（根据频率策略）
 function shouldShowHabitToday(habit) {
   // 调试模式：可以模拟不同日期
@@ -66,7 +75,7 @@ function shouldShowHabitToday(habit) {
   }
   
   const todayStr = formatDateKey(today);
-  const deletedDate = (habit.deletedAt || habit.deleted_at || '').split('T')[0];
+  const deletedDate = toDateStr(habit.deletedAt || habit.deleted_at);
   if (deletedDate && todayStr >= deletedDate) {
     return false;
   }
@@ -579,7 +588,7 @@ Page({
           title: isCheckin ? '打卡成功' : '已取消打卡',
           icon: 'none'
         });
-      } else if (result.message === '今日已打卡') {
+      } else if (result.code === 'ALREADY_CHECKED' || result.message === '今日已打卡' || result.message === '浠婃棩宸叉墦鍗?') {
         // 云端已存在，标记本地为已同步
         const logs = app.globalData.CheckinLogs || [];
         const today = checkinDate || formatDateKey(new Date());

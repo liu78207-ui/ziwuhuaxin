@@ -486,4 +486,136 @@ describe('App.js 功能测试', () => {
       expect(habits[0].deletedAt).toBeDefined();
     });
   });
+
+  describe('actual App id compatibility', () => {
+    function loadAppConfig() {
+      jest.resetModules();
+      let appConfig;
+      global.App = jest.fn(config => {
+        appConfig = config;
+        return config;
+      });
+      require('../../miniprogram/app.js');
+      return appConfig;
+    }
+
+    test('addHabit restores deleted habits by strategy habit_id', () => {
+      const app = loadAppConfig();
+      app.globalData.MyHabits = [
+        { habit_id: 'strategy-1', _id: 'catalog-1', name: 'Old', isDeleted: true, deletedAt: '2026-05-16' }
+      ];
+
+      const restoredId = app.addHabit({ strategy: { habit_id: 'strategy-1' }, _id: 'catalog-2', name: 'New' });
+
+      expect(restoredId).toBe('strategy-1');
+      expect(app.globalData.MyHabits).toHaveLength(1);
+      expect(app.globalData.MyHabits[0].isDeleted).toBe(false);
+      expect(app.globalData.MyHabits[0].deletedAt).toBeNull();
+    });
+
+    test('saveDeletedHabitInfo uses strategy habit_id as the history key', () => {
+      const app = loadAppConfig();
+      wx.getStorageSync.mockReturnValue({});
+
+      app.saveDeletedHabitInfo({
+        _id: 'catalog-1',
+        title: 'Catalog Habit',
+        strategy: { habit_id: 'strategy-1' }
+      });
+
+      expect(wx.setStorageSync).toHaveBeenCalledWith(
+        'AllHabitsInfo',
+        expect.objectContaining({
+          'strategy-1': expect.objectContaining({
+            habitId: 'strategy-1',
+            name: 'Catalog Habit'
+          })
+        })
+      );
+    });
+
+    test('log helpers match cloud habit_id and checkin_date fields', () => {
+      const app = loadAppConfig();
+      app.globalData.CheckinLogs = [
+        { habit_id: 'strategy-1', checkin_date: '2026-05-16T00:00:00.000Z', sync_status: 1 }
+      ];
+
+      expect(app.getLogsByHabitId('strategy-1')).toHaveLength(1);
+      expect(app.getLogsByDate('2026-05-16')).toHaveLength(1);
+      expect(app.isCheckedOnDate('strategy-1', '2026-05-16')).toBe(true);
+    });
+
+    test('isCheckedOnDate ignores logs marked for deletion', () => {
+      const app = loadAppConfig();
+      app.globalData.CheckinLogs = [
+        { habit_id: 'strategy-1', checkin_date: '2026-05-16', sync_status: 2 }
+      ];
+
+      expect(app.isCheckedOnDate('strategy-1', '2026-05-16')).toBe(false);
+    });
+
+    test('syncToCloud treats duplicate cloud checkins as synced', async () => {
+      const app = loadAppConfig();
+      app.globalData.isOnline = true;
+      app.globalData.CheckinLogs = [
+        { logId: 'local-1', habitId: 'strategy-1', date: '2026-05-16', sync_status: 0 }
+      ];
+      global.getCurrentPages = jest.fn(() => []);
+      wx.cloud.callFunction.mockResolvedValue({
+        result: { success: false, code: 'ALREADY_CHECKED', message: '今日已打卡' }
+      });
+
+      await app.syncToCloud();
+
+      expect(app.globalData.CheckinLogs[0].sync_status).toBe(1);
+    });
+
+    test('syncToCloud removes delete markers when cloud checkin is already absent', async () => {
+      const app = loadAppConfig();
+      app.globalData.isOnline = true;
+      app.globalData.CheckinLogs = [
+        { logId: 'local-1', habitId: 'strategy-1', date: '2026-05-16', sync_status: 2 }
+      ];
+      global.getCurrentPages = jest.fn(() => []);
+      wx.cloud.callFunction.mockResolvedValue({
+        result: { success: false, code: 'CHECKIN_NOT_FOUND', message: '今日未打卡，无需取消' }
+      });
+
+      await app.syncToCloud();
+
+      expect(app.globalData.CheckinLogs).toEqual([]);
+    });
+
+    test('category theme defaults use report-supported classes', () => {
+      const app = loadAppConfig();
+
+      expect(app.getThemeByCategory('sports')).toBe('t-green');
+      expect(app.getThemeByCategory('therapy')).toBe('t-red');
+      expect(app.getThemeByCategory('life')).toBe('t-yellow');
+      expect(app.getThemeByCategory('运动类')).toBe('t-green');
+      expect(app.getThemeByCategory('理疗类')).toBe('t-red');
+      expect(app.getThemeByCategory('起居类')).toBe('t-yellow');
+      expect(app.getThemeByCategory('unknown')).toBe('t-blue');
+    });
+
+    test('migrateOldStrategy keeps habit-specific theme instead of defaulting Chinese categories to blue', () => {
+      const app = loadAppConfig();
+
+      expect(app.migrateOldStrategy({
+        habit_id: '1',
+        habit_title: '金刚功',
+        category: '运动类'
+      }).themeClass).toBe('t-red');
+      expect(app.migrateOldStrategy({
+        habit_id: '3',
+        habit_title: '八段锦',
+        category: '运动类'
+      }).themeClass).toBe('t-yellow');
+      expect(app.migrateOldStrategy({
+        habit_id: '12',
+        habit_title: '艾灸',
+        category: '理疗类'
+      }).themeClass).toBe('t-red');
+    });
+  });
 });
