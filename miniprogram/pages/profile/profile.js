@@ -32,8 +32,64 @@ Page({
     }
   },
 
-  // ========== 从云数据库加载用户信息 ==========
+  // ========== 从云数据库加载用户信息（带缓存优先） ==========
   loadUserInfoFromCloud() {
+    const app = getApp();
+    const cachedUserInfo = app.globalData.userInfo || wx.getStorageSync('userInfo');
+
+    // 1. 缓存有效，直接使用（秒开）
+    if (cachedUserInfo && cachedUserInfo.avatarUrl && cachedUserInfo.nickName) {
+      this.setData({
+        userInfo: {
+          avatarUrl: cachedUserInfo.avatarUrl || '',
+          nickName: cachedUserInfo.nickName || ''
+        }
+      });
+      this.updateDisplayAvatar(cachedUserInfo.avatarUrl || '');
+      console.log('使用缓存用户信息:', cachedUserInfo);
+
+      // 后台静默刷新云端（覆盖式更新缓存）
+      this.refreshUserInfoFromCloud();
+      return;
+    }
+
+    // 2. 没有缓存，从云端加载
+    this.loadFromCloud();
+  },
+
+  // 后台静默刷新云端用户信息（不阻塞 UI）
+  refreshUserInfoFromCloud() {
+    const app = getApp();
+    const openid = this.data.openid;
+    if (!openid) return;
+
+    db.collection('users').doc(openid).get()
+      .then(res => {
+        const userData = res.data;
+        if (userData) {
+          const updatedUserInfo = {
+            avatarUrl: userData.avatarUrl || '',
+            nickName: userData.nickName || ''
+          };
+          // 更新全局和本地缓存
+          app.globalData.userInfo = updatedUserInfo;
+          wx.setStorageSync('userInfo', updatedUserInfo);
+          // 检查是否有变化，避免重复 setData
+          const currentData = this.data.userInfo;
+          if (currentData.avatarUrl !== updatedUserInfo.avatarUrl || currentData.nickName !== updatedUserInfo.nickName) {
+            this.setData({ userInfo: updatedUserInfo });
+            this.updateDisplayAvatar(updatedUserInfo.avatarUrl);
+          }
+          console.log('后台刷新云端用户信息完成:', updatedUserInfo);
+        }
+      })
+      .catch(err => {
+        console.log('后台刷新用户信息失败（不影响使用）:', err);
+      });
+  },
+
+  // 从云端加载用户信息（无缓存路径）
+  loadFromCloud() {
     const app = getApp();
     const openid = this.data.openid;
     if (!openid) {
@@ -41,30 +97,33 @@ Page({
       return;
     }
 
+    wx.showLoading({ title: '加载中...' });
+
     db.collection('users').doc(openid).get()
       .then(res => {
         const userData = res.data;
         if (userData) {
-          this.setData({
-            userInfo: {
-              avatarUrl: userData.avatarUrl || '',
-              nickName: userData.nickName || ''
-            }
-          });
-          this.updateDisplayAvatar(userData.avatarUrl || '');
+          const userInfo = {
+            avatarUrl: userData.avatarUrl || '',
+            nickName: userData.nickName || ''
+          };
+          this.setData({ userInfo });
+          this.updateDisplayAvatar(userInfo.avatarUrl);
           // 同步到全局和本地缓存
-          app.globalData.userInfo = this.data.userInfo;
-          wx.setStorageSync('userInfo', this.data.userInfo);
-          console.log('从云端加载用户信息成功:', userData);
+          app.globalData.userInfo = userInfo;
+          wx.setStorageSync('userInfo', userInfo);
+          console.log('从云端加载用户信息成功:', userInfo);
         }
       })
       .catch(err => {
-        // 用户记录不存在是正常的，不需要报错
         if (err.errCode === -1) {
           console.log('云端暂无用户记录，等待用户设置');
         } else {
           console.error('从云端加载用户信息失败:', err);
         }
+      })
+      .finally(() => {
+        wx.hideLoading();
       });
   },
 
