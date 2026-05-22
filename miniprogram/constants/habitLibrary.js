@@ -263,11 +263,11 @@ function getBuiltInHabit(habitId) {
 }
 
 /**
- * 获取所有内置习惯
+ * 获取所有内置习惯（返回浅拷贝，防止外部修改）
  * @returns {Array}
  */
 function getAllBuiltInHabits() {
-  return HABIT_LIBRARY
+  return HABIT_LIBRARY.map(h => ({ ...h }))
 }
 
 /**

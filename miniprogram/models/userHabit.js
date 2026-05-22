@@ -15,13 +15,17 @@
 const { isValidBuiltInHabitId } = require('../constants/habitLibrary.js')
 
 /**
- * userHabit 默认字段结构
+ * userHabit 默认字段结构（完整定义）
  */
 const USER_HABIT_FIELDS = [
   'userHabitId',
+  'openid',
   'habitId',
   'status',
+  'isDeleted',
   'createdAt',
+  'updatedAt',
+  'deletedAt',
   'latestPolicyVersionId',
   'syncStatus'
 ]
@@ -62,6 +66,11 @@ function validateUserHabit(habit) {
     errors.push('userHabitId must be a string')
   }
 
+  // openid 可选（云端持久化时由云函数填入）
+  if (habit.openid !== undefined && typeof habit.openid !== 'string') {
+    errors.push('openid must be a string')
+  }
+
   // habitId 必填，且必须为有效的内置习惯 ID
   if (!habit.habitId) {
     errors.push('habitId is required')
@@ -76,9 +85,24 @@ function validateUserHabit(habit) {
     errors.push(`status "${habit.status}" is invalid, must be one of: ${Object.values(USER_HABIT_STATUS).join(', ')}`)
   }
 
+  // isDeleted 可选，需为布尔
+  if (habit.isDeleted !== undefined && typeof habit.isDeleted !== 'boolean') {
+    errors.push('isDeleted must be a boolean')
+  }
+
   // createdAt 可选，需为日期字符串
   if (habit.createdAt !== undefined && typeof habit.createdAt !== 'string') {
     errors.push('createdAt must be a string')
+  }
+
+  // updatedAt 可选，需为日期字符串
+  if (habit.updatedAt !== undefined && typeof habit.updatedAt !== 'string') {
+    errors.push('updatedAt must be a string')
+  }
+
+  // deletedAt 可选，需为日期字符串
+  if (habit.deletedAt !== undefined && habit.deletedAt !== null && typeof habit.deletedAt !== 'string') {
+    errors.push('deletedAt must be a string or null')
   }
 
   // latestPolicyVersionId 可选
@@ -87,32 +111,13 @@ function validateUserHabit(habit) {
   }
 
   // syncStatus 可选，需为整数
-  if (habit.syncStatus !== undefined) {
-    if (!Number.isInteger(habit.syncStatus)) {
-      errors.push('syncStatus must be an integer')
-    }
+  if (habit.syncStatus !== undefined && !Number.isInteger(habit.syncStatus)) {
+    errors.push('syncStatus must be an integer')
   }
 
   return {
     valid: errors.length === 0,
     errors
-  }
-}
-
-/**
- * 创建 userHabit 默认对象（Phase 2 不生成真实 userHabitId）
- * @param {string} habitId
- * @param {object} overrides
- * @returns {object}
- */
-function createDefaultUserHabit(habitId, overrides = {}) {
-  return {
-    habitId: String(habitId),
-    status: USER_HABIT_STATUS.active,
-    createdAt: '',
-    latestPolicyVersionId: '',
-    syncStatus: 1,
-    ...overrides
   }
 }
 
@@ -142,9 +147,13 @@ function isDeleted(habit) {
 function toViewModel(habit) {
   return {
     userHabitId: habit.userHabitId || '',
+    openid: habit.openid || '',
     habitId: habit.habitId || '',
     status: habit.status || USER_HABIT_STATUS.active,
+    isDeleted: habit.isDeleted || false,
     createdAt: habit.createdAt || '',
+    updatedAt: habit.updatedAt || '',
+    deletedAt: habit.deletedAt || null,
     latestPolicyVersionId: habit.latestPolicyVersionId || '',
     syncStatus: habit.syncStatus !== undefined ? habit.syncStatus : 1
   }
@@ -155,7 +164,6 @@ module.exports = {
   USER_HABIT_STATUS,
   isValidStatus,
   validateUserHabit,
-  createDefaultUserHabit,
   isActive,
   isDeleted,
   toViewModel

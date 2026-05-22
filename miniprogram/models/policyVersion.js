@@ -12,7 +12,7 @@
  */
 
 const { isValidBuiltInHabitId } = require('../constants/habitLibrary.js')
-const { isValidStatus: isUserHabitValidStatus } = require('./userHabit.js')
+const { FREQ_TYPES } = require('../constants/frequencyTypes.js')
 
 /**
  * policyVersion 默认字段结构
@@ -31,21 +31,12 @@ const POLICY_VERSION_FIELDS = [
 ]
 
 /**
- * 频率类型枚举
- */
-const FREQUENCY_TYPES = {
-  daily: 'daily',       // 每天
-  interval: 'interval', // 间隔天数
-  weekly: 'weekly'       // 每周固定
-}
-
-/**
  * 验证频率类型是否有效
  * @param {string} type
  * @returns {boolean}
  */
 function isValidFrequencyType(type) {
-  return Object.values(FREQUENCY_TYPES).includes(type)
+  return Object.values(FREQ_TYPES).includes(type)
 }
 
 /**
@@ -61,13 +52,13 @@ function validateFrequencyConfig(config, frequencyType) {
     return { valid: false, errors: ['frequencyConfig must be an object'] }
   }
 
-  if (frequencyType === FREQUENCY_TYPES.interval) {
+  if (frequencyType === FREQ_TYPES.INTERVAL) {
     if (!config.intervalDays || typeof config.intervalDays !== 'number' || config.intervalDays < 1) {
       errors.push('intervalDays is required and must be a positive number for interval frequency')
     }
   }
 
-  if (frequencyType === FREQUENCY_TYPES.weekly) {
+  if (frequencyType === FREQ_TYPES.WEEKLY) {
     if (!Array.isArray(config.weekdays) || config.weekdays.length === 0) {
       errors.push('weekdays is required and must be a non-empty array for weekly frequency')
     } else if (!config.weekdays.every(d => typeof d === 'number' && d >= 1 && d <= 7)) {
@@ -124,13 +115,13 @@ function validatePolicyVersion(version) {
   // frequencyType 可选，需为有效枚举
   if (version.frequencyType !== undefined) {
     if (!isValidFrequencyType(version.frequencyType)) {
-      errors.push(`frequencyType "${version.frequencyType}" is invalid, must be one of: ${Object.values(FREQUENCY_TYPES).join(', ')}`)
+      errors.push(`frequencyType "${version.frequencyType}" is invalid, must be one of: ${Object.values(FREQ_TYPES).join(', ')}`)
     }
   }
 
   // frequencyConfig 可选，需通过结构校验
   if (version.frequencyConfig !== undefined) {
-    const configValidation = validateFrequencyConfig(version.frequencyConfig, version.frequencyType || FREQUENCY_TYPES.daily)
+    const configValidation = validateFrequencyConfig(version.frequencyConfig, version.frequencyType || FREQ_TYPES.DAILY)
     if (!configValidation.valid) {
       errors.push(...configValidation.errors.map(e => `frequencyConfig: ${e}`))
     }
@@ -163,41 +154,6 @@ function validatePolicyVersion(version) {
 }
 
 /**
- * 创建 policyVersion 默认对象（Phase 2 不生成真实 policyVersionId）
- * @param {string} userHabitId
- * @param {string} habitId
- * @param {object} overrides
- * @returns {object}
- */
-function createDefaultPolicyVersion(userHabitId, habitId, overrides = {}) {
-  return {
-    userHabitId: String(userHabitId),
-    habitId: String(habitId),
-    duration: 20,
-    frequencyType: FREQUENCY_TYPES.daily,
-    frequencyConfig: { intervalDays: 1 },
-    startDate: '',
-    effectiveStartDate: '',
-    effectiveEndDate: null,
-    syncStatus: 1,
-    ...overrides
-  }
-}
-
-/**
- * 检查 policyVersion 是否为当前有效
- * @param {object} version
- * @returns {boolean}
- */
-function isEffective(version) {
-  if (!version) return false
-  if (version.effectiveEndDate === null) return true
-  // 如果有 effectiveEndDate，需判断是否在有效期内
-  // 此处仅做基础判断，具体日期比较由 timeService 处理
-  return true
-}
-
-/**
  * 创建 policyVersion 视图模型
  * @param {object} version
  * @returns {object}
@@ -208,7 +164,7 @@ function toViewModel(version) {
     userHabitId: version.userHabitId || '',
     habitId: version.habitId || '',
     duration: version.duration || 20,
-    frequencyType: version.frequencyType || FREQUENCY_TYPES.daily,
+    frequencyType: version.frequencyType || FREQ_TYPES.DAILY,
     frequencyConfig: version.frequencyConfig || { intervalDays: 1 },
     startDate: version.startDate || '',
     effectiveStartDate: version.effectiveStartDate || '',
@@ -219,11 +175,9 @@ function toViewModel(version) {
 
 module.exports = {
   POLICY_VERSION_FIELDS,
-  FREQUENCY_TYPES,
+  FREQ_TYPES,
   isValidFrequencyType,
   validateFrequencyConfig,
   validatePolicyVersion,
-  createDefaultPolicyVersion,
-  isEffective,
   toViewModel
 }
