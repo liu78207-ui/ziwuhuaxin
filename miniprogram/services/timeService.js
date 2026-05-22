@@ -1,15 +1,24 @@
 // services/timeService.js
-// 唯一业务时间入口，统一 Asia/Shanghai
+// 唯一业务时间入口，统一 Asia/Shanghai (+08:00)
+// 所有业务日期计算基于 Asia/Shanghai 时区，不依赖本地时区
 
 let _serverTimeOffset = 0
 let _serverTimeConfidence = 'low'
+
+// Asia/Shanghai UTC offset: +08:00 = 8 * 60 * 60 * 1000 ms
+const ASIA_SHANGHAI_OFFSET = 8 * 60 * 60 * 1000
+
+function asAsiaShanghaiTime(localDate) {
+  const utc = localDate.getTime() + localDate.getTimezoneOffset() * 60 * 1000
+  return new Date(utc + ASIA_SHANGHAI_OFFSET)
+}
 
 function getNow() {
   return new Date(Date.now() + _serverTimeOffset)
 }
 
 function getBusinessDate() {
-  return formatDate(getNow())
+  return formatDate(asAsiaShanghaiTime(getNow()))
 }
 
 function getTodayKey() {
@@ -34,7 +43,9 @@ function parseDate(dateStr) {
   const normalized = String(dateStr).split('T')[0]
   const parts = normalized.split('-').map(Number)
   if (parts.length !== 3 || parts.some(Number.isNaN)) return null
-  return new Date(parts[0], parts[1] - 1, parts[2])
+  const d = new Date(parts[0], parts[1] - 1, parts[2])
+  if (isNaN(d.getTime())) return null
+  return d
 }
 
 function formatDate(date) {
@@ -59,6 +70,7 @@ function dateDiff(endDateStr, startDateStr) {
 }
 
 function compareDate(a, b) {
+  if (!a || !b) return null
   if (a === b) return 0
   return a < b ? -1 : 1
 }
@@ -82,7 +94,7 @@ function buildDateRange(startDate, endDate) {
 }
 
 function getWeekRange(date) {
-  const d = parseDate(date) || new Date()
+  const d = parseDate(date) || asAsiaShanghaiTime(new Date())
   const day = d.getDay()
   const diff = d.getDate() - day + (day === 0 ? -6 : 1)
   const start = new Date(d)
@@ -96,7 +108,7 @@ function getWeekRange(date) {
 }
 
 function getMonthRange(date) {
-  const d = parseDate(date) || new Date()
+  const d = parseDate(date) || asAsiaShanghaiTime(new Date())
   const year = d.getFullYear()
   const month = d.getMonth()
   const firstDay = new Date(year, month, 1)
@@ -108,7 +120,7 @@ function getMonthRange(date) {
 }
 
 function getYearRange(date) {
-  const d = parseDate(date) || new Date()
+  const d = parseDate(date) || asAsiaShanghaiTime(new Date())
   const year = d.getFullYear()
   return {
     startDate: `${year}-01-01`,
@@ -128,17 +140,22 @@ function shouldRefreshByDate(lastDate, currentDate) {
   return lastDate && currentDate && compareDate(lastDate, currentDate) < 0
 }
 
-async function refreshServerTime(app) {
-  try {
-    const { result } = await wx.cloud.callFunction({ name: 'login' })
-    if (result && result.serverTime) {
-      const localNow = Date.now()
-      _serverTimeOffset = result.serverTime - localNow
-      _serverTimeConfidence = 'high'
-      return { serverTime: result.serverTime, confidence: 'high' }
+// 刷新服务端时间校准
+// cloudCaller: 可选的云函数调用器，签名为 () => Promise<{ serverTime: number }>
+// 如果未传入 cloudCaller，将使用本地时间并返回 low confidence
+async function refreshServerTime(cloudCaller) {
+  if (cloudCaller) {
+    try {
+      const { serverTime } = await cloudCaller()
+      if (serverTime) {
+        const localNow = Date.now()
+        _serverTimeOffset = serverTime - localNow
+        _serverTimeConfidence = 'high'
+        return { serverTime, confidence: 'high' }
+      }
+    } catch (e) {
+      console.error('refreshServerTime failed:', e)
     }
-  } catch (e) {
-    console.error('refreshServerTime failed:', e)
   }
   _serverTimeConfidence = 'low'
   return { serverTime: Date.now(), confidence: 'low' }

@@ -14,7 +14,7 @@ const STORAGE_KEYS = {
   userStrategies: 'userStrategies',
   checkinRecords: 'checkin_records',
 
-  // 新增（V2）
+  // 新增（供后续阶段使用）
   dailyStates: 'dailyCheckinStates',
   cacheMeta: 'cacheMeta'
 }

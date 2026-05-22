@@ -1,3 +1,4 @@
+const timeService = require('./services/timeService.js')
 const iconMap = require('./utils/iconMap.js')
 
 App({
