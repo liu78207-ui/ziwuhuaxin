@@ -27,6 +27,8 @@ const POLICY_VERSION_FIELDS = [
   'startDate',
   'effectiveStartDate',
   'effectiveEndDate',
+  'createdAt',
+  'updatedAt',
   'syncStatus'
 ]
 
@@ -142,6 +144,16 @@ function validatePolicyVersion(version) {
     errors.push('effectiveEndDate must be a string or null')
   }
 
+  // createdAt 可选，需为日期字符串
+  if (version.createdAt !== undefined && typeof version.createdAt !== 'string') {
+    errors.push('createdAt must be a string')
+  }
+
+  // updatedAt 可选，需为日期字符串
+  if (version.updatedAt !== undefined && typeof version.updatedAt !== 'string') {
+    errors.push('updatedAt must be a string')
+  }
+
   // syncStatus 可选，需为整数
   if (version.syncStatus !== undefined && !Number.isInteger(version.syncStatus)) {
     errors.push('syncStatus must be an integer')
@@ -169,6 +181,8 @@ function toViewModel(version) {
     startDate: version.startDate || '',
     effectiveStartDate: version.effectiveStartDate || '',
     effectiveEndDate: version.effectiveEndDate || null,
+    createdAt: version.createdAt || '',
+    updatedAt: version.updatedAt || '',
     syncStatus: version.syncStatus !== undefined ? version.syncStatus : 1
   }
 }
