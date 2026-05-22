@@ -67,6 +67,11 @@ function isValidDateStr(dateStr) {
   return parseDate(dateStr) !== null
 }
 
+/**
+ * 将 Date 对象投影为 Asia/Shanghai 时区的业务日期视图。
+ * 实现方式：偏移 +08:00 后用 UTC getter 读取——这是业务日期投影，
+ * 不是真正改变 Date 的内部时区。适用于日志、报表等业务场景。
+ */
 function asAsiaShanghai(localDate) {
   return new Date(localDate.getTime() + ASIA_SHANGHAI_OFFSET)
 }
