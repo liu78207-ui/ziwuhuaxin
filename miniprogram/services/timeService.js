@@ -12,7 +12,7 @@ function getNow() {
 }
 
 function getBusinessDate() {
-  return dateUtils.dateToAsiaShanghaiDateStr(getNow())
+  return dateUtils.formatDate(dateUtils.asAsiaShanghai(getNow()))
 }
 
 function getTodayKey() {
@@ -21,17 +21,15 @@ function getTodayKey() {
 
 function getSimulatedDate(app) {
   const offset = app && app.getDebugOffset ? app.getDebugOffset() : 0
-  const now = getNow()
-  const asiaNow = dateUtils.asAsiaShanghai(now)
+  const asiaNow = dateUtils.asAsiaShanghai(getNow())
   if (offset !== 0) {
-    asiaNow.setDate(asiaNow.getUTCDate() + offset)
+    asiaNow.setUTCDate(asiaNow.getUTCDate() + offset)
   }
   return asiaNow
 }
 
 function getSimulatedDateStr(app) {
-  const d = getSimulatedDate(app)
-  return dateUtils.formatDate(d)
+  return dateUtils.formatDate(getSimulatedDate(app))
 }
 
 function parseDate(dateStr) {
@@ -63,7 +61,7 @@ function buildDateRange(startDate, endDate) {
 }
 
 function getWeekRange(date) {
-  const asiaDate = dateUtils.asAsiaShanghai(parseDate(date) || getSimulatedDate(null))
+  const asiaDate = parseDate(date) || getSimulatedDate(null)
   const day = asiaDate.getUTCDay()
   const diff = asiaDate.getUTCDate() - day + (day === 0 ? -6 : 1)
   const start = new Date(asiaDate.getTime())
@@ -77,7 +75,7 @@ function getWeekRange(date) {
 }
 
 function getMonthRange(date) {
-  const asiaDate = dateUtils.asAsiaShanghai(parseDate(date) || getSimulatedDate(null))
+  const asiaDate = parseDate(date) || getSimulatedDate(null)
   const year = asiaDate.getUTCFullYear()
   const month = asiaDate.getUTCMonth()
   const firstDay = new Date(Date.UTC(year, month, 1))
@@ -89,7 +87,7 @@ function getMonthRange(date) {
 }
 
 function getYearRange(date) {
-  const asiaDate = dateUtils.asAsiaShanghai(parseDate(date) || getSimulatedDate(null))
+  const asiaDate = parseDate(date) || getSimulatedDate(null)
   const year = asiaDate.getUTCFullYear()
   return {
     startDate: `${year}-01-01`,
