@@ -496,7 +496,7 @@ Page({
     });
   },
 
-  // 移除习惯的打卡记录
+  // clear checkin records
   removeCheckinRecords(habitId) {
     try {
       let records = wx.getStorageSync('checkin_records') || {};
