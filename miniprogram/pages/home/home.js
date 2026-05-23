@@ -353,17 +353,6 @@ Page({
     console.log('taskList:', taskList.map(t => ({ name: t.title, isChecked: t.isChecked })));
   },
 
-  // 本地检查今天是否打卡（备用方法）
-  checkTodayCheckin(habitId, dateStr) {
-    const app = getApp();
-    const logs = app.globalData.CheckinLogs || [];
-    return logs.some(log => {
-      const logHabitId = String(log.habitId || log.habit_id || '');
-      const logDate = String(log.date || log.checkin_date || '').split('T')[0];
-      return logHabitId === String(habitId) && logDate === dateStr && log.sync_status !== 2;
-    });
-  },
-
   // 根据分类获取表情符号
   getEmojiByCategory(category) {
     const emojiMap = {

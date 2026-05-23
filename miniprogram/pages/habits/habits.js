@@ -475,23 +475,7 @@ Page({
     });
   },
 
-  // clear checkin records
-  removeCheckinRecords(habitId) {
-    try {
-      let records = wx.getStorageSync('checkin_records') || {};
-      const key = String(habitId);
-      
-      if (records[key]) {
-        delete records[key];
-        wx.setStorageSync('checkin_records', records);
-        console.log('已清理打卡记录:', key);
-      }
-    } catch (e) {
-      console.error('清理打卡记录失败:', e);
-    }
-  },
-
-  closeModal() {
+   closeModal() {
     this.setData({ showModal: false });
   },
 
