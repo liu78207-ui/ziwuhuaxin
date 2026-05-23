@@ -455,28 +455,7 @@ Page({
       console.error('habitService.softDeleteHabit 失败:', e);
     }
 
-    // 3. 云端删除（传递完整习惯信息）
-    try {
-      const { result } = await wx.cloud.callFunction({
-        name: 'removeStrategy',
-        data: {
-          habit_id: habit.strategy.habit_id,
-          habit_title: habit.title,
-          category: habit.category,
-          icon_url: habit.iconUrl || '',
-          theme_class: habit.themeClass || '',
-          target_minutes: habit.default_duration || 20
-        }
-      });
-
-      if (!result.success) {
-        console.error('云端删除策略失败:', result.message);
-      }
-    } catch (e) {
-      console.error('调用 removeStrategy 云函数失败:', e);
-    }
-
-    // 4. 更新习惯列表显示状态
+    // 3. 更新习惯列表显示状态
     const habits = this.data.habits.map(h => {
       if (h._id === habit._id) {
         const { strategy, strategyText, hasStrategy, ...rest } = h;
@@ -754,53 +733,31 @@ Page({
     // 获取计划开始日期
     const planStartDate = this.getFinalPlanStartDate();
 
-    const strategy = {
-      habit_id: habit._id,
-      habit_title: habit.title,
-      category: habit.category,
-      duration: this.data.selectedDuration || habit.default_duration || 30,
-      freq_type: freq_type,
-      freq_rules: freq_rules,
-      freq_category: freqCategory, // 保存分类便于后续处理
-      plan_start_date: planStartDate // 计划开始日期
-    };
-
-    // 1. 保存到全局数据（自动同步到本地存储）
-    app.addUserStrategy(strategy);
-    console.log('习惯已保存:', strategy.habit_id, strategy.habit_title, '计划开始:', planStartDate);
-
-    // 2. 调用 habitService 添加用户习惯实例（创建 userHabitId + 首个策略版本）
+    // 1. 调用 habitService 添加用户习惯实例（创建 userHabitId + 首个策略版本）
+    let userHabitId;
+    let strategy;
     try {
       const userHabit = await habitService.addHabit(habit._id, {
-        duration: strategy.duration,
+        duration: this.data.selectedDuration || habit.default_duration || 30,
         frequencyType: freq_type,
         frequencyConfig: freq_type === 'weekly' ? { weekdays: freq_rules } : { intervalDays: freq_rules },
         startDate: planStartDate
       });
-      console.log('habitService.addHabit 完成:', userHabit.userHabitId);
-      strategy.habit_id = userHabit.userHabitId;
+      userHabitId = userHabit.userHabitId;
+      strategy = {
+        habit_id: userHabitId,
+        habit_title: habit.title,
+        category: habit.category,
+        duration: this.data.selectedDuration || habit.default_duration || 30,
+        freq_type: freq_type,
+        freq_rules: freq_rules,
+        freq_category: freqCategory,
+        plan_start_date: planStartDate
+      };
+      console.log('habitService.addHabit 完成:', userHabitId);
     } catch (e) {
       console.error('habitService.addHabit 失败:', e);
-    }
-
-    // 3. 同步到云端
-    try {
-      const { result } = await wx.cloud.callFunction({
-        name: 'saveStrategy',
-        data: {
-          habit_id: habit._id,
-          duration: strategy.duration,
-          freq_type: freq_type,
-          freq_rules: freq_rules,
-          plan_start_date: planStartDate
-        }
-      });
-
-      if (!result.success) {
-        console.error('云端保存策略失败:', result.message);
-      }
-    } catch (e) {
-      console.error('调用 saveStrategy 云函数失败:', e);
+      return;
     }
 
     // 生成策略显示文本（频次 + 时间）

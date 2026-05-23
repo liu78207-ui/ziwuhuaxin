@@ -53,7 +53,7 @@ describe('修习页真实删除操作', () => {
     consoleLogSpy.mockRestore();
   });
 
-  test('删除习惯时优先使用已添加策略的真实 habit_id', async () => {
+  test('删除习惯时只调用 habitService.softDeleteHabit', async () => {
     const { page, app } = loadHabitsPage();
     const habit = {
       _id: 'catalog-16',
@@ -77,10 +77,8 @@ describe('修习页真实删除操作', () => {
 
     await page.removeStrategy(habit);
 
-    expect(app.removeUserStrategy).toHaveBeenCalledWith('16', habit);
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expect.objectContaining({
-      name: 'removeStrategy',
-      data: expect.objectContaining({ habit_id: '16' })
-    }));
+    // Phase 3C: 只调用 habitService.softDeleteHabit，不调用 app.removeUserStrategy 和云函数
+    expect(app.removeUserStrategy).not.toHaveBeenCalled();
+    expect(wx.cloud.callFunction).not.toHaveBeenCalled();
   });
 });

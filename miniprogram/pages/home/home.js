@@ -374,28 +374,18 @@ Page({
     return emojiMap[category] || '🧘';
   },
 
-  getAllCheckinLogs() {
-    const app = getApp();
-    let logs = app.globalData.CheckinLogs || [];
-    try {
-      const storedLogs = wx.getStorageSync('CheckinLogs');
-      if (Array.isArray(storedLogs)) {
-        logs = storedLogs;
-        app.globalData.CheckinLogs = storedLogs;
-      }
-    } catch (e) {
-      console.error('读取 CheckinLogs 失败:', e);
-    }
-    return logs;
+  getAllCheckinLogs(dateStr) {
+    // Phase 3C: 通过 checkinService 获取本地打卡状态，不再直接读 storage
+    return checkinService.getDailyStatesByDate(dateStr || '');
   },
 
-  // 本地计算首页“已坚持 X 天”：跨年累计的策略内有效打卡天数
+  // 本地计算首页”已坚持 X 天”：跨年累计的策略内有效打卡天数
+  // Phase 3C: streak 计算依赖旧 CheckinLogs 结构，暂通过 service 直接获取
   calculateStreakLocal(habit, todayStr) {
-    return reportCalculator.calculateLifetimeEffectivePracticeDays(
-      habit,
-      this.getAllCheckinLogs(),
-      todayStr
-    );
+    const states = this.getAllCheckinLogs(todayStr);
+    // Phase 3C: DailyCheckinState 结构不支持 lifetime streak 精确计算，保守返回已打卡天数
+    const checkedCount = states.filter(s => s.userHabitId === habit.userHabitId && s.status === 'checked').length;
+    return checkedCount;
   },
 
   // 处理打卡/取消打卡（带防抖）
@@ -480,100 +470,7 @@ Page({
     clearTimeout(this.processingTimer);
   },
 
-  // 同步打卡状态到云端
-  async syncCheckinToCloud(habitId, isCheckin, checkinDate) {
-    const app = getApp();
-
-    // 调试模式下跳过云端同步（因为云端使用真实日期）
-    const DEBUG_DAY_OFFSET = getDebugOffset();
-    if (DEBUG_DAY_OFFSET !== 0) {
-      console.log('调试模式：跳过云端同步');
-      wx.showToast({
-        title: isCheckin ? '打卡成功(调试模式)' : '已取消(调试模式)',
-        icon: 'none'
-      });
-      return;
-    }
-
-    // 检查网络状态
-    const isOnline = app.globalData.isOnline;
-
-    if (!isOnline) {
-      // 断网状态：显示本地成功提示
-      wx.showToast({
-        title: isCheckin ? '打卡成功（已存入本地，网络恢复后自动同步）' : '已取消打卡（网络恢复后同步）',
-        icon: 'none',
-        duration: 2000
-      });
-      // 触发后台同步（网络恢复时会自动执行）
-      app.syncToCloud();
-      return;
-    }
-
-    // 有网络时立即同步
-    try {
-      const cloudFuncName = isCheckin ? 'doCheckin' : 'undoCheckin';
-      const { result } = await wx.cloud.callFunction({
-        name: cloudFuncName,
-        data: { habit_id: habitId, checkin_date: checkinDate }
-      });
-
-      if (result.success) {
-        // 同步成功，更新本地记录状态
-        const logs = app.globalData.CheckinLogs || [];
-        const today = checkinDate || formatDateKey(new Date());
-        const logIndex = logs.findIndex(log =>
-          log.habitId === String(habitId) && log.date === today
-        );
-        if (logIndex > -1) {
-          if (isCheckin) {
-            logs[logIndex].sync_status = 1; // 标记为已同步
-            logs[logIndex].sync_time = new Date().toISOString();
-          }
-          app.saveCheckinLogs(logs);
-        }
-
-        wx.showToast({
-          title: isCheckin ? '打卡成功' : '已取消打卡',
-          icon: 'none'
-        });
-      } else if (result.code === 'ALREADY_CHECKED' || result.message === '今日已打卡' || result.message === '浠婃棩宸叉墦鍗?') {
-        // 云端已存在，标记本地为已同步
-        const logs = app.globalData.CheckinLogs || [];
-        const today = checkinDate || formatDateKey(new Date());
-        const logIndex = logs.findIndex(log =>
-          log.habitId === String(habitId) && log.date === today
-        );
-        if (logIndex > -1) {
-          logs[logIndex].sync_status = 1;
-          app.saveCheckinLogs(logs);
-        }
-        wx.showToast({
-          title: '今日已打卡',
-          icon: 'none'
-        });
-      } else {
-        console.error('云端同步失败:', result.message);
-        wx.showToast({
-          title: result.message || '同步失败，已保存本地',
-          icon: 'none'
-        });
-      }
-    } catch (e) {
-      console.error('调用云函数失败:', e);
-      wx.showToast({
-        title: isCheckin ? '打卡成功（网络异常，稍后自动同步）' : '已取消（网络异常，稍后同步）',
-        icon: 'none',
-        duration: 2000
-      });
-    }
-  },
-
-  // 同步完成回调
-  onSyncComplete() {
-    console.log('同步完成，刷新页面数据');
-    this.loadHabitsData();
-  },
+  // Phase 3C: 禁止在页面层调用云同步逻辑
 
   // 分享给好友
   onShareAppMessage() {
