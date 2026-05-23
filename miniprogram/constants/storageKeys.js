@@ -14,9 +14,11 @@ const STORAGE_KEYS = {
   userStrategies: 'userStrategies',
   checkinRecords: 'checkin_records',
 
-  // 新增（供后续阶段使用）
+  // 新增（Phase 3）
   dailyStates: 'dailyCheckinStates',
-  cacheMeta: 'cacheMeta'
+  policyVersions: 'policyVersions',
+  checkinOperations: 'checkinOperations',
+  migrationMeta: 'migrationMeta'
 }
 
 module.exports = { STORAGE_KEYS }
