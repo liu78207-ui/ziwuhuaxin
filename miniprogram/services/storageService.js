@@ -172,11 +172,18 @@ function ensureMigrationCompleted() {
     const userHabitId = generateUserHabitId(habit.habitId)
     const now = new Date().toISOString()
     const status = habit.isDeleted ? 'deleted' : 'active'
+    // 优先保留旧记录已有的 deletedAt，不要用迁移当天覆盖
+    // 如果 isDeleted 但无 deletedAt，用 now；否则保留原始值
+    const deletedAt = habit.isDeleted
+      ? (habit.deletedAt || habit.deleted_at
+        ? normalizeToDateStr(habit.deletedAt || habit.deleted_at)
+        : normalizeToDateStr(now))
+      : null
     return {
       ...habit,
       userHabitId,
       status,
-      deletedAt: habit.isDeleted ? normalizeToDateStr(now) : null,
+      deletedAt,
       latestPolicyVersionId: '',
       syncStatus: 1
     }

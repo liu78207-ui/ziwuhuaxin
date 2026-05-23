@@ -146,16 +146,17 @@ async function softDeleteHabit(userHabitId) {
     return false
   }
 
+  const businessDate = timeService.getBusinessDate()
+
   // 更新为 deleted 状态
   habit.status = 'deleted'
-  habit.deletedAt = new Date().toISOString().split('T')[0]
+  habit.deletedAt = businessDate
 
   storageService.setMyHabits(habits)
 
   // 关闭当前策略版本
   const policy = storageService.getActivePolicyVersion(userHabitId)
   if (policy) {
-    const businessDate = timeService.getBusinessDate()
     storageService.closePolicyVersion(policy.policyVersionId, businessDate)
   }
 
