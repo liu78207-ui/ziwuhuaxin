@@ -55,26 +55,8 @@ async function checkin(userHabitId, date) {
 async function undoCheckin(userHabitId, date) {
   // 1. 幂等检查
   const existingState = storageService.getDailyState(userHabitId, date)
-  if (!existingState ||
-    existingState.status === DAILY_STATE_STATUS.unchecked ||
-    existingState.status === DAILY_STATE_STATUS.canceled) {
-    // 返回一个 canceled 状态的 state
-    const habit = habitService.getHabitByUserHabitId(userHabitId)
-    if (!habit) {
-      throw new Error(`UserHabit not found: ${userHabitId}`)
-    }
-    return {
-      stateId: existingState?.stateId || null,
-      userHabitId,
-      habitId: habit.habitId,
-      date,
-      status: DAILY_STATE_STATUS.canceled,
-      checkedAt: null,
-      canceledAt: new Date().toISOString(),
-      lastOperationId: existingState?.lastOperationId || null,
-      syncStatus: 0,
-      updatedAt: new Date().toISOString()
-    }
+  if (existingState && existingState.status === DAILY_STATE_STATUS.canceled) {
+    return existingState
   }
 
   // 2. 获取 habitInfo
@@ -83,13 +65,25 @@ async function undoCheckin(userHabitId, date) {
     throw new Error(`UserHabit not found: ${userHabitId}`)
   }
 
-  // 3. 创建 operation
+  // 3. 如果没有 state，先创建一个 unchecked 记录（用于占位）
+  if (!existingState) {
+    const { createDailyCheckinState } = require('../models/dailyCheckinState')
+    const placeholder = createDailyCheckinState({
+      userHabitId,
+      habitId: habit.habitId,
+      date,
+      status: DAILY_STATE_STATUS.unchecked
+    })
+    storageService.setDailyState(placeholder)
+  }
+
+  // 4. 创建 operation
   const operation = createUndoOp(userHabitId, habit.habitId, date)
 
-  // 4. 保存 operation
+  // 5. 保存 operation
   storageService.saveCheckinOperation(operation)
 
-  // 5. 更新 DailyCheckinState
+  // 6. 更新 DailyCheckinState
   const state = createCanceledState(userHabitId, habit.habitId, date, operation.operationId)
   storageService.setDailyState(state)
 

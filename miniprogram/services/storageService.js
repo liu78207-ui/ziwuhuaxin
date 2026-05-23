@@ -3,7 +3,6 @@
 
 const { STORAGE_KEYS } = require('../constants/storageKeys')
 const { generateUserHabitId } = require('../constants/idPrefixes')
-const timeService = require('./timeService')
 
 function asArray(value) {
   return Array.isArray(value) ? value : []
@@ -103,22 +102,6 @@ function setMigrationMeta(meta) {
 
 // ==================== Phase 3: MyHabits 迁移（幂等）====================
 
-/**
- * 迁移时备份 MyHabits
- */
-function backupMyHabitsForMigration() {
-  const timestamp = Date.now()
-  const backupKey = `MyHabits_backup_phase3_${timestamp}`
-  const habits = getMyHabits()
-  setItem(backupKey, habits)
-  return backupKey
-}
-
-/**
- * 将业务日期字符串转换为 YYYY-MM-DD 格式
- * @param {string} dateStr
- * @returns {string}
- */
 function normalizeToDateStr(dateStr) {
   if (!dateStr) return ''
   if (typeof dateStr === 'string' && dateStr.includes('T')) {
@@ -127,9 +110,6 @@ function normalizeToDateStr(dateStr) {
   return String(dateStr).split('T')[0]
 }
 
-/**
- * 安全的字符串日期比较（仅比较 YYYY-MM-DD）
- */
 function compareDateStr(a, b) {
   const dateA = normalizeToDateStr(a)
   const dateB = normalizeToDateStr(b)
@@ -138,114 +118,148 @@ function compareDateStr(a, b) {
   return 0
 }
 
-/**
- * 获取 MyHabits（带渐进迁移）
- * 已迁移记录（有 userHabitId）不重新生成 ID
- */
-function getMyHabitsWithMigration() {
-  const habits = asArray(getItem(STORAGE_KEYS.habits))
-  const meta = getMigrationMeta()
-
-  // 检查是否已迁移（meta 有 userHabitInstances 且有数据）
-  const hasMigrationData = meta && meta.userHabitInstances &&
-    Object.keys(meta.userHabitInstances).length > 0
-
-  // 如果没有迁移数据，先初始化 meta
-  if (!hasMigrationData) {
-    // 初始化空的 migrationMeta（用于记录后续迁移）
-    if (Object.keys(meta || {}).length === 0) {
-      setMigrationMeta({
-        migrationVersion: 1,
-        migratedAt: null,
-        userHabitInstances: {},
-        status: 'pending'
-      })
-    }
-  }
-
-  return habits.map(habit => {
-    if (!habit.userHabitId) {
-      // 生成新的 userHabitId
-      const userHabitId = generateUserHabitId(habit.habitId)
-      const now = new Date().toISOString()
-      const status = habit.isDeleted ? 'deleted' : 'active'
-
-      const migratedHabit = {
-        ...habit,
-        userHabitId,
-        status,
-        deletedAt: habit.isDeleted ? now : null,
-        latestPolicyVersionId: '',
-        syncStatus: 1
-      }
-
-      // 更新 migrationMeta
-      const currentMeta = getMigrationMeta()
-      if (!currentMeta.userHabitInstances) {
-        currentMeta.userHabitInstances = {}
-      }
-      currentMeta.userHabitInstances[userHabitId] = {
-        userHabitId,
-        habitId: habit.habitId,
-        status,
-        createdAt: normalizeToDateStr(habit.createdAt),
-        deletedAt: habit.isDeleted ? normalizeToDateStr(now) : null
-      }
-      setMigrationMeta(currentMeta)
-
-      return migratedHabit
-    }
-    return habit
-  })
+function backupMyHabitsForMigration() {
+  const timestamp = Date.now()
+  const backupKey = `MyHabits_backup_phase3_${timestamp}`
+  setItem(backupKey, getMyHabits())
+  return backupKey
 }
 
-// ==================== Phase 3: CheckinLogs 迁移（安全映射）====================
-
-/**
- * 迁移时备份 CheckinLogs
- */
 function backupCheckinLogsForMigration() {
   const timestamp = Date.now()
   const backupKey = `CheckinLogs_backup_phase3_${timestamp}`
-  const logs = getCheckinLogs()
-  setItem(backupKey, logs)
+  setItem(backupKey, getCheckinLogs())
+  return backupKey
+}
+
+function backupPolicyVersionsForMigration() {
+  const timestamp = Date.now()
+  const backupKey = `policyVersions_backup_phase3_${timestamp}`
+  setItem(backupKey, getPolicyVersions())
   return backupKey
 }
 
 /**
- * 安全映射 CheckinLog 到 userHabitId
- * 基于实例生命周期区间：[createdAt, deletedAt)
+ * 确保迁移已完成（幂等）
+ * 首次调用时：备份 -> 迁移 -> 持久化写回 -> 更新 meta
+ * 后续调用时：直接返回已迁移数据，不重复生成 ID
  */
+function ensureMigrationCompleted() {
+  const meta = getMigrationMeta()
+
+  // 如果已完成，直接返回 false（不需要迁移）
+  if (meta.status === 'completed') {
+    return false
+  }
+
+  // === 首次迁移 ===
+
+  // 1. 备份
+  backupMyHabitsForMigration()
+  backupCheckinLogsForMigration()
+  backupPolicyVersionsForMigration()
+
+  // 2. 获取原始数据
+  const rawHabits = asArray(getItem(STORAGE_KEYS.habits))
+  const rawLogs = asArray(getItem(STORAGE_KEYS.logs))
+
+  // 3. 迁移 MyHabits
+  const migratedHabits = rawHabits.map(habit => {
+    if (habit.userHabitId) {
+      // 已有 userHabitId，跳过（幂等）
+      return habit
+    }
+    const userHabitId = generateUserHabitId(habit.habitId)
+    const now = new Date().toISOString()
+    const status = habit.isDeleted ? 'deleted' : 'active'
+    return {
+      ...habit,
+      userHabitId,
+      status,
+      deletedAt: habit.isDeleted ? normalizeToDateStr(now) : null,
+      latestPolicyVersionId: '',
+      syncStatus: 1
+    }
+  })
+
+  // 4. 持久化写回 MyHabits
+  setItem(STORAGE_KEYS.habits, migratedHabits)
+
+  // 5. 建立 userHabitInstances 映射
+  const userHabitInstances = {}
+  migratedHabits.forEach(habit => {
+    if (habit.userHabitId) {
+      userHabitInstances[habit.userHabitId] = {
+        userHabitId: habit.userHabitId,
+        habitId: habit.habitId,
+        status: habit.status,
+        createdAt: normalizeToDateStr(habit.createdAt),
+        deletedAt: habit.deletedAt || null
+      }
+    }
+  })
+
+  // 6. 迁移 CheckinLogs（按生命周期区间映射）
+  const migratedLogs = rawLogs.map(log => {
+    if (log.userHabitId) {
+      return log
+    }
+    return safeMapUserHabitId(log, { userHabitInstances })
+  })
+
+  // 7. 持久化写回 CheckinLogs
+  setItem(STORAGE_KEYS.logs, migratedLogs)
+
+  // 8. 更新 meta 并标记完成
+  setMigrationMeta({
+    migrationVersion: 1,
+    migratedAt: new Date().toISOString(),
+    userHabitInstances,
+    status: 'completed'
+  })
+
+  return true
+}
+
+function getMyHabitsWithMigration() {
+  ensureMigrationCompleted()
+  return asArray(getItem(STORAGE_KEYS.habits))
+}
+
+function getCheckinLogsWithMigration() {
+  ensureMigrationCompleted()
+  return asArray(getItem(STORAGE_KEYS.logs))
+}
+
+// ==================== Phase 3: CheckinLogs 迁移（安全映射）====================
+
 function safeMapUserHabitId(log, meta) {
   if (log.userHabitId) {
     return log
   }
 
   const { userHabitInstances } = meta
-
-  // 收集所有命中该 habitId 的实例
   const candidates = []
+
   for (const [uhId, instance] of Object.entries(userHabitInstances)) {
-    if (instance.habitId !== log.habitId) continue
-    candidates.push({ uhId, instance })
+    if (instance.habitId === log.habitId) {
+      candidates.push({ uhId, instance })
+    }
   }
 
   if (candidates.length === 0) {
     return { ...log, needRepair: true }
   }
 
-  // 按 createdAt 排序
   candidates.sort((a, b) =>
     compareDateStr(a.instance.createdAt, b.instance.createdAt)
   )
 
-  // 精确区间匹配：log.date 必须在 [createdAt, deletedAt) 区间内
   const logDate = normalizeToDateStr(log.date)
   const validCandidates = candidates.filter(({ instance }) => {
     const createdAt = instance.createdAt
-    const deletedAt = instance.deletedAt // null 表示 active
+    const deletedAt = instance.deletedAt
 
-    // log.date >= createdAt 且（deletedAt 为 null 或 log.date < deletedAt）
     return compareDateStr(logDate, createdAt) >= 0 &&
       (deletedAt === null || compareDateStr(logDate, deletedAt) < 0)
   })
@@ -253,24 +267,8 @@ function safeMapUserHabitId(log, meta) {
   if (validCandidates.length === 1) {
     return { ...log, userHabitId: validCandidates[0].uhId }
   } else {
-    // 没有唯一匹配（0个或多个），标记 needRepair
     return { ...log, needRepair: true }
   }
-}
-
-/**
- * 获取 CheckinLogs（带渐进迁移）
- */
-function getCheckinLogsWithMigration() {
-  const logs = asArray(getItem(STORAGE_KEYS.logs))
-  const meta = getMigrationMeta()
-
-  if (!meta || !meta.userHabitInstances ||
-    Object.keys(meta.userHabitInstances).length === 0) {
-    return logs
-  }
-
-  return logs.map(log => safeMapUserHabitId(log, meta))
 }
 
 // ==================== Phase 3: PolicyVersions ====================
@@ -281,17 +279,6 @@ function getPolicyVersions() {
 
 function setPolicyVersions(versions) {
   return setItem(STORAGE_KEYS.policyVersions, asArray(versions))
-}
-
-/**
- * 迁移时备份 PolicyVersions
- */
-function backupPolicyVersionsForMigration() {
-  const timestamp = Date.now()
-  const backupKey = `policyVersions_backup_phase3_${timestamp}`
-  const versions = getPolicyVersions()
-  setItem(backupKey, versions)
-  return backupKey
 }
 
 function getPolicyVersionsByUserHabitId(userHabitId) {
@@ -356,13 +343,11 @@ function setDailyState(state) {
 }
 
 function getDailyStatesByDate(date) {
-  const states = getDailyCheckinStates()
-  return states.filter(s => s.date === date)
+  return getDailyCheckinStates().filter(s => s.date === date)
 }
 
 function getDailyStatesByUserHabitId(userHabitId) {
-  const states = getDailyCheckinStates()
-  return states.filter(s => s.userHabitId === userHabitId)
+  return getDailyCheckinStates().filter(s => s.userHabitId === userHabitId)
 }
 
 // ==================== Phase 3: CheckinOperations ====================
@@ -385,7 +370,6 @@ function getCheckinOperationByIdempotencyKey(idempotencyKey) {
 
 function saveCheckinOperation(operation) {
   const operations = getCheckinOperations()
-  // 检查是否已存在（幂等）
   const existing = operations.find(op => op.idempotencyKey === operation.idempotencyKey)
   if (existing) {
     return existing
@@ -415,17 +399,19 @@ module.exports = {
   // Phase 3: Migration
   getMigrationMeta,
   setMigrationMeta,
-  backupMyHabitsForMigration,
-  backupCheckinLogsForMigration,
   normalizeToDateStr,
   compareDateStr,
+  backupMyHabitsForMigration,
+  backupCheckinLogsForMigration,
+  backupPolicyVersionsForMigration,
+  ensureMigrationCompleted,
+  safeMapUserHabitId,
   getMyHabitsWithMigration,
   getCheckinLogsWithMigration,
 
   // Phase 3: PolicyVersions
   getPolicyVersions,
   setPolicyVersions,
-  backupPolicyVersionsForMigration,
   getPolicyVersionsByUserHabitId,
   getActivePolicyVersion,
   savePolicyVersion,

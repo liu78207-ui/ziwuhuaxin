@@ -29,19 +29,6 @@ function getBuiltInHabitDef(habitId) {
   return getBuiltInHabit(habitId)
 }
 
-// ==================== userHabitId 生成 ====================
-
-/**
- * 生成新的 userHabitId
- * @param {string} habitId
- * @returns {string}
- */
-function generateUserHabitId(habitId) {
-  const timestamp = Date.now()
-  const random = Math.random().toString(36).substr(2, 4)
-  return `uh_${habitId}_${timestamp}_${random}`
-}
-
 // ==================== 用户习惯实例 CRUD ====================
 
 /**
