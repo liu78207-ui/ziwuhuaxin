@@ -12,6 +12,8 @@ const ziwu = require('../../utils/ziwu.js');
 const iconMap = require('../../utils/iconMap.js');
 const reportCalculator = require('../../utils/reportCalculator.js');
 const share = require('../../utils/share.js');
+const habitService = require('../../services/habitService');
+const checkinService = require('../../services/checkinService');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -270,46 +272,11 @@ Page({
     this.setData({ timeInfo });
   },
 
-  // 加载习惯数据（从 MyHabits 表读取）
-  loadHabitsData() {
+  // 加载习惯数据（从 habitService 获取）
+  async loadHabitsData() {
     console.log('=== loadHabitsData 开始执行 ===');
-    const app = getApp();
 
-    // 从全局数据获取 MyHabits 表
-    let myHabits = [];
-    if (app.getAllHabits) {
-      myHabits = app.getAllHabits();
-    } else {
-      myHabits = app.globalData.MyHabits || [];
-    }
-
-    // 如果全局数据为空，尝试从本地存储直接读取
-    if (!myHabits || myHabits.length === 0) {
-      try {
-        const storedHabits = wx.getStorageSync('MyHabits');
-        if (storedHabits && Array.isArray(storedHabits) && storedHabits.length > 0) {
-          myHabits = storedHabits;
-          // 同步到全局数据
-          app.globalData.MyHabits = storedHabits;
-          console.log('从本地存储加载 MyHabits:', myHabits.length);
-        }
-      } catch (e) {
-        console.error('从本地存储读取失败:', e);
-      }
-    }
-
-    console.log('loadHabitsData - MyHabits:', myHabits.length, myHabits);
-    
-    // 打印每个习惯的策略信息
-    myHabits.forEach(habit => {
-      console.log('习惯:', habit.name, {
-        freq_type: habit.freq_type,
-        freq_rules: habit.freq_rules,
-        createdAt: habit.createdAt
-      });
-    });
-
-    // 获取今天的日期字符串（考虑调试偏移）
+    // 获取调试日期偏移
     const DEBUG_DAY_OFFSET = getDebugOffset();
     const todayDate = new Date();
     if (DEBUG_DAY_OFFSET !== 0) {
@@ -318,8 +285,20 @@ Page({
     const today = formatDateKey(todayDate);
     console.log('模拟日期:', today, 'DEBUG_DAY_OFFSET:', DEBUG_DAY_OFFSET);
 
-    if (!myHabits || myHabits.length === 0) {
-      // 如果没有习惯，显示空状态
+    // 从 habitService 获取今日习惯（已过滤频率策略）
+    let todayHabits = [];
+    try {
+      todayHabits = await habitService.getTodayHabits(today);
+    } catch (e) {
+      console.error('habitService.getTodayHabits 失败:', e);
+    }
+
+    // 获取今日打卡状态（用于填充 isChecked）
+    const todayStates = checkinService.getDailyStatesByDate(today);
+
+    console.log('loadHabitsData - 今日应修习惯:', todayHabits.length);
+
+    if (!todayHabits || todayHabits.length === 0) {
       console.log('没有习惯数据，显示空状态');
       this.setData({
         taskList: []
@@ -327,28 +306,12 @@ Page({
       return;
     }
 
-    // 根据策略过滤今天应该显示的习惯
-    const filteredHabits = myHabits.filter(habit => shouldShowHabitToday(habit));
-    console.log('过滤后应显示的习惯:', filteredHabits.length, '个');
-    console.log('应显示的习惯列表:', filteredHabits.map(h => h.name));
-
-    // 将 MyHabits 转换为任务列表
-    const taskList = filteredHabits.map((habit, index) => {
-      // 获取图标配置
+    // 转换为 taskList 格式，_id 使用 userHabitId
+    const taskList = todayHabits.map((habit, index) => {
       const iconConfig = iconMap.getIconConfig(habit.name);
-      
-      // 检查今天是否已打卡（从 CheckinLogs 表查询）
-      // 强制使用本地检查，避免 app 方法可能的问题
-      const isDone = this.checkTodayCheckin(habit.habitId, today);
-      
-      console.log('打卡检查:', habit.name, 'habitId:', habit.habitId, '日期:', today, '已打卡:', isDone);
-      
-      // 同时检查 app 方法的结果（用于调试）
-      if (app.isCheckedOnDate) {
-        const appResult = app.isCheckedOnDate(habit.habitId, today);
-        console.log('  app.isCheckedOnDate 结果:', appResult);
-      }
-      
+      const state = todayStates.find(s => s.userHabitId === habit.userHabitId);
+      const isDone = state && state.status === 'checked';
+
       // 动态计算跨年累计的策略内有效打卡天数
       let streak = 0;
       try {
@@ -357,21 +320,21 @@ Page({
         console.error('计算连续天数失败:', e);
         streak = 0;
       }
-      // 确保 streak 是数字
       streak = Number(streak) || 0;
-      
+
       return {
-        _id: habit.habitId,
+        _id: habit.userHabitId,
+        habitId: habit.habitId,
         title: habit.name,
         category: habit.category || '运动类',
-        duration: habit.targetMinutes,
+        duration: habit.duration,
         isChecked: isDone,
-        streak: streak, // 动态计算，不是写死的
+        streak: streak,
         bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length],
         iconUrl: iconConfig ? iconConfig.iconUrl : iconMap.getIconPath(habit.name),
         themeClass: iconConfig ? iconConfig.themeClass : (habit.themeClass || 'theme-jade'),
         emoji: this.getEmojiByCategory(habit.category),
-        meta: `${habit.targetMinutes}分钟`
+        meta: `${habit.duration}分钟`
       };
     });
 
@@ -380,7 +343,7 @@ Page({
     const checkedCount = taskList.filter(item => item.isChecked).length;
     const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
 
-    this.setData({ 
+    this.setData({
       taskList,
       checkedCount,
       totalCount,
@@ -438,7 +401,6 @@ Page({
   // 处理打卡/取消打卡（带防抖）
   async handleCheckin(e) {
     const { habitId } = e.currentTarget.dataset;
-    const app = getApp();
 
     // 防抖检查：如果正在处理同一个 habit，忽略此次点击
     if (this.processingHabitId === habitId) {
@@ -453,7 +415,7 @@ Page({
       this.processingHabitId = null;
     }, 1000);
 
-    // 找到对应的 habit
+    // 找到对应的 habit（taskItem._id 现在是 userHabitId）
     const habit = this.data.taskList.find(item => item._id === habitId);
     if (!habit) {
       this.processingHabitId = null;
@@ -461,6 +423,7 @@ Page({
     }
 
     const isChecked = habit.isChecked;
+    const userHabitId = habit._id;
 
     // 使用模拟日期（如果处于调试模式）
     const DEBUG_DAY_OFFSET = getDebugOffset();
@@ -470,60 +433,46 @@ Page({
     }
     const today = formatDateKey(todayDate);
 
-    // 本地校验：检查是否已打卡（防止重复打卡）
-    if (!isChecked) {
-      const existingLog = app.globalData.CheckinLogs.find(log =>
-        String(log.habitId || log.habit_id || '') === String(habitId) &&
-        String(log.date || log.checkin_date || '').split('T')[0] === today
-      );
-      if (existingLog && existingLog.sync_status !== 2) {
-        wx.showToast({
-          title: '今日已打卡',
-          icon: 'none'
-        });
-        this.processingHabitId = null;
-        return;
-      }
-    }
+    // 调用 checkinService.toggleCheckin（处理幂等和状态持久化）
+    try {
+      const newState = await checkinService.toggleCheckin(userHabitId, today);
 
-    // 更新本地状态
-    const taskList = this.data.taskList.map(item => {
-      if (item._id === habitId) {
-        const currentStreak = Number(item.streak) || 0;
-        return {
-          ...item,
-          isChecked: !isChecked,
-          streak: !isChecked ? currentStreak + 1 : Math.max(0, currentStreak - 1)
-        };
-      }
-      return item;
-    });
+      // 更新本地 taskList 状态
+      const taskList = this.data.taskList.map(item => {
+        if (item._id === userHabitId) {
+          const currentStreak = Number(item.streak) || 0;
+          const nowChecked = newState.status === 'checked';
+          return {
+            ...item,
+            isChecked: nowChecked,
+            streak: nowChecked ? currentStreak + 1 : Math.max(0, currentStreak - 1)
+          };
+        }
+        return item;
+      });
 
-    // 计算更新后的进度
-    const totalCount = taskList.length;
-    const checkedCount = taskList.filter(item => item.isChecked).length;
-    const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+      // 计算更新后的进度
+      const totalCount = taskList.length;
+      const checkedCount = taskList.filter(item => item.isChecked).length;
+      const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
 
-    this.setData({
-      taskList,
-      checkedCount,
-      totalCount,
-      progressPercent
-    });
+      this.setData({
+        taskList,
+        checkedCount,
+        totalCount,
+        progressPercent
+      });
 
-    // 保存或取消打卡记录
-    if (!isChecked) {
-      // 打卡：添加到 CheckinLogs，标记为待同步
-      if (app.addCheckinLog) {
-        app.addCheckinLog(habitId, today, 0); // sync_status = 0 待同步
-      }
-      await this.syncCheckinToCloud(habitId, true, today);
-    } else {
-      // 取消打卡：从 CheckinLogs 移除或标记为待删除
-      if (app.removeCheckinLog) {
-        app.removeCheckinLog(habitId, today);
-      }
-      await this.syncCheckinToCloud(habitId, false, today);
+      wx.showToast({
+        title: isChecked ? '已取消打卡' : '打卡成功',
+        icon: 'none'
+      });
+    } catch (e) {
+      console.error('toggleCheckin 失败:', e);
+      wx.showToast({
+        title: '操作失败',
+        icon: 'none'
+      });
     }
 
     // 清除防抖状态

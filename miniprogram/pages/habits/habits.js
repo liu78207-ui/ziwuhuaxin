@@ -1,5 +1,6 @@
 const iconMap = require('../../utils/iconMap.js');
 const share = require('../../utils/share.js');
+const habitService = require('../../services/habitService');
 
 Page({
   data: {
@@ -160,56 +161,37 @@ Page({
 
   // 加载用户已添加的习惯状态
   loadUserHabitsStatus() {
-    const app = getApp();
+    // 1. 从 habitService 获取活跃用户习惯实例
+    const activeUserHabits = habitService.getActiveUserHabits();
+    console.log('loadUserHabitsStatus - 活跃用户习惯:', activeUserHabits.length);
 
-    let myHabits = [];
+    // 2. 获取所有内置习惯定义（用于填充 name、category 等）
+    const builtInHabits = habitService.getBuiltInHabits();
 
-    try {
-      const storedHabits = wx.getStorageSync('MyHabits');
-      if (Array.isArray(storedHabits)) {
-        myHabits = storedHabits;
-        app.globalData.MyHabits = storedHabits;
-      }
-    } catch (e) {
-      console.error('从本地存储读取 MyHabits 失败:', e);
-    }
+    // 3. 构建 userHabitId -> userHabit 映射
+    const userHabitMap = {};
+    activeUserHabits.forEach(uh => {
+      userHabitMap[uh.habitId] = uh;  // key 为 habitId
+    });
 
-    if (!myHabits || myHabits.length === 0) {
-      myHabits = app.getAllHabits ? app.getAllHabits(true) : (app.globalData.MyHabits || []);
-    }
-
-    console.log('loadUserHabitsStatus - MyHabits:', myHabits.length);
-
-    if (!myHabits || myHabits.length === 0) {
-      const habits = this.data.habits.map(habit => {
-        const { strategy, strategyText, hasStrategy, createdAt, ...rest } = habit;
-        return rest;
-      });
-      this.setData({
-        habits,
-        filteredHabits: this.filterHabits(habits, this.data.currentTab)
-      });
-      return;
-    }
-
-    const activeUserHabits = (myHabits || []).filter(h => !h.isDeleted && !h.deletedAt && !h.deleted_at);
-
-    // 更新习惯列表的 hasStrategy 状态
+    // 4. 更新习惯列表的 hasStrategy 状态
     const habits = this.data.habits.map(habit => {
       const habitId = String(habit._id);
-      const userHabit = activeUserHabits.find(h => {
-        const userHabitId = String(h.habitId || h.habit_id || h._id || '');
-        const userHabitName = h.name || h.habit_title || h.title || '';
-        return userHabitId === habitId || userHabitName === habit.title;
-      });
+      const userHabit = userHabitMap[habitId];
       if (userHabit) {
         // 获取频次文本
+        const policy = habitService.getActivePolicyVersion(userHabit.userHabitId);
+        const freq_type = policy ? policy.frequencyType : 'daily';
+        const freq_rules = policy
+          ? (policy.frequencyType === 'weekly' ? policy.frequencyConfig.weekdays : policy.frequencyConfig.intervalDays)
+          : 1;
+        const targetMinutes = policy ? policy.duration : (habit.default_duration || 20);
+
         const freqText = this.getStrategyText({
-          freq_type: userHabit.freq_type || 'daily',
-          freq_rules: userHabit.freq_rules || 1,
-          freq_category: userHabit.freq_category || 'everyday'
+          freq_type: freq_type,
+          freq_rules: freq_rules,
+          freq_category: freq_type === 'weekly' ? 'weekly' : (freq_rules > 1 ? 'daily-interval' : 'everyday')
         });
-        const targetMinutes = userHabit.targetMinutes || userHabit.duration || habit.default_duration;
         const strategyText = `${freqText} · ${targetMinutes}分钟`;
 
         return {
@@ -217,14 +199,14 @@ Page({
           hasStrategy: true,
           createdAt: userHabit.createdAt,
           strategy: {
-            habit_id: userHabit.habitId || userHabit.habit_id || userHabit._id || habit._id,
-            habit_title: userHabit.name || userHabit.habit_title || userHabit.title || habit.title,
-            category: userHabit.category || habit.category,
+            habit_id: userHabit.userHabitId,  // 使用 userHabitId
+            habit_title: habit.title,
+            category: habit.category,
             duration: targetMinutes,
-            freq_type: userHabit.freq_type,
-            freq_rules: userHabit.freq_rules,
-            freq_category: userHabit.freq_category,
-            plan_start_date: userHabit.plan_start_date
+            freq_type: freq_type,
+            freq_rules: freq_rules,
+            freq_category: freq_type === 'weekly' ? 'weekly' : (freq_rules > 1 ? 'daily-interval' : 'everyday'),
+            plan_start_date: policy ? policy.startDate : ''
           },
           strategyText: strategyText
         };
@@ -455,26 +437,30 @@ Page({
 
   // 移除习惯策略
   async removeStrategy(habit) {
-    const app = getApp();
-    const strategyHabitId = String(
-      (habit.strategy && habit.strategy.habit_id) ||
-      habit.habitId ||
-      habit.habit_id ||
-      habit._id
-    );
+    // 1. 获取 userHabitId
+    const userHabitId = habit.strategy && habit.strategy.habit_id
+      ? String(habit.strategy.habit_id)
+      : null;
 
-    // 1. 从用户策略中移除（自动同步到本地存储）
-    app.removeUserStrategy(strategyHabitId, habit);
+    if (!userHabitId) {
+      console.error('removeStrategy: 找不到 userHabitId');
+      wx.showToast({ title: '删除失败', icon: 'none' });
+      return;
+    }
 
-    // 2. 保留打卡记录（用户可能想查看历史数据）
-    // this.removeCheckinRecords(habit._id);
+    // 2. 调用 habitService 软删除
+    try {
+      await habitService.softDeleteHabit(userHabitId);
+    } catch (e) {
+      console.error('habitService.softDeleteHabit 失败:', e);
+    }
 
-    // 3. 从云端删除（传递完整习惯信息）
+    // 3. 云端删除（传递完整习惯信息）
     try {
       const { result } = await wx.cloud.callFunction({
         name: 'removeStrategy',
         data: {
-          habit_id: strategyHabitId,
+          habit_id: habit.strategy.habit_id,
           habit_title: habit.title,
           category: habit.category,
           icon_url: habit.iconUrl || '',
@@ -490,7 +476,7 @@ Page({
       console.error('调用 removeStrategy 云函数失败:', e);
     }
 
-    // 更新习惯列表显示状态
+    // 4. 更新习惯列表显示状态
     const habits = this.data.habits.map(h => {
       if (h._id === habit._id) {
         const { strategy, strategyText, hasStrategy, ...rest } = h;
@@ -508,9 +494,10 @@ Page({
       title: '已取消',
       icon: 'success'
     });
-  },
+  }
 
-  // 移除习惯的打卡记录
+
+// 移除习惯的打卡记录
   removeCheckinRecords(habitId) {
     try {
       let records = wx.getStorageSync('checkin_records') || {};
@@ -783,7 +770,21 @@ Page({
     app.addUserStrategy(strategy);
     console.log('习惯已保存:', strategy.habit_id, strategy.habit_title, '计划开始:', planStartDate);
 
-    // 2. 同步到云端
+    // 2. 调用 habitService 添加用户习惯实例（创建 userHabitId + 首个策略版本）
+    try {
+      const userHabit = await habitService.addHabit(habit._id, {
+        duration: strategy.duration,
+        frequencyType: freq_type,
+        frequencyConfig: freq_type === 'weekly' ? { weekdays: freq_rules } : { intervalDays: freq_rules },
+        startDate: planStartDate
+      });
+      console.log('habitService.addHabit 完成:', userHabit.userHabitId);
+      strategy.habit_id = userHabit.userHabitId;
+    } catch (e) {
+      console.error('habitService.addHabit 失败:', e);
+    }
+
+    // 3. 同步到云端
     try {
       const { result } = await wx.cloud.callFunction({
         name: 'saveStrategy',
