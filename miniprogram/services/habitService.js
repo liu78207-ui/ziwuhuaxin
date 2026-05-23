@@ -275,8 +275,8 @@ async function getTodayHabits(date) {
     return {
       userHabitId: habit.userHabitId,
       habitId: habit.habitId,
-      name: habit.name || getBuiltInHabitDef(habit.habitId)?.name || '',
-      category: habit.category || '',
+      name: getBuiltInHabitDef(habit.habitId)?.name || '',
+      category: getBuiltInHabitDef(habit.habitId)?.category || '',
       duration: habit.targetMinutes || policy?.duration || 20,
       policy,
       isChecked: state && state.status === 'checked',
