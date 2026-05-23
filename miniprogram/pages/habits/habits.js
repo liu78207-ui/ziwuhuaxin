@@ -494,10 +494,9 @@ Page({
       title: '已取消',
       icon: 'success'
     });
-  }
+  },
 
-
-// 移除习惯的打卡记录
+  // 移除习惯的打卡记录
   removeCheckinRecords(habitId) {
     try {
       let records = wx.getStorageSync('checkin_records') || {};
