@@ -44,7 +44,9 @@ exports.main = async (event, context) => {
     habitId,
     policyVersionId,
     date,
-    action // 'checkin' | 'undo'
+    action, // 'checkin' | 'undo'
+    clientCreatedAt,
+    clientSequence
   } = event;
 
   if (!openid) {
@@ -69,6 +71,7 @@ exports.main = async (event, context) => {
   const checkedAt = action === 'checkin' ? serverTime : null;
   const canceledAt = action === 'undo' ? serverTime : null;
   const clientCreatedAt = event.clientCreatedAt || event.clientTime || null;
+  const clientSequence = event.clientSequence || 0;
 
   let opRecordId = null;
   let opAlreadyExisted = false;
@@ -95,6 +98,7 @@ exports.main = async (event, context) => {
         date: targetDate,
         action,
         clientTime: event.clientTime || new Date().toISOString(),
+        clientSequence: clientSequence,
         serverTime,
         source: 'miniprogram',
         syncStatus: 'synced'
@@ -127,23 +131,26 @@ exports.main = async (event, context) => {
     if (existingState.data && existingState.data.length > 0) {
       const existing = existingState.data[0];
       const existingClientTime = existing.lastOperationClientTime;
+      const existingSeq = existing.lastOperationClientSequence || 0;
 
-      // 如果现有状态的 lastOperationClientTime 比当前操作的 clientCreatedAt 更晚
-      // 说明云端已有更新的操作，不能让旧操作覆盖
-      if (existingClientTime && clientCreatedAt) {
-        const existingTime = new Date(existingClientTime).getTime();
-        const currentTime = new Date(clientCreatedAt).getTime();
-        if (existingTime > currentTime) {
-          // 跳过更新，保持云端现有状态
-          return {
-            success: true,
-            code: 'STALE_OPERATION',
-            message: '云端已有更新操作，跳过本次更新',
-            operationId: opRecordId,
-            stateUpdated: false,
-            serverTime
-          };
-        }
+      // 判断是否为过期操作：
+      // 1. 先比较 clientSequence（主键，精确判断）：如果云端序列号 >= 当前操作序列号，说明云端已有更新的操作
+      // 2. 再比较 clientCreatedAt（辅助键，同序列号时比较时间）：如果时间更晚也说明云端更新
+      // 两者满足其一即认为是过期操作，跳过更新
+      const isStale = existingSeq >= clientSequence ||
+        (existingSeq === clientSequence && existingClientTime && clientCreatedAt &&
+          new Date(existingClientTime).getTime() > new Date(clientCreatedAt).getTime());
+
+      if (isStale) {
+        // 跳过更新，保持云端现有状态
+        return {
+          success: true,
+          code: 'STALE_OPERATION',
+          message: '云端已有更新操作，跳过本次更新',
+          operationId: opRecordId,
+          stateUpdated: false,
+          serverTime
+        };
       }
 
       // 更新现有状态
@@ -154,6 +161,7 @@ exports.main = async (event, context) => {
           canceledAt: canceledAt,
           lastOperationId: operationId || idempotencyKey,
           lastOperationClientTime: clientCreatedAt || null,
+          lastOperationClientSequence: clientSequence,
           syncStatus: 'synced',
           updatedAt: serverTime
         }
@@ -173,6 +181,7 @@ exports.main = async (event, context) => {
           canceledAt: canceledAt,
           lastOperationId: operationId || idempotencyKey,
           lastOperationClientTime: clientCreatedAt || null,
+          lastOperationClientSequence: clientSequence,
           syncStatus: 'synced',
           updatedAt: serverTime
         }

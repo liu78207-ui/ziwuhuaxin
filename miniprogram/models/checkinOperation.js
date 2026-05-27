@@ -24,6 +24,26 @@ const OPERATION_ACTION = {
   undo: 'undo'
 }
 
+// ==================== 客户端序列号（单调递增） ====================
+// 用于解决同毫秒操作的排序问题，防止旧操作重试覆盖新状态
+let _clientSequence = 0
+
+/**
+ * 获取下一个单调递增的客户端序列号
+ * @returns {number}
+ */
+function nextClientSequence() {
+  _clientSequence += 1
+  return _clientSequence
+}
+
+/**
+ * 重置序列号（仅用于测试）
+ */
+function resetClientSequence() {
+  _clientSequence = 0
+}
+
 /**
  * 验证 operation 对象结构
  * @param {object} op
@@ -86,6 +106,8 @@ function createCheckinOperation({ userHabitId, habitId, date, action }) {
     habitId,
     date,
     action,
+    // 单调递增序列号，解决同毫秒操作的排序问题
+    clientSequence: nextClientSequence(),
     syncStatus: OPERATION_STATUS.pending,
     createdAt: new Date().toISOString()
   }
@@ -111,5 +133,7 @@ module.exports = {
   validateCheckinOperation,
   createCheckinOperation,
   createCheckinOp,
-  createUndoOp
+  createUndoOp,
+  nextClientSequence,
+  resetClientSequence
 }

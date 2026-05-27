@@ -90,7 +90,9 @@ function push(entityType, action, payload) {
     // 业务层 operationId（如 checkinOperation.operationId），云端同步时必须传递
     operationId: payload.operationId || null,
     // 客户端本地创建时间，用于云端判断操作顺序，防止旧操作覆盖新状态
+    // clientSequence 单调递增序列号，解决同毫秒操作的排序问题
     clientCreatedAt: payload.clientCreatedAt || new Date().toISOString(),
+    clientSequence: payload.clientSequence || 0,
     status: 'pending',
     retryCount: 0,
     lastError: null,
