@@ -398,7 +398,9 @@ function setPendingOperations(operations) {
 
 function pushPending(item) {
   const queue = getPendingOperations()
-  queue.unshift(item) // 新操作插入队首
+  // append 入队（队尾），保证先发生的操作排在队列前面
+  // 不使用 unshift（队首），避免同一毫秒操作导致逆序
+  queue.push(item)
   return setPendingOperations(queue)
 }
 

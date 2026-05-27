@@ -84,23 +84,19 @@ exports.main = async (event, context) => {
       if (existingHabit.data && existingHabit.data.length > 0) {
         // 已存在，检查状态是否已为目标状态
         const existing = existingHabit.data[0];
-        if (existing.status === (status || 'active')) {
-          return {
-            success: true,
-            code: 'IDEMPOTENT_SKIP',
-            message: 'userHabit 已存在且状态一致（幂等）',
-            serverTime
-          };
+        if (existing.status !== (status || 'active')) {
+          // 状态不一致，需要更新
+          await db.collection('user_habits').doc(existing._id).update({
+            data: {
+              status: status || 'active',
+              latestPolicyVersionId: policyVersionId || existing.latestPolicyVersionId,
+              syncStatus: 'synced',
+              updatedAt: serverTime
+            }
+          });
         }
-        // 状态不一致，需要更新
-        await db.collection('user_habits').doc(existing._id).update({
-          data: {
-            status: status || 'active',
-            latestPolicyVersionId: policyVersionId || existing.latestPolicyVersionId,
-            syncStatus: 'synced',
-            updatedAt: serverTime
-          }
-        });
+        // 注意：不直接 return，必须继续执行 policyVersion 同步
+        // 以确保 userHabit 和 policyVersion 都达到目标状态
       } else {
         // 写入 user_habits
         await db.collection('user_habits').add({
@@ -117,6 +113,7 @@ exports.main = async (event, context) => {
           }
         });
       }
+      // 继续执行 policyVersion 同步（见下方 if 块）
     } else if (action === 'deleteHabit') {
       // 软删除 userHabit，使用 payload 中的 deletedAt（本地业务日期）
       const existingHabit = await db.collection('user_habits').where({
