@@ -68,6 +68,7 @@ exports.main = async (event, context) => {
   const dailyStateStatus = action === 'checkin' ? 'checked' : 'canceled';
   const checkedAt = action === 'checkin' ? serverTime : null;
   const canceledAt = action === 'undo' ? serverTime : null;
+  const clientCreatedAt = event.clientCreatedAt || event.clientTime || null;
 
   let opRecordId = null;
   let opAlreadyExisted = false;
@@ -114,6 +115,8 @@ exports.main = async (event, context) => {
 
     // Step 2: 更新/创建 daily_checkin_states（按 userHabitId + date 唯一索引）
     // 不管 operation 是否已存在，都要确保 daily_checkin_states 达到目标状态
+    // 但如果已有状态的 lastOperationClientTime 比当前 clientCreatedAt 更新，则跳过更新
+    // （防止旧操作重试覆盖新状态）
     const existingState = await db.collection('daily_checkin_states').where({
       _openid: openid,
       userHabitId: userHabitId,
@@ -122,14 +125,35 @@ exports.main = async (event, context) => {
 
     let stateUpdated = false;
     if (existingState.data && existingState.data.length > 0) {
+      const existing = existingState.data[0];
+      const existingClientTime = existing.lastOperationClientTime;
+
+      // 如果现有状态的 lastOperationClientTime 比当前操作的 clientCreatedAt 更晚
+      // 说明云端已有更新的操作，不能让旧操作覆盖
+      if (existingClientTime && clientCreatedAt) {
+        const existingTime = new Date(existingClientTime).getTime();
+        const currentTime = new Date(clientCreatedAt).getTime();
+        if (existingTime > currentTime) {
+          // 跳过更新，保持云端现有状态
+          return {
+            success: true,
+            code: 'STALE_OPERATION',
+            message: '云端已有更新操作，跳过本次更新',
+            operationId: opRecordId,
+            stateUpdated: false,
+            serverTime
+          };
+        }
+      }
+
       // 更新现有状态
-      const stateId = existingState.data[0]._id;
-      await db.collection('daily_checkin_states').doc(stateId).update({
+      await db.collection('daily_checkin_states').doc(existing._id).update({
         data: {
           status: dailyStateStatus,
           checkedAt: checkedAt,
           canceledAt: canceledAt,
           lastOperationId: operationId || idempotencyKey,
+          lastOperationClientTime: clientCreatedAt || null,
           syncStatus: 'synced',
           updatedAt: serverTime
         }
@@ -148,6 +172,7 @@ exports.main = async (event, context) => {
           checkedAt: checkedAt,
           canceledAt: canceledAt,
           lastOperationId: operationId || idempotencyKey,
+          lastOperationClientTime: clientCreatedAt || null,
           syncStatus: 'synced',
           updatedAt: serverTime
         }
