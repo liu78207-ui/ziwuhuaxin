@@ -45,13 +45,15 @@ async function checkin(userHabitId, date) {
   storageService.setDailyState(state)
 
   // 6. 进入 pending 队列，等待云端同步（Phase 4）
+  // action 字段明确传递给云函数，用于更新 daily_checkin_states
   syncService.pushWithDedup('checkin', 'checkin', {
     userHabitId,
     habitId: habit.habitId,
     date,
     policyVersionId: habit.latestPolicyVersionId,
     operationId: operation.operationId,
-    idempotencyKey: operation.idempotencyKey
+    idempotencyKey: operation.idempotencyKey,
+    action: 'checkin'
   })
 
   return state
@@ -99,13 +101,15 @@ async function undoCheckin(userHabitId, date) {
   storageService.setDailyState(state)
 
   // 7. 进入 pending 队列，等待云端同步（Phase 4）
+  // action 字段明确传递给云函数，用于更新 daily_checkin_states
   syncService.pushWithDedup('checkin', 'undoCheckin', {
     userHabitId,
     habitId: habit.habitId,
     date,
     policyVersionId: habit.latestPolicyVersionId,
     operationId: operation.operationId,
-    idempotencyKey: operation.idempotencyKey
+    idempotencyKey: operation.idempotencyKey,
+    action: 'undo'
   })
 
   return state

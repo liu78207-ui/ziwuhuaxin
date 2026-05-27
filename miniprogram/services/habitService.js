@@ -249,11 +249,17 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
 
   // 5. 进入 pending 队列，等待云端同步（Phase 4）
   // skipSync 用于 addHabit 内部调用（避免重复入队）
+  // payload 携带完整 policyVersion 数据，供云端重建 habit_policy_versions
   if (!options.skipSync) {
     syncService.pushWithDedup('habit', 'updatePolicy', {
       userHabitId,
       habitId: habit.habitId,
-      policyVersionId
+      policyVersionId: newPolicy.policyVersionId,
+      duration: newPolicy.duration,
+      frequencyType: newPolicy.frequencyType,
+      frequencyConfig: newPolicy.frequencyConfig,
+      startDate: newPolicy.startDate,
+      effectiveStartDate: newPolicy.effectiveStartDate
     })
   }
 

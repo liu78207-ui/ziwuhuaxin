@@ -165,8 +165,8 @@ async function processQueue() {
       // 已 synced 的跳过
       if (item.status === 'synced') continue
 
-      // 失败项检查重试时间，未到时间则跳过
-      if (item.status === 'failed' && item.nextRetryAt) {
+      // 有 nextRetryAt 的项（failed 或 pending）都要检查是否到时间
+      if (item.nextRetryAt) {
         const now = Date.now()
         const retryTime = new Date(item.nextRetryAt).getTime()
         if (now < retryTime) continue
@@ -202,8 +202,9 @@ async function processQueue() {
           })
         } else {
           const newRetryCount = (currentItem?.retryCount || 0) + 1
+          // 失败项保持 'failed'，不改为 'pending'，以便 nextRetryAt 检查生效
           storageService.updatePendingItem(item.queueId, {
-            status: newRetryCount >= 3 ? 'failed' : 'pending',
+            status: newRetryCount >= 3 ? 'failed' : 'failed',
             lastError: result.error?.message || '未知错误',
             retryCount: newRetryCount,
             nextRetryAt: calculateNextRetry(newRetryCount),
@@ -214,7 +215,7 @@ async function processQueue() {
         const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
         const newRetryCount = (currentItem?.retryCount || 0) + 1
         storageService.updatePendingItem(item.queueId, {
-          status: newRetryCount >= 3 ? 'failed' : 'pending',
+          status: newRetryCount >= 3 ? 'failed' : 'failed',
           lastError: e.message,
           retryCount: newRetryCount,
           nextRetryAt: calculateNextRetry(newRetryCount),
