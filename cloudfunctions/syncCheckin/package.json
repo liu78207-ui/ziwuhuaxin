@@ -1,0 +1,9 @@
+{
+  "name": "syncCheckin",
+  "version": "1.0.0",
+  "description": "Phase 4: sync checkin operations to cloud",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

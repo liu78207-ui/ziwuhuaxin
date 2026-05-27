@@ -116,14 +116,14 @@ function hasDuplicatePending(entityType, entityId, action) {
 
 /**
  * 添加操作到 pending 队列（带去重）
+ * 去重按 idempotencyKey 精确匹配，防止同日同操作被吞
  * @returns {{success: boolean, queueId?: string, reason?: string}}
  */
 function pushWithDedup(entityType, action, payload) {
-  const entityId = payload.userHabitId || payload.habitId || ''
+  // 精确按 idempotencyKey 去重（每个业务操作唯一）
+  const idempotencyKey = payload.idempotencyKey || generateIdempotencyKey(entityType, action, payload)
   const existing = getPendingOperations().find(i =>
-    i.entityType === entityType &&
-    i.action === action &&
-    i.entityId === entityId &&
+    i.idempotencyKey === idempotencyKey &&
     (i.status === 'pending' || i.status === 'syncing')
   )
 

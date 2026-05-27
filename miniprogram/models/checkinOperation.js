@@ -75,7 +75,9 @@ function validateCheckinOperation(op) {
  */
 function createCheckinOperation({ userHabitId, habitId, date, action }) {
   const operationId = generateOperationId(habitId)
-  const idempotencyKey = `${userHabitId}_${date}_${action}`
+  // operationId 唯一的，所以拼接在一起保证每次操作唯一
+  // 重试时复用同一 operationId，从而复用同一 idempotencyKey
+  const idempotencyKey = `${operationId}`
 
   return {
     operationId,

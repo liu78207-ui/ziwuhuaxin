@@ -182,9 +182,11 @@ async function softDeleteHabit(userHabitId) {
   }
 
   // 进入 pending 队列，等待云端同步（Phase 4）
+  // 携带 deletedAt（本地业务日期），云端使用此日期而非同步当天
   syncService.pushWithDedup('habit', 'deleteHabit', {
     userHabitId,
-    habitId: habit.habitId
+    habitId: habit.habitId,
+    deletedAt: habit.deletedAt
   })
 
   return true
@@ -250,7 +252,9 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
   // 5. 进入 pending 队列，等待云端同步（Phase 4）
   // skipSync 用于 addHabit 内部调用（避免重复入队）
   // payload 携带完整 policyVersion 数据，供云端重建 habit_policy_versions
+  // previousPolicyVersionId 用于云端关闭旧版本
   if (!options.skipSync) {
+    const previousPolicy = currentPolicy
     syncService.pushWithDedup('habit', 'updatePolicy', {
       userHabitId,
       habitId: habit.habitId,
@@ -259,7 +263,9 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
       frequencyType: newPolicy.frequencyType,
       frequencyConfig: newPolicy.frequencyConfig,
       startDate: newPolicy.startDate,
-      effectiveStartDate: newPolicy.effectiveStartDate
+      effectiveStartDate: newPolicy.effectiveStartDate,
+      previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
+      previousEffectiveEndDate: previousPolicy ? startDate : null
     })
   }
 

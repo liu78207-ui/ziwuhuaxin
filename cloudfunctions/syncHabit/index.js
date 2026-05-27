@@ -6,6 +6,8 @@
  * - 同步 userHabit（addHabit / deleteHabit）
  * - 同步 habit_policy_versions（addHabit / updatePolicy）
  * - 幂等写入（按 userHabitId 唯一）
+ * - deleteHabit 时使用 payload 中的 deletedAt，而非云端同步日期
+ * - updatePolicy 时关闭旧版本再写入新版本
  *
  * 数据隔离：_openid 由云端自动写入，禁止前端传入
  */
@@ -46,6 +48,12 @@ exports.main = async (event, context) => {
     frequencyConfig,
     startDate,
     effectiveStartDate,
+    // 以下字段用于 close 旧版本
+    previousPolicyVersionId,
+    previousEffectiveEndDate,
+    // 用于 deleteHabit 的本地业务日期
+    deletedAt,
+    // 用于 idempotent retry
     idempotencyKey
   } = event;
 
@@ -74,30 +82,43 @@ exports.main = async (event, context) => {
       }).get();
 
       if (existingHabit.data && existingHabit.data.length > 0) {
-        return {
-          success: true,
-          code: 'IDEMPOTENT_SKIP',
-          message: 'userHabit 已存在（幂等）',
-          serverTime
-        };
-      }
-
-      // 写入 user_habits
-      await db.collection('user_habits').add({
-        data: {
-          _openid: openid,
-          userHabitId,
-          habitId: String(habitId),
-          status: status || 'active',
-          createdAt: startDate || toDateStr(new Date()),
-          deletedAt: null,
-          latestPolicyVersionId: policyVersionId || '',
-          syncStatus: 'synced',
-          updatedAt: serverTime
+        // 已存在，检查状态是否已为目标状态
+        const existing = existingHabit.data[0];
+        if (existing.status === (status || 'active')) {
+          return {
+            success: true,
+            code: 'IDEMPOTENT_SKIP',
+            message: 'userHabit 已存在且状态一致（幂等）',
+            serverTime
+          };
         }
-      });
+        // 状态不一致，需要更新
+        await db.collection('user_habits').doc(existing._id).update({
+          data: {
+            status: status || 'active',
+            latestPolicyVersionId: policyVersionId || existing.latestPolicyVersionId,
+            syncStatus: 'synced',
+            updatedAt: serverTime
+          }
+        });
+      } else {
+        // 写入 user_habits
+        await db.collection('user_habits').add({
+          data: {
+            _openid: openid,
+            userHabitId,
+            habitId: String(habitId),
+            status: status || 'active',
+            createdAt: startDate || toDateStr(new Date()),
+            deletedAt: null,
+            latestPolicyVersionId: policyVersionId || '',
+            syncStatus: 'synced',
+            updatedAt: serverTime
+          }
+        });
+      }
     } else if (action === 'deleteHabit') {
-      // 软删除 userHabit（按 userHabitId 查找并更新）
+      // 软删除 userHabit，使用 payload 中的 deletedAt（本地业务日期）
       const existingHabit = await db.collection('user_habits').where({
         _openid: openid,
         userHabitId: userHabitId
@@ -107,7 +128,26 @@ exports.main = async (event, context) => {
         await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
           data: {
             status: 'deleted',
-            deletedAt: toDateStr(new Date()),
+            // 使用 payload 中的 deletedAt，不可用云端同步日期
+            deletedAt: deletedAt || toDateStr(new Date()),
+            syncStatus: 'synced',
+            updatedAt: serverTime
+          }
+        });
+      }
+
+      // 关闭该 userHabitId 下所有 policyVersion，使用 payload 中的日期
+      const versionsToClose = await db.collection('habit_policy_versions').where({
+        _openid: openid,
+        userHabitId: userHabitId,
+        effectiveEndDate: null
+      }).get();
+
+      const endDate = deletedAt || toDateStr(new Date());
+      for (const pv of versionsToClose.data || []) {
+        await db.collection('habit_policy_versions').doc(pv._id).update({
+          data: {
+            effectiveEndDate: endDate,
             syncStatus: 'synced',
             updatedAt: serverTime
           }
@@ -122,54 +162,64 @@ exports.main = async (event, context) => {
         return { success: false, code: 'MISSING_POLICY_VERSION', message: '缺少 policyVersionId' };
       }
 
-      // 检查是否已存在
+      // Step 1: 如果有 previousPolicyVersionId，先关闭旧版本
+      if (previousPolicyVersionId && previousEffectiveEndDate) {
+        const oldVersion = await db.collection('habit_policy_versions').where({
+          _openid: openid,
+          policyVersionId: previousPolicyVersionId
+        }).get();
+
+        if (oldVersion.data && oldVersion.data.length > 0) {
+          await db.collection('habit_policy_versions').doc(oldVersion.data[0]._id).update({
+            data: {
+              effectiveEndDate: previousEffectiveEndDate,
+              syncStatus: 'synced',
+              updatedAt: serverTime
+            }
+          });
+        }
+      }
+
+      // Step 2: 写入/更新 habit_policy_versions（幂等 upsert）
       const existingPv = await db.collection('habit_policy_versions').where({
         _openid: openid,
         policyVersionId: policyVersionId
       }).get();
 
       if (existingPv.data && existingPv.data.length > 0) {
-        // 已存在，幂等跳过
-        return {
-          success: true,
-          code: 'IDEMPOTENT_SKIP',
-          message: 'policyVersion 已存在（幂等）',
-          serverTime
-        };
-      }
-
-      // 写入 habit_policy_versions
-      await db.collection('habit_policy_versions').add({
-        data: {
-          _openid: openid,
-          policyVersionId,
-          userHabitId,
-          habitId: String(habitId),
-          duration: duration || 20,
-          frequencyType: frequencyType || 'daily',
-          frequencyConfig: frequencyConfig || { intervalDays: 1 },
-          startDate: startDate || toDateStr(new Date()),
-          effectiveStartDate: effectiveStartDate || startDate || toDateStr(new Date()),
-          effectiveEndDate: null,
-          syncStatus: 'synced',
-          createdAt: serverTime,
-          updatedAt: serverTime
+        // 已存在但可能状态不一致，确保达到目标状态
+        const existing = existingPv.data[0];
+        const needsUpdate = existing.effectiveEndDate !== null;
+        if (needsUpdate) {
+          await db.collection('habit_policy_versions').doc(existing._id).update({
+            data: {
+              effectiveEndDate: null,
+              duration: duration || existing.duration,
+              frequencyType: frequencyType || existing.frequencyType,
+              frequencyConfig: frequencyConfig || existing.frequencyConfig,
+              startDate: startDate || existing.startDate,
+              effectiveStartDate: effectiveStartDate || existing.effectiveStartDate,
+              syncStatus: 'synced',
+              updatedAt: serverTime
+            }
+          });
         }
-      });
-    } else if (action === 'deleteHabit') {
-      // 关闭该 userHabitId 下所有 policyVersion
-      const versionsToClose = await db.collection('habit_policy_versions').where({
-        _openid: openid,
-        userHabitId: userHabitId,
-        effectiveEndDate: null
-      }).get();
-
-      const businessDate = toDateStr(new Date());
-      for (const pv of versionsToClose.data || []) {
-        await db.collection('habit_policy_versions').doc(pv._id).update({
+      } else {
+        // 写入新版本
+        await db.collection('habit_policy_versions').add({
           data: {
-            effectiveEndDate: businessDate,
+            _openid: openid,
+            policyVersionId,
+            userHabitId,
+            habitId: String(habitId),
+            duration: duration || 20,
+            frequencyType: frequencyType || 'daily',
+            frequencyConfig: frequencyConfig || { intervalDays: 1 },
+            startDate: startDate || toDateStr(new Date()),
+            effectiveStartDate: effectiveStartDate || startDate || toDateStr(new Date()),
+            effectiveEndDate: null,
             syncStatus: 'synced',
+            createdAt: serverTime,
             updatedAt: serverTime
           }
         });
