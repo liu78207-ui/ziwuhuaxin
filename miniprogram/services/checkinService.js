@@ -10,6 +10,7 @@ const { createCheckinOp, createUndoOp, OPERATION_ACTION } = require('../models/c
 const { DAILY_STATE_STATUS, createCheckedState, createCanceledState } = require('../models/dailyCheckinState')
 const storageService = require('./storageService')
 const habitService = require('./habitService')
+const syncService = require('./syncService')
 
 /**
  * 打卡
@@ -42,6 +43,14 @@ async function checkin(userHabitId, date) {
   // 5. 创建/更新 DailyCheckinState
   const state = createCheckedState(userHabitId, habit.habitId, date, operation.operationId)
   storageService.setDailyState(state)
+
+  // 6. 进入 pending 队列，等待云端同步（Phase 4）
+  syncService.pushWithDedup('checkin', 'checkin', {
+    userHabitId,
+    habitId: habit.habitId,
+    date,
+    policyVersionId: habit.latestPolicyVersionId
+  })
 
   return state
 }
@@ -86,6 +95,14 @@ async function undoCheckin(userHabitId, date) {
   // 6. 更新 DailyCheckinState
   const state = createCanceledState(userHabitId, habit.habitId, date, operation.operationId)
   storageService.setDailyState(state)
+
+  // 7. 进入 pending 队列，等待云端同步（Phase 4）
+  syncService.pushWithDedup('checkin', 'undoCheckin', {
+    userHabitId,
+    habitId: habit.habitId,
+    date,
+    policyVersionId: habit.latestPolicyVersionId
+  })
 
   return state
 }

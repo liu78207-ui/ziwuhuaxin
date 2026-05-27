@@ -1,5 +1,6 @@
 const timeService = require('./services/timeService.js')
 const iconMap = require('./utils/iconMap.js')
+const syncService = require('./services/syncService.js')
 
 App({
   globalData: {
@@ -646,7 +647,7 @@ App({
       // 缃戠粶鎭㈠鏃惰Е鍙戝悓姝?
       if (res.isConnected && wasOffline) {
         console.log('network restored, trigger sync')
-        this.syncToCloud()
+        syncService.recoverOrSync()
       }
     })
   },

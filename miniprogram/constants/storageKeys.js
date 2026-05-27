@@ -18,7 +18,10 @@ const STORAGE_KEYS = {
   dailyStates: 'dailyCheckinStates',
   policyVersions: 'policyVersions',
   checkinOperations: 'checkinOperations',
-  migrationMeta: 'migrationMeta'
+  migrationMeta: 'migrationMeta',
+
+  // 新增（Phase 4）
+  pendingOperations: 'pendingOperations'
 }
 
 module.exports = { STORAGE_KEYS }

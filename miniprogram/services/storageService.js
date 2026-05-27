@@ -386,6 +386,38 @@ function saveCheckinOperation(operation) {
   return operation
 }
 
+// ==================== Phase 4: PendingOperations ====================
+
+function getPendingOperations() {
+  return asArray(getItem(STORAGE_KEYS.pendingOperations))
+}
+
+function setPendingOperations(operations) {
+  return setItem(STORAGE_KEYS.pendingOperations, asArray(operations))
+}
+
+function pushPending(item) {
+  const queue = getPendingOperations()
+  queue.unshift(item) // 新操作插入队首
+  return setPendingOperations(queue)
+}
+
+function updatePendingItem(queueId, updates) {
+  const queue = getPendingOperations()
+  const index = queue.findIndex(i => i.queueId === queueId)
+  if (index >= 0) {
+    queue[index] = { ...queue[index], ...updates }
+    return setPendingOperations(queue)
+  }
+  return false
+}
+
+function removePendingItem(queueId) {
+  const queue = getPendingOperations()
+  const filtered = queue.filter(i => i.queueId !== queueId)
+  return setPendingOperations(filtered)
+}
+
 module.exports = {
   // 基础读写
   getItem,
@@ -437,5 +469,12 @@ module.exports = {
   setCheckinOperations,
   getCheckinOperationsByUserHabitId,
   getCheckinOperationByIdempotencyKey,
-  saveCheckinOperation
+  saveCheckinOperation,
+
+  // Phase 4: PendingOperations
+  getPendingOperations,
+  setPendingOperations,
+  pushPending,
+  updatePendingItem,
+  removePendingItem
 }

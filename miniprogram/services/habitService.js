@@ -9,6 +9,7 @@ const { getBuiltInHabit, getAllBuiltInHabits, isValidBuiltInHabitId } = require(
 const { generateUserHabitId, generatePolicyVersionId } = require('../constants/idPrefixes')
 const storageService = require('./storageService')
 const timeService = require('./timeService')
+const syncService = require('./syncService')
 
 // ==================== 内置习惯 ====================
 
@@ -101,6 +102,13 @@ async function addHabit(habitId, policyInput) {
     storageService.setMyHabits(habits)
   }
 
+  // 9. 进入 pending 队列，等待云端同步（Phase 4）
+  syncService.pushWithDedup('habit', 'addHabit', {
+    userHabitId,
+    habitId,
+    policyVersionId: policyVersion.policyVersionId
+  })
+
   return userHabit
 }
 
@@ -168,6 +176,12 @@ async function softDeleteHabit(userHabitId) {
     storageService.setMigrationMeta(meta)
   }
 
+  // 进入 pending 队列，等待云端同步（Phase 4）
+  syncService.pushWithDedup('habit', 'deleteHabit', {
+    userHabitId,
+    habitId: habit.habitId
+  })
+
   return true
 }
 
@@ -226,6 +240,13 @@ async function createPolicyVersion(userHabitId, policyInput) {
     habits[index] = habit
     storageService.setMyHabits(habits)
   }
+
+  // 5. 进入 pending 队列，等待云端同步（Phase 4）
+  syncService.pushWithDedup('habit', 'updatePolicy', {
+    userHabitId,
+    habitId: habit.habitId,
+    policyVersionId
+  })
 
   return newPolicy
 }
