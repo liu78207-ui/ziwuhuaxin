@@ -21,7 +21,10 @@ const STORAGE_KEYS = {
   migrationMeta: 'migrationMeta',
 
   // 新增（Phase 4）
-  pendingOperations: 'pendingOperations'
+  pendingOperations: 'pendingOperations',
+
+  // 客户端序列号计数器（解决同毫秒操作排序问题）
+  clientSequenceCounter: 'clientSequenceCounter'
 }
 
 module.exports = { STORAGE_KEYS }

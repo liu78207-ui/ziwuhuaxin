@@ -34,8 +34,9 @@ async function checkin(userHabitId, date) {
     throw new Error(`UserHabit is not active: ${userHabitId}`)
   }
 
-  // 3. 创建 operation
-  const operation = createCheckinOp(userHabitId, habit.habitId, date)
+  // 3. 创建 operation（使用 storageService 生成的持久化序列号）
+  const clientSequence = storageService.getNextClientSequence()
+  const operation = createCheckinOp(userHabitId, habit.habitId, date, clientSequence)
 
   // 4. 保存 operation
   storageService.saveCheckinOperation(operation)
@@ -94,8 +95,9 @@ async function undoCheckin(userHabitId, date) {
     storageService.setDailyState(placeholder)
   }
 
-  // 4. 创建 operation
-  const operation = createUndoOp(userHabitId, habit.habitId, date)
+  // 4. 创建 operation（使用 storageService 生成的持久化序列号）
+  const clientSequence = storageService.getNextClientSequence()
+  const operation = createUndoOp(userHabitId, habit.habitId, date, clientSequence)
 
   // 5. 保存 operation
   storageService.saveCheckinOperation(operation)

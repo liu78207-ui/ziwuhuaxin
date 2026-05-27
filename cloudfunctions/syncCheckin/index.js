@@ -45,8 +45,8 @@ exports.main = async (event, context) => {
     policyVersionId,
     date,
     action, // 'checkin' | 'undo'
-    clientCreatedAt,
-    clientSequence
+    clientCreatedAt: rawClientCreatedAt,
+    clientSequence: rawClientSequence
   } = event;
 
   if (!openid) {
@@ -70,8 +70,8 @@ exports.main = async (event, context) => {
   const dailyStateStatus = action === 'checkin' ? 'checked' : 'canceled';
   const checkedAt = action === 'checkin' ? serverTime : null;
   const canceledAt = action === 'undo' ? serverTime : null;
-  const clientCreatedAt = event.clientCreatedAt || event.clientTime || null;
-  const clientSequence = event.clientSequence || 0;
+  const clientCreatedAt = rawClientCreatedAt || event.clientTime || null;
+  const clientSequence = typeof rawClientSequence === 'number' ? rawClientSequence : 0;
 
   let opRecordId = null;
   let opAlreadyExisted = false;

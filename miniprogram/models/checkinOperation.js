@@ -24,26 +24,6 @@ const OPERATION_ACTION = {
   undo: 'undo'
 }
 
-// ==================== 客户端序列号（单调递增） ====================
-// 用于解决同毫秒操作的排序问题，防止旧操作重试覆盖新状态
-let _clientSequence = 0
-
-/**
- * 获取下一个单调递增的客户端序列号
- * @returns {number}
- */
-function nextClientSequence() {
-  _clientSequence += 1
-  return _clientSequence
-}
-
-/**
- * 重置序列号（仅用于测试）
- */
-function resetClientSequence() {
-  _clientSequence = 0
-}
-
 /**
  * 验证 operation 对象结构
  * @param {object} op
@@ -91,9 +71,14 @@ function validateCheckinOperation(op) {
 /**
  * 创建 checkinOperation
  * @param {object} params
+ * @param {string} params.userHabitId
+ * @param {string} params.habitId
+ * @param {string} params.date
+ * @param {string} params.action
+ * @param {number} params.clientSequence - 单调递增序列号（由 storageService.getNextClientSequence() 生成）
  * @returns {object}
  */
-function createCheckinOperation({ userHabitId, habitId, date, action }) {
+function createCheckinOperation({ userHabitId, habitId, date, action, clientSequence }) {
   const operationId = generateOperationId(habitId)
   // operationId 唯一的，所以拼接在一起保证每次操作唯一
   // 重试时复用同一 operationId，从而复用同一 idempotencyKey
@@ -107,7 +92,7 @@ function createCheckinOperation({ userHabitId, habitId, date, action }) {
     date,
     action,
     // 单调递增序列号，解决同毫秒操作的排序问题
-    clientSequence: nextClientSequence(),
+    clientSequence: typeof clientSequence === 'number' ? clientSequence : 0,
     syncStatus: OPERATION_STATUS.pending,
     createdAt: new Date().toISOString()
   }
@@ -115,16 +100,24 @@ function createCheckinOperation({ userHabitId, habitId, date, action }) {
 
 /**
  * 创建打卡 operation
+ * @param {string} userHabitId
+ * @param {string} habitId
+ * @param {string} date
+ * @param {number} clientSequence - 单调递增序列号
  */
-function createCheckinOp(userHabitId, habitId, date) {
-  return createCheckinOperation({ userHabitId, habitId, date, action: OPERATION_ACTION.checkin })
+function createCheckinOp(userHabitId, habitId, date, clientSequence) {
+  return createCheckinOperation({ userHabitId, habitId, date, action: OPERATION_ACTION.checkin, clientSequence })
 }
 
 /**
  * 创建取消打卡 operation
+ * @param {string} userHabitId
+ * @param {string} habitId
+ * @param {string} date
+ * @param {number} clientSequence - 单调递增序列号
  */
-function createUndoOp(userHabitId, habitId, date) {
-  return createCheckinOperation({ userHabitId, habitId, date, action: OPERATION_ACTION.undo })
+function createUndoOp(userHabitId, habitId, date, clientSequence) {
+  return createCheckinOperation({ userHabitId, habitId, date, action: OPERATION_ACTION.undo, clientSequence })
 }
 
 module.exports = {
@@ -133,7 +126,5 @@ module.exports = {
   validateCheckinOperation,
   createCheckinOperation,
   createCheckinOp,
-  createUndoOp,
-  nextClientSequence,
-  resetClientSequence
+  createUndoOp
 }

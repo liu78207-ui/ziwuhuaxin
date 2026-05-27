@@ -420,6 +420,20 @@ function removePendingItem(queueId) {
   return setPendingOperations(filtered)
 }
 
+// ==================== 客户端序列号计数器 ====================
+
+/**
+ * 获取并递增客户端序列号（持久化到 storage）
+ * 保证跨重启单调递增
+ * @returns {number} 下一个序列号
+ */
+function getNextClientSequence() {
+  const current = getItem(STORAGE_KEYS.clientSequenceCounter) || 0
+  const next = current + 1
+  setItem(STORAGE_KEYS.clientSequenceCounter, next)
+  return next
+}
+
 module.exports = {
   // 基础读写
   getItem,
@@ -478,5 +492,8 @@ module.exports = {
   setPendingOperations,
   pushPending,
   updatePendingItem,
-  removePendingItem
+  removePendingItem,
+
+  // Phase 4: ClientSequence
+  getNextClientSequence
 }
