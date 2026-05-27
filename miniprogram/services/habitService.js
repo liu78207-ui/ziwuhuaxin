@@ -85,13 +85,13 @@ async function addHabit(habitId, policyInput) {
   }
   storageService.setMigrationMeta(meta)
 
-  // 7. 创建首个策略版本
+  // 7. 创建首个策略版本（skipSync=true，避免重复入队）
   const policyVersion = await createPolicyVersion(userHabitId, {
     duration,
     frequencyType,
     frequencyConfig,
     startDate
-  })
+  }, { skipSync: true })
 
   // 8. 更新 latestPolicyVersionId
   userHabit.latestPolicyVersionId = policyVersion.policyVersionId
@@ -103,10 +103,15 @@ async function addHabit(habitId, policyInput) {
   }
 
   // 9. 进入 pending 队列，等待云端同步（Phase 4）
+  // 携带完整的 userHabit 和 policyVersion 数据，一次同步完成
   syncService.pushWithDedup('habit', 'addHabit', {
     userHabitId,
     habitId,
-    policyVersionId: policyVersion.policyVersionId
+    policyVersionId: policyVersion.policyVersionId,
+    duration: policyVersion.duration,
+    frequencyType: policyVersion.frequencyType,
+    frequencyConfig: policyVersion.frequencyConfig,
+    startDate: policyVersion.startDate
   })
 
   return userHabit
@@ -191,9 +196,10 @@ async function softDeleteHabit(userHabitId) {
  * 创建新策略版本（关闭旧版本）
  * @param {string} userHabitId
  * @param {object} policyInput
+ * @param {object} options - { skipSync?: boolean } 跳过 syncService 入队（addHabit 内部调用时使用）
  * @returns {Promise<PolicyVersion>}
  */
-async function createPolicyVersion(userHabitId, policyInput) {
+async function createPolicyVersion(userHabitId, policyInput, options = {}) {
   const habit = getHabitByUserHabitId(userHabitId)
   if (!habit) {
     throw new Error(`UserHabit not found: ${userHabitId}`)
@@ -242,11 +248,14 @@ async function createPolicyVersion(userHabitId, policyInput) {
   }
 
   // 5. 进入 pending 队列，等待云端同步（Phase 4）
-  syncService.pushWithDedup('habit', 'updatePolicy', {
-    userHabitId,
-    habitId: habit.habitId,
-    policyVersionId
-  })
+  // skipSync 用于 addHabit 内部调用（避免重复入队）
+  if (!options.skipSync) {
+    syncService.pushWithDedup('habit', 'updatePolicy', {
+      userHabitId,
+      habitId: habit.habitId,
+      policyVersionId
+    })
+  }
 
   return newPolicy
 }

@@ -17,13 +17,25 @@
 const storageService = require('./storageService')
 const cloudService = require('./cloudService')
 
+// ==================== 并发保护 ====================
+
+let isProcessing = false
+
 // ==================== ID 生成 ====================
 
 function generateQueueId() {
   return `q_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`
 }
 
+/**
+ * 生成 idempotencyKey
+ * 优先使用 payload 中已有的 operationId/idempotencyKey（来自业务层）
+ * 否则自行生成
+ */
 function generateIdempotencyKey(entityType, action, payload) {
+  if (payload.idempotencyKey) {
+    return payload.idempotencyKey
+  }
   const userHabitId = payload.userHabitId || ''
   const date = payload.date || ''
   return `${entityType}_${userHabitId}_${date}_${action}`
@@ -59,11 +71,14 @@ function setPendingOperations(queue) {
 
 /**
  * 添加操作到 pending 队列
+ * 优先使用 payload 中已有的 operationId（来自 checkinOperation 等业务对象）
+ * queueId 仅作为本地队列标识，不替代业务 operationId
  * @returns {string} queueId
  */
 function push(entityType, action, payload) {
   const queueId = generateQueueId()
-  const idempotencyKey = generateIdempotencyKey(entityType, action, payload)
+  // 业务层（如 checkinService）已生成的 idempotencyKey，优先复用
+  const idempotencyKey = payload.idempotencyKey || generateIdempotencyKey(entityType, action, payload)
 
   const item = {
     queueId,
@@ -72,6 +87,8 @@ function push(entityType, action, payload) {
     entityId: payload.userHabitId || payload.habitId || '',
     payload,
     idempotencyKey,
+    // 业务层 operationId（如 checkinOperation.operationId），云端同步时必须传递
+    operationId: payload.operationId || null,
     status: 'pending',
     retryCount: 0,
     lastError: null,
@@ -131,79 +148,91 @@ function calculateNextRetry(retryCount) {
 
 /**
  * 处理 pending 队列（同步到云端）
+ * 包含并发保护：同一时刻只允许一个 processQueue 执行
  */
 async function processQueue() {
-  const queue = getPendingOperations()
-  if (queue.length === 0) return
+  if (isProcessing) return
+  isProcessing = true
 
-  // 按 createdAt 从旧到新处理
-  const sortedQueue = [...queue].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  try {
+    const queue = getPendingOperations()
+    if (queue.length === 0) return
 
-  const processedItems = []
+    // 按 createdAt 从旧到新处理
+    const sortedQueue = [...queue].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 
-  for (const item of sortedQueue) {
-    // 已 synced 的跳过
-    if (item.status === 'synced') {
-      processedItems.push(item)
-      continue
-    }
+    for (const item of sortedQueue) {
+      // 已 synced 的跳过
+      if (item.status === 'synced') continue
 
-    // 失败项检查重试时间，未到时间则跳过
-    if (item.status === 'failed' && item.nextRetryAt) {
-      const now = Date.now()
-      const retryTime = new Date(item.nextRetryAt).getTime()
-      if (now < retryTime) {
-        processedItems.push(item)
-        continue
+      // 失败项检查重试时间，未到时间则跳过
+      if (item.status === 'failed' && item.nextRetryAt) {
+        const now = Date.now()
+        const retryTime = new Date(item.nextRetryAt).getTime()
+        if (now < retryTime) continue
+      }
+
+      // 再次检查最新状态（防止并发）
+      const latestItem = getPendingOperations().find(i => i.queueId === item.queueId)
+      if (!latestItem || latestItem.status === 'synced') continue
+
+      try {
+        // 更新状态为 syncing（每次操作前重新读取最新状态）
+        storageService.updatePendingItem(item.queueId, {
+          status: 'syncing',
+          updatedAt: new Date().toISOString()
+        })
+
+        // 调用云函数，传递业务 operationId（而非 queueId）
+        const cloudFnName = getCloudFunctionName(item.entityType, item.action)
+        const result = await cloudService.callFunction(cloudFnName, {
+          ...item.payload,
+          // 优先使用业务层 operationId
+          operationId: item.operationId || item.queueId,
+          idempotencyKey: item.idempotencyKey
+        })
+
+        // 再次读取最新状态，避免用旧快照覆盖其他并发的更新
+        const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
+        if (result.success) {
+          storageService.updatePendingItem(item.queueId, {
+            status: 'synced',
+            lastError: null,
+            updatedAt: new Date().toISOString()
+          })
+        } else {
+          const newRetryCount = (currentItem?.retryCount || 0) + 1
+          storageService.updatePendingItem(item.queueId, {
+            status: newRetryCount >= 3 ? 'failed' : 'pending',
+            lastError: result.error?.message || '未知错误',
+            retryCount: newRetryCount,
+            nextRetryAt: calculateNextRetry(newRetryCount),
+            updatedAt: new Date().toISOString()
+          })
+        }
+      } catch (e) {
+        const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
+        const newRetryCount = (currentItem?.retryCount || 0) + 1
+        storageService.updatePendingItem(item.queueId, {
+          status: newRetryCount >= 3 ? 'failed' : 'pending',
+          lastError: e.message,
+          retryCount: newRetryCount,
+          nextRetryAt: calculateNextRetry(newRetryCount),
+          updatedAt: new Date().toISOString()
+        })
       }
     }
 
-    try {
-      // 更新状态为 syncing
-      item.status = 'syncing'
-      item.updatedAt = new Date().toISOString()
-      storageService.updatePendingItem(item.queueId, { status: 'syncing', updatedAt: item.updatedAt })
-
-      // 调用云函数
-      const cloudFnName = getCloudFunctionName(item.entityType, item.action)
-      const result = await cloudService.callFunction(cloudFnName, {
-        ...item.payload,
-        idempotencyKey: item.idempotencyKey,
-        operationId: item.queueId
-      })
-
-      if (result.success) {
-        item.status = 'synced'
-        item.updatedAt = new Date().toISOString()
-      } else {
-        item.status = 'failed'
-        item.lastError = result.error?.message || '未知错误'
-        item.retryCount += 1
-        item.nextRetryAt = calculateNextRetry(item.retryCount)
-      }
-    } catch (e) {
-      item.status = 'failed'
-      item.lastError = e.message
-      item.retryCount += 1
-      item.nextRetryAt = calculateNextRetry(item.retryCount)
+    // 失败重试项放回队尾（最多保留3次）
+    const finalQueue = getPendingOperations()
+    const failedItems = finalQueue.filter(i => i.status === 'failed' && i.retryCount < 3)
+    const doneItems = finalQueue.filter(i => i.status !== 'failed' || i.retryCount >= 3)
+    if (failedItems.length > 0) {
+      setPendingOperations([...doneItems, ...failedItems])
     }
-
-    item.updatedAt = new Date().toISOString()
-    processedItems.push(item)
-    storageService.updatePendingItem(item.queueId, {
-      status: item.status,
-      lastError: item.lastError,
-      retryCount: item.retryCount,
-      nextRetryAt: item.nextRetryAt,
-      updatedAt: item.updatedAt
-    })
+  } finally {
+    isProcessing = false
   }
-
-  // 失败重试项放回队尾
-  const failedItems = processedItems.filter(i => i.status === 'failed' && i.retryCount < 3)
-  const finalItems = processedItems.filter(i => i.status !== 'failed' || i.retryCount >= 3)
-
-  setPendingOperations([...finalItems, ...failedItems])
 }
 
 /**
@@ -218,20 +247,33 @@ async function retry(queueId) {
     return { success: false, error: 'MAX_RETRIES_EXCEEDED' }
   }
 
-  item.status = 'pending'
-  item.updatedAt = new Date().toISOString()
-  storageService.updatePendingItem(queueId, { status: 'pending', updatedAt: item.updatedAt })
+  storageService.updatePendingItem(queueId, {
+    status: 'pending',
+    updatedAt: new Date().toISOString()
+  })
 
-  // 触发处理
   return processQueue()
 }
 
 /**
- * 网络恢复时调用：检测网络 -> 处理队列 -> 同步最新数据
+ * 将 wx.getNetworkType 封装为 Promise
+ * @returns {Promise<string>} networkType 或 'none'
+ */
+function getNetworkTypeAsync() {
+  return new Promise((resolve) => {
+    wx.getNetworkType({
+      success: (res) => resolve(res.networkType),
+      fail: () => resolve('none')
+    })
+  })
+}
+
+/**
+ * 网络恢复时调用：检测网络 -> 处理队列
  */
 async function recoverOrSync() {
   try {
-    const networkType = wx.getNetworkType()
+    const networkType = await getNetworkTypeAsync()
     if (networkType === 'none') return
 
     await processQueue()
@@ -251,5 +293,6 @@ module.exports = {
   processQueue,
   retry,
   recoverOrSync,
-  calculateNextRetry
+  calculateNextRetry,
+  getNetworkTypeAsync
 }

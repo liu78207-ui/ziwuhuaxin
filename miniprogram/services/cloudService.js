@@ -49,6 +49,14 @@ async function callFunction(name, data, options = {}) {
       }
     }
 
+    // 识别云函数内部返回的 { success: false, ... }
+    if (result.result && result.result.success === false) {
+      return {
+        success: false,
+        error: result.result.error || { code: ERROR_CODES.SERVER_ERROR, message: result.result.message || '云函数返回错误' }
+      }
+    }
+
     return {
       success: true,
       data: result.result,

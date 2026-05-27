@@ -49,7 +49,9 @@ async function checkin(userHabitId, date) {
     userHabitId,
     habitId: habit.habitId,
     date,
-    policyVersionId: habit.latestPolicyVersionId
+    policyVersionId: habit.latestPolicyVersionId,
+    operationId: operation.operationId,
+    idempotencyKey: operation.idempotencyKey
   })
 
   return state
@@ -101,7 +103,9 @@ async function undoCheckin(userHabitId, date) {
     userHabitId,
     habitId: habit.habitId,
     date,
-    policyVersionId: habit.latestPolicyVersionId
+    policyVersionId: habit.latestPolicyVersionId,
+    operationId: operation.operationId,
+    idempotencyKey: operation.idempotencyKey
   })
 
   return state
