@@ -416,7 +416,7 @@ describe('reportAggregator', () => {
       expect(reportAggregator.calculateStreak(verdicts)).toBe(3)
     })
 
-    test('非应修日不打断 streak', () => {
+    test('非应修日不打断 streak（跳过不重置）', () => {
       const verdicts = [
         { date: '2026-05-01', isDue: true, status: DAY_STATUS.checked },
         { date: '2026-05-02', isDue: true, status: DAY_STATUS.checked },
@@ -424,10 +424,10 @@ describe('reportAggregator', () => {
         { date: '2026-05-04', isDue: true, status: DAY_STATUS.checked },
         { date: '2026-05-05', isDue: true, status: DAY_STATUS.checked }
       ]
-      expect(reportAggregator.calculateStreak(verdicts)).toBe(2)
+      expect(reportAggregator.calculateStreak(verdicts)).toBe(4)
     })
 
-    test('unchecked 不打断也不增加 streak', () => {
+    test('unchecked 应修日会重置 streak', () => {
       const verdicts = [
         { date: '2026-05-01', isDue: true, status: DAY_STATUS.checked },
         { date: '2026-05-02', isDue: true, status: DAY_STATUS.unchecked },
@@ -436,7 +436,7 @@ describe('reportAggregator', () => {
       expect(reportAggregator.calculateStreak(verdicts)).toBe(1)
     })
 
-    test('canceled 不打断也不增加 streak', () => {
+    test('canceled 应修日会重置 streak', () => {
       const verdicts = [
         { date: '2026-05-01', isDue: true, status: DAY_STATUS.checked },
         { date: '2026-05-02', isDue: true, status: DAY_STATUS.canceled },

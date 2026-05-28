@@ -171,12 +171,17 @@ function resolveReportDayStatus(context) {
   }
 
   // 3. 锁定快照优先（删除当天、策略修改当天）
+  // 这些特殊日的口径按最终状态来：
+  // - 最终 checked：分母+1，分子+1
+  // - 最终 canceled/unchecked：分母+0，分子+0
   if (lockSnapshot) {
+    const finalStatus = dailyState?.status || DAY_STATUS.unchecked
+    const isChecked = finalStatus === DAY_STATUS.checked
     return {
-      status: dailyState?.status || DAY_STATUS.unchecked,
+      status: finalStatus,
       isDue: false,
-      contributesDenominator: false,
-      contributesNumerator: false,
+      contributesDenominator: isChecked,
+      contributesNumerator: isChecked,
       reason: lockSnapshot.reason || 'locked',
       effectivePolicyVersionId: lockSnapshot.policyVersionId || null
     }
@@ -497,8 +502,13 @@ function calculateStreak(dayVerdicts) {
     const verdict = verdictByDate[date]
     if (!verdict) return
 
-    // 非应修日、unchecked、canceled 都会重置 streak
-    if (!verdict.isDue || verdict.status !== DAY_STATUS.checked) {
+    // 非应修日不打断 streak（跳过，不重置也不增加）
+    if (!verdict.isDue) {
+      return
+    }
+
+    // unchecked/canceled 不增加 streak，但也不打断（重置）
+    if (verdict.status !== DAY_STATUS.checked) {
       currentStreak = 0
       return
     }

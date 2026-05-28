@@ -14,7 +14,8 @@ const lunarCalendar = require('../../utils/lunarCalendar.js');
 const share = require('../../utils/share.js');
 
 // Phase 5: reportService 接入
-// 设置为 true 可启用 reportService，逐步切换，保留回滚路径
+// 设置为 true 启用 reportService，false 则走 legacy 路径
+// 注意：开启前需确保测试数据为 Phase 3 格式（包含 userHabitId/policyVersion 等）
 const USE_REPORT_SERVICE = false
 let reportService = null
 if (USE_REPORT_SERVICE) {
@@ -1236,6 +1237,27 @@ Page({
   },
 
   async loadWeekData(myHabits) {
+    if (USE_REPORT_SERVICE && reportService) {
+      try {
+        const weekDates = this.getWeekDates();
+        const weekStart = this.formatDateKey(weekDates[0]);
+        const report = await reportService.getWeeklyReport(weekStart);
+
+        this.setData({
+          habitMatrix: report.habitReports
+            .filter(item => this.shouldShowHabitReport(item))
+            .map(item => this.mapWeekHabitReport(item)),
+          monthHabits: [],
+          yearHabits: [],
+          stats: report.stats
+        });
+        return
+      } catch (e) {
+        console.error('[stats] loadWeekData via reportService failed, falling back to legacy:', e)
+      }
+    }
+
+    // Legacy path
     const weekDates = this.getWeekDates();
     const startDate = this.formatDateKey(weekDates[0]);
     const endDate = this.formatDateKey(weekDates[6]);
@@ -1259,6 +1281,27 @@ Page({
     const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const startWeekday = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
+
+    if (USE_REPORT_SERVICE && reportService) {
+      try {
+        const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const report = await reportService.getMonthlyReport(monthStr);
+
+        this.setData({
+          monthHabits: report.habitReports
+            .filter(item => this.shouldShowHabitReport(item))
+            .map(item => this.mapMonthHabitReport(item, year, month, daysInMonth, startWeekday)),
+          habitMatrix: [],
+          yearHabits: [],
+          stats: report.stats
+        });
+        return
+      } catch (e) {
+        console.error('[stats] loadMonthData via reportService failed, falling back to legacy:', e)
+      }
+    }
+
+    // Legacy path
     const report = this.buildPeriodReport(myHabits, startDate, endDate);
 
     this.setData({
@@ -1273,6 +1316,26 @@ Page({
 
   async loadYearData(myHabits) {
     const year = this.data.currentYear;
+
+    if (USE_REPORT_SERVICE && reportService) {
+      try {
+        const report = await reportService.getYearlyReport(String(year));
+
+        this.setData({
+          yearHabits: report.habitReports
+            .filter(item => this.shouldShowHabitReport(item))
+            .map(item => this.mapYearHabitReport(item, year)),
+          habitMatrix: [],
+          monthHabits: [],
+          stats: report.stats
+        });
+        return
+      } catch (e) {
+        console.error('[stats] loadYearData via reportService failed, falling back to legacy:', e)
+      }
+    }
+
+    // Legacy path
     const startDate = `${year}-01-01`;
     const endDate = `${year}-12-31`;
     const report = this.buildPeriodReport(myHabits, startDate, endDate);
