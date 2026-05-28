@@ -13,6 +13,18 @@ const reportCalculator = require('../../utils/reportCalculator.js');
 const lunarCalendar = require('../../utils/lunarCalendar.js');
 const share = require('../../utils/share.js');
 
+// Phase 5: reportService 接入
+// 设置为 true 可启用 reportService，逐步切换，保留回滚路径
+const USE_REPORT_SERVICE = false
+let reportService = null
+if (USE_REPORT_SERVICE) {
+  try {
+    reportService = require('../../services/reportService')
+  } catch (e) {
+    console.error('[stats] reportService load failed:', e)
+  }
+}
+
 // 浠庡叏灞€鑾峰彇璋冭瘯閰嶇疆
 const getDebugOffset = () => {
   const app = getApp();
