@@ -262,10 +262,13 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
           isDue: day.isDue || false,
           shouldShow: day.isDue || false,
           status: day.status,
-          countsInDueDenominator: day.isDue || false,
-          countsInDenominator: day.isDue || false,
+          // 使用 contributesDenominator 而非 isDue，确保特殊日 checked 计入分母
+          countsInDueDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
+          countsInDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
           countsAsDone: day.status === 'checked',
-          isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31')
+          isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31'),
+          // WXML 绑定需要 themeClass
+          themeClass: instance.themeClass || group.themeClass || ''
         }
       })
 

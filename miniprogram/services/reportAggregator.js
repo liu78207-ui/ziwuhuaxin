@@ -657,7 +657,8 @@ function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, 
     dueCount,
     doneCount,
     streak,
-    days
+    days,
+    _verdicts: dayVerdicts
   }
 }
 
