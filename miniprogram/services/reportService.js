@@ -293,12 +293,16 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
     )
   )]
 
-  const stats = {
-    checkinRate: dueCount > 0 ? Math.round((doneCount / dueCount) * 100) : 0,
-    totalCount: doneCount,
-    checkinDays: uniqueCheckinDates.length,
-    maxStreak: 0 // 需要额外计算
-  }
+  const globalMaxStreak = (aggregated.habitGroups || []).reduce((max, group) => {
+ return Math.max(max, group.summary && group.summary.maxStreak ||0)
+ },0)
+
+ const stats = {
+ checkinRate: dueCount >0 ? Math.round((doneCount / dueCount) *100) :0,
+ totalCount: doneCount,
+ checkinDays: uniqueCheckinDates.length,
+ maxStreak: globalMaxStreak
+ }
 
   return {
     habitReports,

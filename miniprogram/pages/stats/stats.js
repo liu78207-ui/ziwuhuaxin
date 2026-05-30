@@ -12,12 +12,11 @@ const iconMap = require('../../utils/iconMap.js');
 const reportCalculator = require('../../utils/reportCalculator.js');
 const lunarCalendar = require('../../utils/lunarCalendar.js');
 const share = require('../../utils/share.js');
-const storageService = require('../../services/storageService');
 
 // Phase 5: reportService 接入
 // 设置为 true 启用 reportService，false 则走 legacy 路径
 // 注意：开启前需确保测试数据为 Phase 3 格式（包含 userHabitId/policyVersion 等）
-const USE_REPORT_SERVICE = false
+const USE_REPORT_SERVICE = true
 let reportService = null
 if (USE_REPORT_SERVICE) {
   try {
@@ -1242,8 +1241,7 @@ Page({
       try {
         // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
         if (myHabits && myHabits.length !== undefined) {
-          storageService.setMyHabits(myHabits)
-        }
+                  }
         const weekDates = this.getWeekDates();
         const weekStart = this.formatDateKey(weekDates[0]);
         const report = await reportService.getWeeklyReport(weekStart);
@@ -1291,8 +1289,7 @@ Page({
       try {
         // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
         if (myHabits && myHabits.length !== undefined) {
-          storageService.setMyHabits(myHabits)
-        }
+                  }
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
         const report = await reportService.getMonthlyReport(monthStr);
 
@@ -1330,8 +1327,7 @@ Page({
       try {
         // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
         if (myHabits && myHabits.length !== undefined) {
-          storageService.setMyHabits(myHabits)
-        }
+                  }
         const report = await reportService.getYearlyReport(String(year));
 
         this.setData({

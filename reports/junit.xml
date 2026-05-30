@@ -1,116 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="2" failures="2" errors="0" time="4.194">
-  <testsuite name="wechat upload quality config" errors="0" failures="2" skipped="0" timestamp="2026-05-17T02:40:51" time="3.736" tests="2">
-    <testcase classname="wechat upload quality config" name="enables required component lazy loading for package checks" time="0.003">
-      <failure>Error: expect(received).toBe(expected) // Object.is equality
-
-Expected: &quot;requiredComponents&quot;
-Received: undefined
-    at Object.toBe (C:\Users\YouYou\WeChatProjects\miniprogram-1\__tests__\unit\config\uploadQuality.test.js:18:39)
-    at Promise.then.completed (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\utils.js:231:10)
-    at _callCircusTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:316:40)
-    at _runTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:252:3)
-    at _runTestsForDescribeBlock (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:126:9)
-    at _runTestsForDescribeBlock (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:121:9)
-    at run (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:71:3)
-    at runAndTransformResultsToJestFormat (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
-    at jestAdapter (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
-    at runTestInternal (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-runner\build\runTest.js:367:16)
-    at runTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-runner\build\runTest.js:444:34)</failure>
+<testsuites name="jest tests" tests="12" failures="0" errors="0" time="0.46">
+  <testsuite name="stats page real report links" errors="0" failures="0" skipped="0" timestamp="2026-05-29T09:45:20" time="0.427" tests="12">
+    <testcase classname="stats page real report links" name="week report keeps deleted habit row when it only has historical checkins" time="0.014">
     </testcase>
-    <testcase classname="wechat upload quality config" name="page component declarations are used in matching WXML files" time="0.001">
-      <failure>Error: expect(received).toMatch(expected)
-
-Expected pattern: /&lt;navigation-bar(\s|&gt;|\/)/
-Received string:  &quot;&lt;!--pages/home/home.wxml--&gt;
-&lt;!-- 案台首页 - 子午花信 --&gt;·
-&lt;view class=\&quot;page-wrapper\&quot;&gt;
-  &lt;!-- 固定导航栏 --&gt;
-  &lt;view class=\&quot;nav-header-fixed\&quot; style=\&quot;background-color: rgba(250, 250, 250, {{navBgOpacity}});\&quot;&gt;
-    &lt;text class=\&quot;nav-title\&quot;&gt;子午花信&lt;/text&gt;
-  &lt;/view&gt;·
-  &lt;!-- 内容区域 --&gt;
-  &lt;view class=\&quot;content-scroll\&quot;&gt;
-    &lt;!-- 琉璃卡片头部 --&gt;
-    &lt;view class=\&quot;hero-card\&quot;&gt;
-      &lt;view class=\&quot;hc-bg-glow\&quot;&gt;&lt;/view&gt;·
-      &lt;view class=\&quot;hc-content\&quot;&gt;
-        &lt;!-- 顶部：时辰 + 经络标签 --&gt;
-        &lt;view class=\&quot;hc-header\&quot;&gt;
-          &lt;text class=\&quot;time-title text-heavy\&quot;&gt;{{timeInfo.shichen}}&lt;/text&gt;
-          &lt;view class=\&quot;time-meridian-tag\&quot;&gt;{{timeInfo.meridian}}&lt;/view&gt;
-        &lt;/view&gt;·········
-        &lt;!-- 养生建议 --&gt;
-        &lt;view class=\&quot;hero-desc\&quot;&gt;{{timeInfo.advice}}&lt;/view&gt;·········
-        &lt;!-- 进度条 --&gt;
-        &lt;view class=\&quot;progress-section\&quot;&gt;
-          &lt;text class=\&quot;progress-text\&quot;&gt;今日进度 {{checkedCount}}/{{totalCount}}&lt;/text&gt;
-          &lt;view class=\&quot;progress-bar\&quot;&gt;
-            &lt;view class=\&quot;progress-fill\&quot; style=\&quot;width: {{progressPercent}}%;\&quot;&gt;&lt;/view&gt;
-          &lt;/view&gt;
-        &lt;/view&gt;
-      &lt;/view&gt;
-    &lt;/view&gt;·
-  &lt;!-- 今日修习标题 --&gt;
-  &lt;view class=\&quot;sec-title\&quot;&gt;今日修习&lt;/view&gt;·
-  &lt;!-- 九宫格布局 --&gt;
-  &lt;view class=\&quot;nine-grid\&quot; wx:if=\&quot;{{taskList.length &gt; 0}}\&quot;&gt;
-    &lt;view·
-      class=\&quot;grid-item {{item.themeClass}} {{item._id === pressingId ? &apos;pressing&apos; : &apos;&apos;}}\&quot;·
-      wx:for=\&quot;{{taskList}}\&quot;·
-      wx:key=\&quot;_id\&quot;
-      bindtap=\&quot;handleCheckin\&quot;
-      bindtouchstart=\&quot;onTouchStart\&quot;
-      bindtouchend=\&quot;onTouchEnd\&quot;
-      data-habit-id=\&quot;{{item._id}}\&quot;
-      hover-class=\&quot;grid-item-hover\&quot;
-      hover-stay-time=\&quot;200\&quot;
-    &gt;
-      &lt;!-- 图标底板 --&gt;
-      &lt;view class=\&quot;icon-circle {{item.isChecked ? &apos;checked&apos; : &apos;&apos;}}\&quot;&gt;
-        &lt;image class=\&quot;icon-img\&quot; src=\&quot;{{item.iconUrl}}\&quot; mode=\&quot;aspectFit\&quot; wx:if=\&quot;{{item.iconUrl}}\&quot;/&gt;
-        &lt;text class=\&quot;habit-emoji\&quot; wx:else&gt;{{item.emoji || &apos;🧘&apos;}}&lt;/text&gt;
-        &lt;!-- 印章角标 - 压在圆形背景上 --&gt;
-        &lt;view class=\&quot;stamp-done\&quot; wx:if=\&quot;{{item.isChecked}}\&quot;&gt;
-          &lt;text class=\&quot;stamp-icon\&quot;&gt;✓&lt;/text&gt;
-        &lt;/view&gt;
-      &lt;/view&gt;·······
-      &lt;!-- 习惯信息 --&gt;
-      &lt;text class=\&quot;gi-name\&quot;&gt;{{item.title}}&lt;/text&gt;
-      &lt;text class=\&quot;gi-sub\&quot;&gt;{{item.isChecked ? &apos;已坚持 &apos; + item.streak + &apos; 天&apos; : (item.meta || &apos;待完成&apos;)}}&lt;/text&gt;
-    &lt;/view&gt;
-  &lt;/view&gt;·
-  &lt;!-- 空状态 - 添加习惯占位 --&gt;
-  &lt;view class=\&quot;nine-grid\&quot; wx:if=\&quot;{{taskList.length === 0}}\&quot;&gt;
-    &lt;view class=\&quot;grid-item\&quot; bindtap=\&quot;goToHabits\&quot;&gt;
-      &lt;!-- 图标底板 --&gt;
-      &lt;view class=\&quot;icon-circle empty-icon-base\&quot;&gt;
-        &lt;text class=\&quot;plus-icon\&quot;&gt;+&lt;/text&gt;
-      &lt;/view&gt;
-    &lt;/view&gt;
-  &lt;/view&gt;
-  &lt;/view&gt;
-&lt;/view&gt;
-&quot;
-    at toMatch (C:\Users\YouYou\WeChatProjects\miniprogram-1\__tests__\unit\config\uploadQuality.test.js:32:26)
-    at Array.forEach (&lt;anonymous&gt;)
-    at forEach (C:\Users\YouYou\WeChatProjects\miniprogram-1\__tests__\unit\config\uploadQuality.test.js:31:36)
-    at Array.forEach (&lt;anonymous&gt;)
-    at Object.forEach (C:\Users\YouYou\WeChatProjects\miniprogram-1\__tests__\unit\config\uploadQuality.test.js:24:21)
-    at Promise.then.completed (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\utils.js:298:28)
-    at new Promise (&lt;anonymous&gt;)
-    at callAsyncCircusFn (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\utils.js:231:10)
-    at _callCircusTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:316:40)
-    at _runTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:252:3)
-    at _runTestsForDescribeBlock (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:126:9)
-    at _runTestsForDescribeBlock (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:121:9)
-    at run (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\run.js:71:3)
-    at runAndTransformResultsToJestFormat (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapterInit.js:122:21)
-    at jestAdapter (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-circus\build\legacy-code-todo-rewrite\jestAdapter.js:79:19)
-    at runTestInternal (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-runner\build\runTest.js:367:16)
-    at runTest (C:\Users\YouYou\WeChatProjects\miniprogram-1\node_modules\jest-runner\build\runTest.js:444:34)</failure>
+    <testcase classname="stats page real report links" name="mergeWithDeletedHabits supports cloud habit_id and checkin_date logs" time="0.002">
+    </testcase>
+    <testcase classname="stats page real report links" name="week month and year reports keep deleted habit colors from real logs" time="0.007">
+    </testcase>
+    <testcase classname="stats page real report links" name="week month and year reports support cloud log fields for deleted habits" time="0.004">
+    </testcase>
+    <testcase classname="stats page real report links" name="deleted then re-added active habit keeps colors from real cloud logs" time="0.004">
+    </testcase>
+    <testcase classname="stats page real report links" name="therapy and daily-life deleted habits keep week month year colors from real logs" time="0.053">
+    </testcase>
+    <testcase classname="stats page real report links" name="catalog habits with strategy habit_id match report logs after deletion" time="0.005">
+    </testcase>
+    <testcase classname="stats page real report links" name="known catalog habits use habit-specific themes even when stored as default blue" time="0.01">
+    </testcase>
+    <testcase classname="stats page real report links" name="deleted checked habits normalize stale theme classes even when iconUrl exists" time="0.008">
+    </testcase>
+    <testcase classname="stats page real report links" name="deleted habit styles do not override checked cells to gray" time="0.001">
+    </testcase>
+    <testcase classname="stats page real report links" name="checked report styles have theme color fallbacks" time="0">
+    </testcase>
+    <testcase classname="stats page real report links" name="report cells bind each habit theme class directly" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

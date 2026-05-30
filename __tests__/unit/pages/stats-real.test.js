@@ -1,5 +1,9 @@
-function loadStatsPage({ habits = [], logs = [], allHabitsInfo = {} } = {}) {
+function loadStatsPage({ habits = [], logs = [], allHabitsInfo = {}, useReportService = false } = {}) {
   jest.resetModules();
+ if (!useReportService) {
+  //禁用 reportService 以走 legacy路径（兼容既有测试）
+  jest.doMock("../../../miniprogram/services/reportService", () => null);
+ }
 
   const app = {
     globalData: {
