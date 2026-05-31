@@ -89,8 +89,8 @@ App({
     });
     // 初始化网络状态监听
     this.initNetworkListener()
-    // 启动时同步云端数据
-    this.syncFromCloud()
+    // 启动时通过 syncService 恢复或同步数据
+    syncService.recoverOrSync()
   },
 
   // ========== 数据持久层==========

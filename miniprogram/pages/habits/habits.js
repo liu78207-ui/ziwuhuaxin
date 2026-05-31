@@ -207,7 +207,7 @@ Page({
             wx.showModal({
               title: '删除习惯',
               content: `确定要删除「${habit.title}」吗？\n历史打卡数据将保留`,
-              confirmColor: '#e64340',
+              confirmColor: 'var(--c-coral)',
               success: (modalRes) => {
                 if (modalRes.confirm) {
                   this.removeStrategy(habit);
