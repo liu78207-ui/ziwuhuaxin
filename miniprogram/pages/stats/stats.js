@@ -378,6 +378,7 @@ Page({
   },
 
   // 鍚堝苟宸插垹闄や絾鏈夋墦鍗¤褰曠殑涔犳儻
+  // @deprecated Phase 6D - legacy path，保留用于 phase5 回滚，不迁移到 reportService
   mergeWithDeletedHabits(myHabits) {
     const app = getApp();
     let allLogs = [];
@@ -535,6 +536,7 @@ Page({
   },
 
   // 鍔犺浇鍛ㄦ姤琛ㄦ暟鎹?
+  // @deprecated Phase 6D - legacy path，保留用于 phase5 回滚，仅标注deprecated
   async legacyLoadWeekData(myHabits) {
     const app = getApp();
 
@@ -656,6 +658,7 @@ Page({
   },
 
   // 鍔犺浇鏈堟姤琛ㄦ暟鎹?
+  // @deprecated Phase 6D - legacy path，保留用于 phase5 回滚
   async legacyLoadMonthData(myHabits) {
     const app = getApp();
 
@@ -782,6 +785,7 @@ Page({
   },
 
   // 鍔犺浇骞存姤琛ㄦ暟鎹?
+  // @deprecated Phase 6D - legacy path，保留用于 phase5 回滚
   async legacyLoadYearData(myHabits) {
     const app = getApp();
 
@@ -982,7 +986,7 @@ Page({
     return dates;
   },
 
-  // 璁＄畻缁熻鏁版嵁
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   calculateStats(habitMatrix, totalHabits) {
     let totalCount = 0;
     let checkinCount = 0;
@@ -1239,9 +1243,6 @@ Page({
   async loadWeekData(myHabits) {
     if (USE_REPORT_SERVICE && reportService) {
       try {
-        // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
-        if (myHabits && myHabits.length !== undefined) {
-                  }
         const weekDates = this.getWeekDates();
         const weekStart = this.formatDateKey(weekDates[0]);
         const report = await reportService.getWeeklyReport(weekStart);
@@ -1358,7 +1359,9 @@ Page({
       stats: report.stats
     });
   },
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
 
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   calculateDueCount(startDate, endDate, freqType, freqRules, freqCategory, planStartDate, deletedAt) {
     if (!startDate || !endDate || !planStartDate) {
       return 0;
@@ -1438,6 +1441,7 @@ Page({
     return diffDays + 1;
   },
 
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   isDueDate(habit, date) {
     const dateStr = this.formatDateKey(date);
     const dayOfWeek = date.getDay();
@@ -1498,6 +1502,7 @@ Page({
     return true;
   },
 
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   shouldShowHabitOnDate(habit, date) {
     const dateStr = this.formatDateKey(date);
     const dayOfWeek = date.getDay();
@@ -1579,6 +1584,7 @@ Page({
     return true;
   },
 
+  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   calculateStatsWithStrategy(habitMatrix, myHabits, weekDates) {
     let totalShouldShow = 0;
     let checkinCount = 0;
