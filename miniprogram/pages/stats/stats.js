@@ -1171,7 +1171,7 @@ Page({
     return report.dueCount > 0 || report.doneCount > 0;
   },
 
-  async loadWeekData(myHabits) {
+  async loadWeekData() {
     if (!reportService) {
       console.warn('[stats] reportService not available, skipping week data load');
       return;
@@ -1191,7 +1191,7 @@ Page({
     });
   },
 
-  async loadMonthData(myHabits) {
+  async loadMonthData() {
     const year = this.data.currentYear;
     const month = this.data.currentMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -1216,7 +1216,7 @@ Page({
     });
   },
 
-  async loadYearData(myHabits) {
+  async loadYearData() {
     const year = this.data.currentYear;
 
     if (!reportService) {
