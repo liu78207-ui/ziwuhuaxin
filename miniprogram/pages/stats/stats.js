@@ -1288,9 +1288,6 @@ Page({
 
     if (USE_REPORT_SERVICE && reportService) {
       try {
-        // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
-        if (myHabits && myHabits.length !== undefined) {
-                  }
         const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
         const report = await reportService.getMonthlyReport(monthStr);
 
@@ -1326,9 +1323,6 @@ Page({
 
     if (USE_REPORT_SERVICE && reportService) {
       try {
-        // 将传入的 myHabits 同步到 storage，确保 reportService 能读取到最新数据
-        if (myHabits && myHabits.length !== undefined) {
-                  }
         const report = await reportService.getYearlyReport(String(year));
 
         this.setData({
