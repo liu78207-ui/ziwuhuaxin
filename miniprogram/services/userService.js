@@ -101,14 +101,16 @@ async function refreshUserInfo() {
   try {
     const res = await cloudService.callFunction('getUserProfile', {});
     if (!res.success) {
-      throw new Error(res.message || 'getUserProfile 云函数返回失败');
+      throw new Error(res.error?.message || 'getUserProfile 云函数返回失败');
     }
 
     // 合并云端资料到本地缓存（保留本地头像/昵称，若云端为空）
+    // cloudService.callFunction 返回结构：{ success, data, error }
+    // getUserProfile 云函数返回：{ success: true, userId, userInfo: { nickName, avatarUrl, createdAt } }
     const existing = storageService.getUserInfo() || {};
-    const cloudInfo = res.userInfo || {};
+    const cloudInfo = res.data?.userInfo || {};
     const merged = {
-      _userId: existing._userId || res.userId,
+      _userId: existing._userId || res.data?.userId,
       createdAt: cloudInfo.createdAt || existing.createdAt || '',
       updatedAt: cloudInfo.updatedAt || new Date().toISOString(),
       nickName: cloudInfo.nickName || existing.nickName || '',
@@ -140,9 +142,10 @@ async function saveUserInfo(data) {
   setUserInfo(data);
 
   try {
+    // cloudService.callFunction 返回结构：{ success, data, error }
     const res = await cloudService.callFunction('saveUserProfile', data);
     if (!res.success) {
-      throw new Error(res.message || 'saveUserProfile 云函数返回失败');
+      throw new Error(res.error?.message || 'saveUserProfile 云函数返回失败');
     }
   } catch (e) {
     // 云端失败时保留本地缓存，下次网络恢复可重试
