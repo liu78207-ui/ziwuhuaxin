@@ -1,0 +1,115 @@
+// services/homeService.js
+// Phase 6: 页面层瘦身 - Home 页面 Service
+
+const ziwu = require('../utils/ziwu')
+const timeService = require('./timeService')
+const habitService = require('./habitService')
+const checkinService = require('./checkinService')
+
+const CIRCLE_COLORS = [
+  '#F5E6E0', '#E8E4D9', '#D4E5E0', '#E5DED4', '#D9E2E8', '#E8D9D9'
+]
+
+// 根据时辰获取养生建议
+function getAdviceByShichen(shichen) {
+  const adviceMap = {
+    '子时': '夜深胆气生，宜熟睡养胆。深度睡眠有助胆汁代谢和排毒。',
+    '丑时': '凌晨肝血归，宜熟睡养肝。血液归于肝，熟睡有助肝脏解毒造血。',
+    '寅时': '黎明肺气旺，宜深度睡眠。肺主一身气，此时宜静养，避免早起。',
+    '卯时': '晨起大肠动，宜起床排便。喝温开水促进肠道蠕动，排出宿便。',
+    '辰时': '早养胃气足，宜进食早餐。此时消化吸收最强，吃好早餐养胃气。',
+    '巳时': '上午脾运化，宜工作学习。脾主运化水谷，精力充沛，适合事务。',
+    '午时': '正午心火旺，宜小憩养心。饭后散步片刻，适当午休，养心安神。',
+    '未时': '午后小肠忙，宜多喝水。小肠分清泌浊，多喝水帮助身体排毒。',
+    '申时': '下午膀胱经，宜运动排毒。此时精力旺盛，适合运动多喝水。',
+    '酉时': '傍晚肾藏精，宜静养藏精。避免剧烈运动，可泡脚按摩涌泉。',
+    '戌时': '黄昏心包经，宜放松身心。散步阅读，保持心情愉悦，为入睡准备。',
+    '亥时': '夜深水气重，宜温阳驱寒。去泡个脚吧，用热度驱散一天的疲惫。'
+  }
+  return adviceMap[shichen] || '顺应天时，调养身心。保持规律作息，养成健康习惯。'
+}
+
+function getIconUrl(name) {
+  const iconMap = require('../utils/iconMap')
+  const config = iconMap.getIconConfig(name)
+  return config ? config.iconUrl : iconMap.getIconPath(name)
+}
+
+function getThemeClass(category) {
+  const iconMap = require('../utils/iconMap')
+  const themeMap = {
+    '运动类': 'theme-jade',
+    '理疗类': 'theme-fire',
+    '起居类': 'theme-green'
+  }
+  return themeMap[category] || 'theme-jade'
+}
+
+function getEmojiByCategory(category) {
+  const emojiMap = {
+    '运动类': '🏃',
+    '理疗类': '🔥',
+    '起居类': '🍵'
+  }
+  return emojiMap[category] || '🧘'
+}
+
+/**
+ * 获取首页 ViewModel
+ */
+async function getHomeViewModel() {
+  // 时间信息（使用现有 ziwu utils）
+  const timeInfo = ziwu.getTimeInfo()
+  timeInfo.advice = getAdviceByShichen(timeInfo.shichen)
+
+  // 今日日期
+  const todayKey = timeService.getTodayKey()
+
+  // 今日习惯列表
+  let todayHabits = []
+  try {
+    todayHabits = await habitService.getTodayHabits(todayKey)
+  } catch (e) {
+    console.error('habitService.getTodayHabits 失败:', e)
+  }
+
+  // 今日打卡状态
+  const todayStates = checkinService.getDailyStatesByDate(todayKey)
+
+  // 构建 taskList
+  const taskList = todayHabits.map((habit, index) => {
+    const state = todayStates.find(s => s.userHabitId === habit.userHabitId)
+    const isDone = state && state.status === 'checked'
+
+    return {
+      _id: habit.userHabitId,
+      habitId: habit.habitId,
+      title: habit.name,
+      category: habit.category || '运动类',
+      duration: habit.duration,
+      isChecked: isDone,
+      streak: state?.streak || 0,
+      bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length],
+      iconUrl: getIconUrl(habit.name),
+      themeClass: getThemeClass(habit.category),
+      emoji: getEmojiByCategory(habit.category),
+      meta: `${habit.duration}分钟`
+    }
+  })
+
+  const totalCount = taskList.length
+  const checkedCount = taskList.filter(t => t.isChecked).length
+  const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0
+
+  return {
+    timeInfo,
+    taskList,
+    checkedCount,
+    totalCount,
+    progressPercent
+  }
+}
+
+module.exports = {
+  getHomeViewModel
+}

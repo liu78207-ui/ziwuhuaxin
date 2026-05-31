@@ -27,7 +27,7 @@ describe('home page real core logic', () => {
     wx.getStorageSync.mockReturnValue([]);
   });
 
-  test('loadHabitsData handles Date deletedAt values without crashing', () => {
+  test('loadViewModel handles Date deletedAt values without crashing', () => {
     const app = {
       globalData: {
         DEBUG_DAY_OFFSET: 0,
@@ -51,7 +51,7 @@ describe('home page real core logic', () => {
     };
     const page = loadHomePage(app);
 
-    expect(() => page.loadHabitsData()).not.toThrow();
+    expect(() => page.loadViewModel()).not.toThrow();
     expect(page.data.taskList).toEqual([]);
   });
 });
