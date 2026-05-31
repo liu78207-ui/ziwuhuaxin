@@ -61,18 +61,29 @@ Page({
     });
   },
 
-  // 输入昵称（Phase 7B 暂缓云端保存，仅更新本地缓存）
-  onInputNickname(e) {
+  // 输入昵称（Phase 7B — 云端同步保存）
+  async onInputNickname(e) {
     const nickName = e.detail.value;
     if (!nickName || nickName.trim() === '') {
       return;
     }
 
-    // 只写本地缓存，云端保存等 Phase 7B 实现 saveUserProfile 云函数后启用
-    userService.setUserInfo({ nickName: nickName.trim() });
+    const trimmed = nickName.trim();
+    // 乐观更新本地 UI
     this.setData({
-      'userInfo.nickName': nickName.trim()
+      'userInfo.nickName': trimmed
     });
+
+    try {
+      await userService.saveUserInfo({ nickName: trimmed });
+    } catch (err) {
+      // 失败时回滚到 ViewModel 状态
+      this.refreshViewModel();
+      wx.showToast({
+        title: '保存失败',
+        icon: 'none'
+      });
+    }
   },
 
   // 退出登录
