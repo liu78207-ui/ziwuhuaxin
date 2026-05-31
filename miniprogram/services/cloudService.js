@@ -8,6 +8,7 @@
  * - 超时处理（默认 10s）
  * - 网络异常时标记 shouldPending（供 syncService 入队）
  * - serverTime 校准
+ * - Phase 7D: 新增云存储上传/临时 URL 能力
  *
  * 禁止：
  * - pending 队列操作
@@ -98,9 +99,54 @@ async function getServerTime() {
   return result.success ? (result.data?.serverTime || Date.now()) : Date.now()
 }
 
+/**
+ * 上传文件到云存储
+ * @param {string} tempFilePath - 临时文件路径（wx.chooseImage 返回的临时路径）
+ * @param {string} cloudPath - 云存储目标路径
+ * @returns {Promise<string>} - 云存储 cloud:// URL
+ */
+async function uploadFile(tempFilePath, cloudPath) {
+  try {
+    const result = await wx.cloud.uploadFile({
+      cloudPath,
+      filePath: tempFilePath
+    })
+    if (result.errMsg && result.errMsg.includes('ok')) {
+      return result.fileID
+    }
+    throw new Error(result.errMsg || '上传失败')
+  } catch (e) {
+    console.error('cloudService.uploadFile 失败:', e)
+    throw e
+  }
+}
+
+/**
+ * 将云存储 cloud:// URL 转换为临时 URL
+ * @param {string} cloudPath - 云存储路径（cloud:// 开头）
+ * @returns {Promise<string>} - 临时 URL，失败时返回原路径
+ */
+async function getTempFileURL(cloudPath) {
+  if (!cloudPath || !cloudPath.startsWith('cloud://')) {
+    return cloudPath
+  }
+  try {
+    const res = await wx.cloud.getTempFileURL({
+      fileList: [cloudPath]
+    })
+    const file = res.fileList && res.fileList[0]
+    return (file && file.tempFileURL) || cloudPath
+  } catch (e) {
+    console.error('cloudService.getTempFileURL 失败:', e)
+    return cloudPath
+  }
+}
+
 module.exports = {
   callFunction,
   getOpenId,
   getServerTime,
+  uploadFile,
+  getTempFileURL,
   ERROR_CODES
 }

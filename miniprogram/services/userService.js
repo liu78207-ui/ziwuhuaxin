@@ -154,6 +154,16 @@ async function saveUserInfo(data) {
 }
 
 /**
+ * 上传头像到云存储
+ * @param {string} tempFilePath - 临时文件路径
+ * @param {string} cloudPath - 云存储目标路径
+ * @returns {Promise<string>} - cloud:// URL
+ */
+async function uploadAvatar(tempFilePath, cloudPath) {
+  return cloudService.uploadFile(tempFilePath, cloudPath);
+}
+
+/**
  * 退出登录（仅清除 profile 登录态，不影响习惯/打卡/pending 队列）
  */
 function logout() {
@@ -173,18 +183,7 @@ function logout() {
  * @returns {Promise<string>} 临时 URL 或原路径
  */
 async function resolveDisplayAvatarUrl(cloudPath) {
-  if (!cloudPath || !cloudPath.startsWith('cloud://')) {
-    return cloudPath;
-  }
-
-  try {
-    const res = await wx.cloud.getTempFileURL({ fileList: [cloudPath] });
-    const file = res.fileList && res.fileList[0];
-    return (file && file.tempFileURL) || cloudPath;
-  } catch (e) {
-    console.error('resolveDisplayAvatarUrl 失败:', e);
-    return cloudPath;
-  }
+  return cloudService.getTempFileURL(cloudPath);
 }
 
 /**
@@ -221,6 +220,7 @@ module.exports = {
   isLoggedIn,
   refreshUserInfo,
   saveUserInfo,
+  uploadAvatar,
   logout,
   resolveDisplayAvatarUrl,
   getProfileViewModel

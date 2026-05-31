@@ -42,7 +42,7 @@ Page({
     });
   },
 
-  // 选择头像
+  // 选择头像（Phase 7D — 选图 + 上传云端 + 保存）
   async onChooseAvatar(e) {
     const { avatarUrl } = e.detail;
     if (!avatarUrl) {
@@ -50,15 +50,33 @@ Page({
       return;
     }
 
-    // Phase 7B 暂缓头像上传（cloudService.uploadFile 未实现）
-    // 乐观更新本地头像预览
-    this.setData({
-      displayAvatarUrl: avatarUrl
-    });
-    wx.showToast({
-      title: '头像预览已更新，上传功能开发中',
-      icon: 'none'
-    });
+    // 先乐观更新本地预览
+    this.setData({ displayAvatarUrl: avatarUrl });
+
+    // 构造云存储路径：avatars/{openid}_{timestamp}.jpg
+    const userInfo = userService.getUserInfo();
+    const openid = userInfo._userId || 'guest';
+    const timestamp = Date.now();
+    const cloudPath = `avatars/${openid}_${timestamp}.jpg`;
+
+    let cloudUrl = '';
+    try {
+      cloudUrl = await userService.uploadAvatar(avatarUrl, cloudPath);
+    } catch (err) {
+      console.error('头像上传失败:', err);
+      wx.showToast({ title: '上传失败', icon: 'none' });
+      return;
+    }
+
+    // 保存到云端 + 本地缓存
+    try {
+      await userService.saveUserInfo({ avatarUrl: cloudUrl });
+      this.setData({ displayAvatarUrl: cloudUrl });
+      wx.showToast({ title: '头像已更新', icon: 'none' });
+    } catch (err) {
+      console.error('头像保存失败:', err);
+      wx.showToast({ title: '保存失败', icon: 'none' });
+    }
   },
 
   // 输入昵称（Phase 7B — 云端同步保存）
