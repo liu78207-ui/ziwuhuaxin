@@ -1,15 +1,11 @@
 /**
- * ============================================================
- * ⚠️ 安全提示 ⚠️
- * ============================================================
- * 注意：本项目的 MyHabits 和 CheckinLogs 数据表，务必在云开发控制台中
- * 将其数据权限设置为【仅创建者可读写】。前端在执行 db.collection('CheckinLogs').add()
- * 时，系统会自动写入 _openid 字段，实现天然的数据隔离，无需在代码中手动拼接 openid。
- * ============================================================
+ * home.js - 首页
+ * 页面层只负责：UI 渲染、用户事件响应、调用 Service
  */
 
 const homeService = require('../../services/homeService');
 const checkinService = require('../../services/checkinService');
+const timeService = require('../../services/timeService');
 const share = require('../../utils/share.js');
 
 // 习惯圆圈背景色 - 柔和的国风色调
@@ -34,8 +30,7 @@ Page({
     pressingId: null,
     checkedCount: 0,
     totalCount: 0,
-    progressPercent: 0,
-    isOnline: true
+    progressPercent: 0
   },
 
   // 防抖控制：记录正在处理的 habitId
@@ -70,10 +65,6 @@ Page({
   onLoad() {
     const app = getApp();
     app.printAllLogs();
-
-    this.setData({
-      isOnline: app.globalData.isOnline
-    });
 
     this.loadViewModel();
   },
@@ -157,36 +148,13 @@ Page({
 
     const isChecked = habit.isChecked;
     const userHabitId = habit._id;
-    const todayKey = require('../../services/timeService').getTodayKey();
+    const todayKey = timeService.getTodayKey();
 
     try {
-      const newState = await checkinService.toggleCheckin(userHabitId, todayKey);
+      await checkinService.toggleCheckin(userHabitId, todayKey);
 
-      // 更新本地 taskList 状态
-      const taskList = this.data.taskList.map(item => {
-        if (item._id === userHabitId) {
-          const currentStreak = Number(item.streak) || 0;
-          const nowChecked = newState.status === 'checked';
-          return {
-            ...item,
-            isChecked: nowChecked,
-            streak: nowChecked ? currentStreak + 1 : Math.max(0, currentStreak - 1)
-          };
-        }
-        return item;
-      });
-
-      // 计算更新后的进度
-      const totalCount = taskList.length;
-      const checkedCount = taskList.filter(item => item.isChecked).length;
-      const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
-
-      this.setData({
-        taskList,
-        checkedCount,
-        totalCount,
-        progressPercent
-      });
+      // 重新加载 ViewModel 保持数据一致性
+      await this.loadViewModel();
 
       wx.showToast({
         title: isChecked ? '已取消打卡' : '打卡成功',
