@@ -57,12 +57,18 @@ function setAllHabitsInfo(info) {
   return setItem(STORAGE_KEYS.allHabitsInfo, asObject(info))
 }
 
+/**
+ * @deprecated Phase 7 起不再读写，openid 仅由云函数 cloud.getWXContext() 获取
+ */
 function getUserOpenid() {
-  return getItem(STORAGE_KEYS.userOpenid)
+  return getItem(STORAGE_KEYS.userOpenid);
 }
 
+/**
+ * @deprecated Phase 7 起不再读写，openid 仅由云函数 cloud.getWXContext() 获取
+ */
 function setUserOpenid(openid) {
-  return setItem(STORAGE_KEYS.userOpenid, openid)
+  return setItem(STORAGE_KEYS.userOpenid, openid);
 }
 
 function getUserInfo() {

@@ -16,7 +16,7 @@ Page({
   },
 
   onLoad() {
-    this.loadViewModel();
+    this.refreshViewModel();
   },
 
   onShow() {
@@ -29,53 +29,68 @@ Page({
     }
   },
 
-  // 加载视图模型（同步，只读本地缓存）
-  loadViewModel() {
-    const { userInfo, displayAvatarUrl } = userService.getProfileViewModel();
+  refreshViewModel() {
+    const vm = userService.getProfileViewModel();
     this.setData({
-      userInfo,
-      displayAvatarUrl
+      userInfo: { nickName: vm.nickName },
+      displayAvatarUrl: vm.displayAvatarUrl,
+      buttonText: vm.buttonText,
+      memberSince: vm.memberSince,
+      isLoggedIn: vm.isLoggedIn
     });
   },
 
-  // ========== 选择头像 ==========
-  onChooseAvatar(e) {
+  // 选择头像
+  async onChooseAvatar(e) {
     const { avatarUrl } = e.detail;
     if (!avatarUrl) {
       console.error('获取头像临时路径失败');
       return;
     }
 
+    // Phase 7B 暂缓头像上传（cloudService.uploadFile 未实现）
+    // 乐观更新本地头像预览
     this.setData({
       displayAvatarUrl: avatarUrl
     });
-
-    // Phase 6C 暂缓头像上传功能（cloudService.uploadFile 不存在）
     wx.showToast({
       title: '头像预览已更新，上传功能开发中',
       icon: 'none'
     });
   },
 
-  // ========== 输入昵称 ==========
+  // 输入昵称
   onInputNickname(e) {
     const nickName = e.detail.value;
     if (!nickName || nickName.trim() === '') {
       return;
     }
 
-    // 更新本地缓存
-    const updatedUserInfo = { ...this.data.userInfo, nickName: nickName.trim() };
-    userService.setUserInfo(updatedUserInfo);
-    this.setData({
-      userInfo: updatedUserInfo,
-      displayAvatarUrl: updatedUserInfo.avatarUrl || ''
-    });
-
-    // Phase 6C 暂缓云端更新，云函数实现后替换
+    try {
+      // Phase 7B: 保存到云端
+      userService.saveUserInfo({ nickName: nickName.trim() });
+      this.setData({
+        'userInfo.nickName': nickName.trim()
+      });
+    } catch (err) {
+      console.error('保存昵称失败:', err);
+      wx.showToast({
+        title: '保存失败',
+        icon: 'none'
+      });
+    }
   },
 
-  // 返回上一页
+  // 退出登录
+  async onLogout() {
+    userService.logout();
+    this.refreshViewModel();
+    wx.showToast({
+      title: '已退出登录',
+      icon: 'none'
+    });
+  },
+
   goBack() {
     wx.navigateBack({
       fail: () => {
