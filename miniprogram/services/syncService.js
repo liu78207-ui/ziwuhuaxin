@@ -298,7 +298,11 @@ async function recoverFromCloud() {
       throw new Error(result.error?.message || 'recoverData 云函数返回失败')
     }
 
-    const { userHabits, policyVersions, dailyStates } = result.data || {}
+    // cloudService.callFunction 返回 { success, data }
+    // recoverData 云函数返回 { success, data: { userHabits, policyVersions, dailyStates } }
+    // 所以实际数据在 result.data.data
+    const payload = result.data?.data || result.data || {}
+    const { userHabits, policyVersions, dailyStates } = payload
 
     // 恢复 userHabits -> MyHabits
     if (userHabits && Array.isArray(userHabits)) {
