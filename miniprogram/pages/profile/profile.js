@@ -50,20 +50,32 @@ Page({
       return;
     }
 
-    // 先乐观更新本地预览
+    // 未登录禁止上传，避免留下无归属的孤立文件
+    if (!userService.isLoggedIn()) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      return;
+    }
+
+    const userInfo = userService.getUserInfo();
+    const previousAvatarUrl = userInfo.avatarUrl || '';
+    const previousDisplayUrl = this.data.displayAvatarUrl;
+
+    // 乐观更新本地预览
     this.setData({ displayAvatarUrl: avatarUrl });
 
-    // 构造云存储路径：avatars/{openid}_{timestamp}.jpg
-    const userInfo = userService.getUserInfo();
-    const openid = userInfo._userId || 'guest';
+    // 构造云存储路径：avatars/{userId}_{timestamp}.jpg
+    const userId = userInfo._userId || 'guest';
     const timestamp = Date.now();
-    const cloudPath = `avatars/${openid}_${timestamp}.jpg`;
+    const cloudPath = `avatars/${userId}_${timestamp}.jpg`;
 
     let cloudUrl = '';
     try {
       cloudUrl = await userService.uploadAvatar(avatarUrl, cloudPath);
     } catch (err) {
       console.error('头像上传失败:', err);
+      // 回滚 UI 和本地缓存
+      this.setData({ displayAvatarUrl: previousDisplayUrl });
+      userService.setUserInfo({ avatarUrl: previousAvatarUrl });
       wx.showToast({ title: '上传失败', icon: 'none' });
       return;
     }
@@ -75,6 +87,9 @@ Page({
       wx.showToast({ title: '头像已更新', icon: 'none' });
     } catch (err) {
       console.error('头像保存失败:', err);
+      // 回滚 UI 和本地缓存
+      this.setData({ displayAvatarUrl: previousDisplayUrl });
+      userService.setUserInfo({ avatarUrl: previousAvatarUrl });
       wx.showToast({ title: '保存失败', icon: 'none' });
     }
   },
