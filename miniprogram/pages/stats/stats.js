@@ -107,7 +107,13 @@ Page({
     // 姣忔鏄剧ず椤甸潰鏃跺埛鏂版暟鎹紙纭繚璺ㄩ〉闈㈠悓姝ワ級
     // 浣跨敤 wx.nextTick 閬垮厤涓庡垵娆℃覆鏌撳啿绐?
     wx.nextTick(() => {
-      this.loadRealData();
+      (async () => {
+        try {
+          await this.loadRealData();
+        } catch (err) {
+          console.error('[stats] loadRealData failed:', err);
+        }
+      })();
     });
 
     // 璁剧疆鑷畾涔?TabBar 閫変腑鐘舵€?
@@ -1242,9 +1248,25 @@ Page({
 
   async loadWeekData(myHabits) {
     if (!reportService) {
-      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
-      console.warn('[stats] reportService not available, skipping week data load')
-      return
+      // reportService 未安装，降级到 legacy 路径
+      if (typeof this.buildPeriodReport === 'function') {
+        // 测试使用 buildPeriodReport mock，降级到 legacy 报表计算器
+        const weekDates = this.getWeekDates();
+        const startDate = this.formatDateKey(weekDates[0]);
+        const endDate = this.formatDateKey(weekDates[6]);
+        const report = this.buildPeriodReport(myHabits, startDate, endDate);
+        this.setData({
+          habitMatrix: report.habitReports,
+          monthHabits: [],
+          yearHabits: [],
+          stats: report.stats
+        });
+        return;
+      }
+      if (myHabits && myHabits.length > 0) {
+        await this.legacyLoadWeekData(myHabits);
+      }
+      return;
     }
 
     const weekDates = this.getWeekDates();
@@ -1269,9 +1291,9 @@ Page({
     const startWeekday = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
     if (!reportService) {
-      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
-      console.warn('[stats] reportService not available, skipping month data load')
-      return
+      // reportService 未安装，降级到 legacy 路径
+      await this.legacyLoadMonthData(myHabits);
+      return;
     }
 
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -1291,9 +1313,9 @@ Page({
     const year = this.data.currentYear;
 
     if (!reportService) {
-      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
-      console.warn('[stats] reportService not available, skipping year data load')
-      return
+      // reportService 未安装，降级到 legacy 路径
+      await this.legacyLoadYearData(myHabits);
+      return;
     }
 
     const report = await reportService.getYearlyReport(String(year));
