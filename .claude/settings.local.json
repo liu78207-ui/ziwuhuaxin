@@ -27,7 +27,8 @@
       "Bash(npx jest *)",
       "Bash(xxd)",
       "Bash(xxd \"C:\\\\Users\\\\YouYou\\\\WeChatProjects\\\\miniprogram-1\\\\miniprogram\\\\app.js\")",
-      "Bash(xxd \"C:\\\\Users\\\\YouYou\\\\WeChatProjects\\\\miniprogram-1\\\\miniprogram\\\\services\\\\cloudService.js\")"
+      "Bash(xxd \"C:\\\\Users\\\\YouYou\\\\WeChatProjects\\\\miniprogram-1\\\\miniprogram\\\\services\\\\cloudService.js\")",
+      "Bash(git checkout *)"
     ]
   }
 }
