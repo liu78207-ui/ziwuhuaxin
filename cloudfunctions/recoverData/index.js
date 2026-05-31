@@ -4,11 +4,18 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
 /**
- * recoverData - 从云端恢复用户数据
- * 用于 V1 正式版数据恢复路径
+ * recoverData - V1 数据恢复云函数
+ *
+ * 恢复 V1 核心数据结构：
+ * - user_habits（用户习惯实例）
+ * - habit_policy_versions（策略版本）
+ * - daily_checkin_states（每日打卡状态）
+ *
+ * 旧集合（user_strategies/checkin_logs）仅作为兼容迁移来源，
+ * 不作为 V1 正式恢复输出。
  *
  * 入参: {}
- * 返回: { success, data: { MyHabits, CheckinLogs, AllHabitsInfo } }
+ * 返回: { success, data: { userHabits, policyVersions, dailyStates } }
  */
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
@@ -19,122 +26,27 @@ exports.main = async (event, context) => {
   }
 
   try {
-    // 查询用户习惯（user_strategies 集合）
-    const strategiesRes = await db.collection('user_strategies')
+    // 查询 user_habits
+    const userHabitsRes = await db.collection('user_habits')
       .where({ _openid: OPENID })
       .get();
 
-    // 查询打卡记录（checkin_logs 集合）
-    const logsRes = await db.collection('checkin_logs')
+    // 查询 habit_policy_versions
+    const policyVersionsRes = await db.collection('habit_policy_versions')
       .where({ _openid: OPENID })
       .get();
 
-    // 查询策略版本（user_strategy_versions 集合）
-    let strategyVersions = [];
-    try {
-      const versionsRes = await db.collection('user_strategy_versions')
-        .where({ _openid: OPENID })
-        .get();
-      strategyVersions = versionsRes.data || [];
-    } catch (e) {
-      console.error('读取策略版本失败:', e);
-    }
-
-    // 查询内置习惯信息（habits 集合，用于恢复已删除习惯的名称）
-    let habitsMap = {};
-    try {
-      const habitsRes = await db.collection('habits')
-        .where({ _openid: OPENID })
-        .get();
-      habitsRes.data.forEach(h => {
-        habitsMap[String(h.habit_id)] = {
-          habitId: String(h.habit_id),
-          name: h.name || '',
-          category: h.category || '运动类',
-          targetMinutes: h.target_minutes || 20,
-          themeClass: h.theme_class || 't-default',
-          iconUrl: h.icon_url || ''
-        };
-      });
-    } catch (e) {
-      console.error('读取习惯信息失败:', e);
-    }
-
-    // 转换 CheckinLogs 格式
-    const CheckinLogs = logsRes.data.map(l => ({
-      logId: l._id,
-      habitId: String(l.habit_id),
-      date: l.checkin_date,
-      timestamp: new Date(l.checkin_date).getTime(),
-      sync_status: 1,
-      cloud_id: l._id
-    }));
-
-    // 按 habitId 分组策略版本
-    const versionsByHabitId = {};
-    strategyVersions.forEach(v => {
-      const habitId = String(v.habit_id);
-      if (!versionsByHabitId[habitId]) {
-        versionsByHabitId[habitId] = [];
-      }
-      versionsByHabitId[habitId].push(v);
-    });
-
-    // 转换 MyHabits 格式
-    const MyHabits = strategiesRes.data.map(s => {
-      const habitId = String(s.habit_id);
-      return {
-        habitId,
-        name: s.habit_title || '',
-        category: s.category || '运动类',
-        targetMinutes: s.duration || 20,
-        themeClass: s.theme_class || 't-default',
-        iconUrl: s.icon_url || '',
-        freq_type: s.freq_type || 'daily',
-        freq_rules: s.freq_rules || 1,
-        freq_category: s.freq_category || 'everyday',
-        createdAt: s.plan_start_date || '',
-        plan_start_date: s.plan_start_date || '',
-        deletedAt: s.deleted_at || null,
-        isDeleted: s.deleted_at ? true : false,
-        status: s.deleted_at ? 'deleted' : 'active',
-        strategyVersions: versionsByHabitId[habitId] || []
-      };
-    });
-
-    // 构建 AllHabitsInfo（包含已删除习惯，用于历史数据展示）
-    const AllHabitsInfo = {};
-
-    // 从 strategies 添加已有习惯
-    strategiesRes.data.forEach(s => {
-      const habitId = String(s.habit_id);
-      AllHabitsInfo[habitId] = {
-        habitId,
-        name: s.habit_title || '',
-        category: s.category || '运动类',
-        targetMinutes: s.duration || 20,
-        themeClass: s.theme_class || 't-default',
-        iconUrl: s.icon_url || '',
-        deletedAt: s.deleted_at || null
-      };
-    });
-
-    // 合并 habits 集合中的信息（补充已删除习惯的名称）
-    Object.keys(habitsMap).forEach(habitId => {
-      if (!AllHabitsInfo[habitId]) {
-        AllHabitsInfo[habitId] = {
-          ...habitsMap[habitId],
-          deletedAt: null
-        };
-      }
-    });
+    // 查询 daily_checkin_states
+    const dailyStatesRes = await db.collection('daily_checkin_states')
+      .where({ _openid: OPENID })
+      .get();
 
     return {
       success: true,
       data: {
-        MyHabits,
-        CheckinLogs,
-        AllHabitsInfo
+        userHabits: userHabitsRes.data || [],
+        policyVersions: policyVersionsRes.data || [],
+        dailyStates: dailyStatesRes.data || []
       }
     };
   } catch (e) {

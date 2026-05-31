@@ -287,6 +287,65 @@ async function recoverOrSync() {
   }
 }
 
+/**
+ * 从云端恢复 V1 数据到本地缓存
+ * 在本地关键缓存为空时调用（清缓存/换设备/首次登录）
+ */
+async function recoverFromCloud() {
+  try {
+    const result = await cloudService.callFunction('recoverData', {})
+    if (!result.success) {
+      throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+    }
+
+    const { userHabits, policyVersions, dailyStates } = result.data || {}
+
+    // 恢复 userHabits -> MyHabits
+    if (userHabits && Array.isArray(userHabits)) {
+      const migratedHabits = userHabits.map(h => ({
+        userHabitId: h.userHabitId,
+        habitId: h.habitId,
+        name: h.name || '',
+        category: h.category || '运动类',
+        targetMinutes: h.targetMinutes || 20,
+        themeClass: h.themeClass || 't-default',
+        iconUrl: h.iconUrl || '',
+        status: h.status || 'active',
+        createdAt: h.createdAt || '',
+        deletedAt: h.deletedAt || null,
+        latestPolicyVersionId: h.latestPolicyVersionId || '',
+        syncStatus: 1
+      }))
+      storageService.setMyHabits(migratedHabits)
+    }
+
+    // 恢复 policyVersions
+    if (policyVersions && Array.isArray(policyVersions)) {
+      storageService.setPolicyVersions(policyVersions)
+    }
+
+    // 恢复 dailyStates
+    if (dailyStates && Array.isArray(dailyStates)) {
+      storageService.setDailyCheckinStates(dailyStates)
+    }
+
+    return { success: true }
+  } catch (e) {
+    console.error('syncService.recoverFromCloud failed:', e)
+    throw e
+  }
+}
+
+/**
+ * 检查本地关键缓存是否为空，需要从云端恢复
+ */
+function needsLocalRecovery() {
+  const habits = storageService.getMyHabits()
+  const policyVersions = storageService.getPolicyVersions()
+  // 如果本地没有任何习惯实例，则需要从云端恢复
+  return !habits || habits.length === 0
+}
+
 module.exports = {
   generateQueueId,
   generateIdempotencyKey,
@@ -298,6 +357,8 @@ module.exports = {
   processQueue,
   retry,
   recoverOrSync,
+  recoverFromCloud,
+  needsLocalRecovery,
   calculateNextRetry,
   getNetworkTypeAsync
 }

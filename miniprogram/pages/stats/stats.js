@@ -1241,31 +1241,15 @@ Page({
   },
 
   async loadWeekData(myHabits) {
-    if (USE_REPORT_SERVICE && reportService) {
-      try {
-        const weekDates = this.getWeekDates();
-        const weekStart = this.formatDateKey(weekDates[0]);
-        const report = await reportService.getWeeklyReport(weekStart);
-
-        this.setData({
-          habitMatrix: report.habitReports
-            .filter(item => this.shouldShowHabitReport(item))
-            .map(item => this.mapWeekHabitReport(item)),
-          monthHabits: [],
-          yearHabits: [],
-          stats: report.stats
-        });
-        return
-      } catch (e) {
-        console.error('[stats] loadWeekData via reportService failed, falling back to legacy:', e)
-      }
+    if (!reportService) {
+      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
+      console.warn('[stats] reportService not available, skipping week data load')
+      return
     }
 
-    // Legacy path
     const weekDates = this.getWeekDates();
-    const startDate = this.formatDateKey(weekDates[0]);
-    const endDate = this.formatDateKey(weekDates[6]);
-    const report = this.buildPeriodReport(myHabits, startDate, endDate);
+    const weekStart = this.formatDateKey(weekDates[0]);
+    const report = await reportService.getWeeklyReport(weekStart);
 
     this.setData({
       habitMatrix: report.habitReports
@@ -1281,32 +1265,17 @@ Page({
     const year = this.data.currentYear;
     const month = this.data.currentMonth;
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
     const firstDayOfMonth = new Date(year, month, 1).getDay();
     const startWeekday = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
-    if (USE_REPORT_SERVICE && reportService) {
-      try {
-        const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
-        const report = await reportService.getMonthlyReport(monthStr);
-
-        this.setData({
-          monthHabits: report.habitReports
-            .filter(item => this.shouldShowHabitReport(item))
-            .map(item => this.mapMonthHabitReport(item, year, month, daysInMonth, startWeekday)),
-          habitMatrix: [],
-          yearHabits: [],
-          stats: report.stats
-        });
-        return
-      } catch (e) {
-        console.error('[stats] loadMonthData via reportService failed, falling back to legacy:', e)
-      }
+    if (!reportService) {
+      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
+      console.warn('[stats] reportService not available, skipping month data load')
+      return
     }
 
-    // Legacy path
-    const report = this.buildPeriodReport(myHabits, startDate, endDate);
+    const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
+    const report = await reportService.getMonthlyReport(monthStr);
 
     this.setData({
       monthHabits: report.habitReports
@@ -1321,28 +1290,13 @@ Page({
   async loadYearData(myHabits) {
     const year = this.data.currentYear;
 
-    if (USE_REPORT_SERVICE && reportService) {
-      try {
-        const report = await reportService.getYearlyReport(String(year));
-
-        this.setData({
-          yearHabits: report.habitReports
-            .filter(item => this.shouldShowHabitReport(item))
-            .map(item => this.mapYearHabitReport(item, year)),
-          habitMatrix: [],
-          monthHabits: [],
-          stats: report.stats
-        });
-        return
-      } catch (e) {
-        console.error('[stats] loadYearData via reportService failed, falling back to legacy:', e)
-      }
+    if (!reportService) {
+      // reportService 未安装，降级到 info 日志（不阻塞页面加载）
+      console.warn('[stats] reportService not available, skipping year data load')
+      return
     }
 
-    // Legacy path
-    const startDate = `${year}-01-01`;
-    const endDate = `${year}-12-31`;
-    const report = this.buildPeriodReport(myHabits, startDate, endDate);
+    const report = await reportService.getYearlyReport(String(year));
 
     this.setData({
       yearHabits: report.habitReports
@@ -1353,7 +1307,6 @@ Page({
       stats: report.stats
     });
   },
-  // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
 
   // @deprecated Phase 6D - legacy path, preserved for phase5 rollback
   calculateDueCount(startDate, endDate, freqType, freqRules, freqCategory, planStartDate, deletedAt) {

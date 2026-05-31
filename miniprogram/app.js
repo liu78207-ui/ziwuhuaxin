@@ -89,7 +89,13 @@ App({
     });
     // 初始化网络状态监听
     this.initNetworkListener()
-    // 启动时通过 syncService 恢复或同步数据
+    // 启动时：优先检查本地缓存是否需要从云端恢复
+    if (syncService.needsLocalRecovery()) {
+      syncService.recoverFromCloud().catch(err => {
+        console.warn('云端恢复失败（继续使用本地空缓存）：', err.message)
+      })
+    }
+    // 然后处理 pending 队列同步
     syncService.recoverOrSync()
   },
 
@@ -605,6 +611,11 @@ App({
   },
 
   // ========== 数据同步相关 ==========
+
+  /**
+   * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
+   * 本方法保留仅用于紧急回滚，不在任何启动路径或网络恢复路径中被调用
+   */
   async syncFromCloud() {
     if (!this.globalData.isOnline) {
       console.log('offline, skip cloud sync')
@@ -688,6 +699,10 @@ App({
   },
 
   // 同步本地数据到云端
+  /**
+   * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
+   * 本方法保留仅用于紧急回滚，不在任何启动路径或网络恢复路径中被调用
+   */
   async syncToCloud() {
     if (!this.globalData.isOnline) {
       console.log('offline, cannot sync to cloud')
