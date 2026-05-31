@@ -1248,24 +1248,7 @@ Page({
 
   async loadWeekData(myHabits) {
     if (!reportService) {
-      // reportService 未安装，降级到 legacy 路径
-      if (typeof this.buildPeriodReport === 'function') {
-        // 测试使用 buildPeriodReport mock，降级到 legacy 报表计算器
-        const weekDates = this.getWeekDates();
-        const startDate = this.formatDateKey(weekDates[0]);
-        const endDate = this.formatDateKey(weekDates[6]);
-        const report = this.buildPeriodReport(myHabits, startDate, endDate);
-        this.setData({
-          habitMatrix: report.habitReports,
-          monthHabits: [],
-          yearHabits: [],
-          stats: report.stats
-        });
-        return;
-      }
-      if (myHabits && myHabits.length > 0) {
-        await this.legacyLoadWeekData(myHabits);
-      }
+      console.warn('[stats] reportService not available, skipping week data load');
       return;
     }
 
@@ -1291,8 +1274,7 @@ Page({
     const startWeekday = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
     if (!reportService) {
-      // reportService 未安装，降级到 legacy 路径
-      await this.legacyLoadMonthData(myHabits);
+      console.warn('[stats] reportService not available, skipping month data load');
       return;
     }
 
@@ -1313,8 +1295,7 @@ Page({
     const year = this.data.currentYear;
 
     if (!reportService) {
-      // reportService 未安装，降级到 legacy 路径
-      await this.legacyLoadYearData(myHabits);
+      console.warn('[stats] reportService not available, skipping year data load');
       return;
     }
 
