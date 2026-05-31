@@ -3,26 +3,17 @@
 
 const storageService = require('./storageService')
 
-// 云数据库实例（与 phase6-plan.md 安全原则一致：不从前端传 openid）
-let _db = null
-function getDb() {
-  if (!_db) {
-    _db = wx.cloud.database()
-  }
-  return _db
-}
-
 /**
- * 获取用户信息（优先缓存）
- * @returns {Object|null}
+ * 获取用户信息（同步，优先从本地缓存读取）
+ * @returns {Object} userInfo { avatarUrl, nickName }
  */
 function getUserInfo() {
-  return storageService.getUserInfo()
+  return storageService.getUserInfo() || { avatarUrl: '', nickName: '' }
 }
 
 /**
- * 设置用户信息到缓存
- * @param {Object} info
+ * 设置用户信息到本地缓存
+ * @param {Object} info { avatarUrl, nickName }
  */
 function setUserInfo(info) {
   storageService.setUserInfo(info)
@@ -30,66 +21,55 @@ function setUserInfo(info) {
 
 /**
  * 从云端加载用户信息
- * 云函数通过 cloud.getWXContext() 获取身份，不从前端传 openid
+ * Phase 6C 暂缓：云端身份依赖云函数 cloud.getWXContext()，当前不实现
  * @returns {Promise<Object|null>}
  */
 async function loadFromCloud() {
-  try {
-    const db = getDb()
-    // 注意：此处在没有云函数的情况下直接访问云数据库
-    // 实际生产环境应通过云函数 cloud.getWXContext() 获取 openid
-    const res = await db.collection('users').doc('placeholder').get()
-    if (res.data) {
-      const userInfo = {
-        avatarUrl: res.data.avatarUrl || '',
-        nickName: res.data.nickName || ''
-      }
-      setUserInfo(userInfo)
-      return userInfo
-    }
-    return null
-  } catch (e) {
-    console.error('loadFromCloud 失败:', e)
-    return null
-  }
+  // Phase 6C 暂缓云端加载，云函数实现后替换
+  console.log('loadFromCloud: Phase 6C 暂缓，云端加载依赖云函数');
+  return null
 }
 
 /**
  * 更新用户信息到云数据库
+ * Phase 6C 暂缓：云端身份依赖云函数 cloud.getWXContext()，当前不实现
  * @param {Object} data - 要更新的字段
  * @returns {Promise<void>}
  */
 async function updateUserInfo(data) {
+  // Phase 6C 暂缓云端更新，云函数实现后替换
+  console.log('updateUserInfo: Phase 6C 暂缓，云端更新依赖云函数');
+}
+
+/**
+ * 将云存储 cloud:// URL 转换为临时 URL
+ * @param {string} cloudPath - 云存储路径
+ * @returns {Promise<string>} 临时 URL 或原路径
+ */
+async function resolveDisplayAvatarUrl(cloudPath) {
+  if (!cloudPath || !cloudPath.startsWith('cloud://')) {
+    return cloudPath
+  }
+
   try {
-    const db = getDb()
-    // 注意：此处在没有云函数的情况下直接访问云数据库
-    // 实际生产环境应通过云函数更新
-    const userInfo = getUserInfo()
-    await db.collection('users').doc('placeholder').set({
-      data: {
-        ...userInfo,
-        ...data,
-        updateTime: db.serverDate()
-      }
-    })
-    // 更新本地缓存
-    const updated = { ...userInfo, ...data }
-    setUserInfo(updated)
+    const res = await wx.cloud.getTempFileURL({ fileList: [cloudPath] })
+    const file = res.fileList && res.fileList[0]
+    return (file && file.tempFileURL) || cloudPath
   } catch (e) {
-    console.error('updateUserInfo 失败:', e)
+    console.error('resolveDisplayAvatarUrl 失败:', e)
+    return cloudPath
   }
 }
 
 /**
- * 构建 Profile 展示模型
- * @returns {Promise<{userInfo: Object, displayAvatarUrl: string}>}
+ * 构建 Profile 展示模型（同步）
+ * @returns {{userInfo: Object, displayAvatarUrl: string}}
  */
-async function getProfileViewModel() {
-  const userInfo = getUserInfo() || { avatarUrl: '', nickName: '' }
-  // displayAvatarUrl 由页面通过 updateDisplayAvatar 处理云存储临时链接
+function getProfileViewModel() {
+  const userInfo = getUserInfo()
   return {
     userInfo,
-    displayAvatarUrl: userInfo?.avatarUrl || ''
+    displayAvatarUrl: userInfo.avatarUrl || ''
   }
 }
 
@@ -98,5 +78,6 @@ module.exports = {
   setUserInfo,
   loadFromCloud,
   updateUserInfo,
+  resolveDisplayAvatarUrl,
   getProfileViewModel
 }

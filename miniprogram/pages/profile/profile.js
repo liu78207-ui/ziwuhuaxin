@@ -29,20 +29,13 @@ Page({
     }
   },
 
-  // 加载视图模型
+  // 加载视图模型（同步，只读本地缓存）
   loadViewModel() {
     const { userInfo, displayAvatarUrl } = userService.getProfileViewModel();
     this.setData({
       userInfo,
-      displayAvatarUrl: userInfo.avatarUrl || ''
+      displayAvatarUrl
     });
-    // 后台静默刷新云端用户信息
-    this.refreshUserInfoFromCloud();
-  },
-
-  // 后台静默刷新云端用户信息
-  refreshUserInfoFromCloud() {
-    // 暂不实现（云端身份依赖云函数，Phase 6C 不修改 cloudService）
   },
 
   // ========== 选择头像 ==========
@@ -57,38 +50,11 @@ Page({
       displayAvatarUrl: avatarUrl
     });
 
-    // 头像上传功能暂缓（cloudService.uploadFile 不存在）
-    // 保留本地临时显示，不上传到云端
+    // Phase 6C 暂缓头像上传功能（cloudService.uploadFile 不存在）
     wx.showToast({
       title: '头像预览已更新，上传功能开发中',
       icon: 'none'
     });
-  },
-
-  updateDisplayAvatar(avatarUrl) {
-    if (!avatarUrl) {
-      this.setData({ displayAvatarUrl: '' });
-      return;
-    }
-
-    if (avatarUrl.startsWith('cloud://') && wx.cloud && wx.cloud.getTempFileURL) {
-      wx.cloud.getTempFileURL({
-        fileList: [avatarUrl],
-        success: (res) => {
-          const file = res.fileList && res.fileList[0];
-          this.setData({
-            displayAvatarUrl: (file && file.tempFileURL) || avatarUrl
-          });
-        },
-        fail: (err) => {
-          console.error('获取头像临时链接失败:', err);
-          this.setData({ displayAvatarUrl: avatarUrl });
-        }
-      });
-      return;
-    }
-
-    this.setData({ displayAvatarUrl: avatarUrl });
   },
 
   // ========== 输入昵称 ==========
@@ -101,10 +67,12 @@ Page({
     // 更新本地缓存
     const updatedUserInfo = { ...this.data.userInfo, nickName: nickName.trim() };
     userService.setUserInfo(updatedUserInfo);
-    this.setData({ userInfo: updatedUserInfo });
+    this.setData({
+      userInfo: updatedUserInfo,
+      displayAvatarUrl: updatedUserInfo.avatarUrl || ''
+    });
 
-    // 昵称更新功能暂缓（云端更新依赖 cloudService）
-    console.log('昵称已更新（待云端同步）:', nickName.trim());
+    // Phase 6C 暂缓云端更新，云函数实现后替换
   },
 
   // 返回上一页
