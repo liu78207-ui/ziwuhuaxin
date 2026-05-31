@@ -69,6 +69,7 @@ Page({
     }
 
     const trimmed = nickName.trim();
+    const previousNickName = this.data.userInfo.nickName;
     // 乐观更新本地 UI
     this.setData({
       'userInfo.nickName': trimmed
@@ -77,7 +78,8 @@ Page({
     try {
       await userService.saveUserInfo({ nickName: trimmed });
     } catch (err) {
-      // 失败时回滚到 ViewModel 状态
+      // 失败时回滚本地缓存再刷新 UI
+      userService.setUserInfo({ nickName: previousNickName });
       this.refreshViewModel();
       wx.showToast({
         title: '保存失败',
