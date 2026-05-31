@@ -124,22 +124,9 @@ Page({
     }
   },
 
-  // 璋冭瘯锛氭鏌ユ湰鍦板瓨鍌ㄤ腑鐨勬暟鎹?
+  // @deprecated Phase 6D - 调试用，不再使用
   debugStorageData() {
-    try {
-      const allHabitsInfo = wx.getStorageSync('AllHabitsInfo') || {};
-      const checkinLogs = wx.getStorageSync('CheckinLogs') || [];
-      const myHabits = wx.getStorageSync('MyHabits') || [];
-
-      console.log('=== 璋冭瘯淇℃伅 ===');
-      console.log('AllHabitsInfo 閿?', Object.keys(allHabitsInfo));
-      console.log('AllHabitsInfo 鍐呭:', allHabitsInfo);
-      console.log('CheckinLogs 涓殑 habitIds:', [...new Set(checkinLogs.map(log => log.habitId))]);
-      console.log('MyHabits 涓殑 habitIds:', myHabits.map(h => h.habitId || h._id));
-      console.log('===============');
-    } catch (e) {
-      console.error('璋冭瘯淇℃伅鑾峰彇澶辫触:', e);
-    }
+    console.log("[debugStorageData] deprecated - no longer used");
   },
 
   // 鑾峰彇鍛ㄥ紑濮嬫棩鏈燂紙鍛ㄤ竴锛?
@@ -286,89 +273,28 @@ Page({
     }
   },
 
-  // 鍔犺浇鐪熷疄鏁版嵁锛堜弗鏍煎熀浜?MyHabits 鍜?CheckinLogs锛?
+  // Phase 6D - V1 路径：直接从 reportService 获取数据，不再读取 MyHabits/CheckinLogs
   async loadRealData() {
-    const app = getApp();
     const currentTab = this.data.currentTab;
 
-    // 纭繚鏃堕棿鐘舵€佸凡鍒濆鍖栵紙鑰冭檻璋冭瘯鍋忕Щ锛?
+    // 确保时间状态已初始化（考虑调试偏移）
     if (currentTab === 'week' && !this.data.currentWeekStart) {
       const today = getSimulatedDate();
       const weekStart = this.getWeekStart(today);
       this.setData({ currentWeekStart: weekStart.getTime() });
     }
 
-    // 浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?MyHabits锛堢‘淇濊幏鍙栨渶鏂版暟鎹級
-    let myHabits = [];
-    try {
-      const storedHabits = wx.getStorageSync('MyHabits');
-      if (storedHabits && Array.isArray(storedHabits)) {
-        myHabits = storedHabits;
-        // 鍚屾鍒板叏灞€鏁版嵁
-        app.globalData.MyHabits = storedHabits;
-        console.log('浠庢湰鍦板瓨鍌ㄥ姞杞?MyHabits:', myHabits.length);
-      }
-    } catch (e) {
-      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?MyHabits 澶辫触:', e);
-    }
-
-    // 濡傛灉鏈湴瀛樺偍涓虹┖锛屽啀灏濊瘯浠庡叏灞€鏁版嵁鑾峰彇
-    if (!myHabits || myHabits.length === 0) {
-      myHabits = app.getAllHabits ? app.getAllHabits() : (app.globalData.MyHabits || []);
-    }
-
-    // 鍚屾牱浼樺厛浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs
-    try {
-      const storedLogs = wx.getStorageSync('CheckinLogs');
-      if (storedLogs && Array.isArray(storedLogs)) {
-        app.globalData.CheckinLogs = storedLogs;
-        console.log('浠庢湰鍦板瓨鍌ㄥ姞杞?CheckinLogs:', storedLogs.length);
-      }
-    } catch (e) {
-      console.error('浠庢湰鍦板瓨鍌ㄨ鍙?CheckinLogs 澶辫触:', e);
-    }
-
-    // 鎵撳嵃褰撳墠涔犳儻鐨勮缁嗕俊鎭?
-    console.log('褰撳墠涔犳儻鍒楄〃:');
-    myHabits.forEach(h => {
-      console.log('  ', h.name, 'freq_type:', h.freq_type, 'freq_rules:', h.freq_rules, 'createdAt:', h.createdAt);
-    });
-
-    // 鍚堝苟宸插垹闄や絾鏈夋墦鍗¤褰曠殑涔犳儻锛堢敤浜庢樉绀哄巻鍙叉暟鎹級
-    myHabits = this.mergeWithDeletedHabits(myHabits);
-
-    // 鎵撳嵃鍚堝苟鍚庣殑涔犳儻鍒楄〃
-    console.log('鍚堝苟鍚庣殑涔犳儻鍒楄〃:');
-    myHabits.forEach(h => {
-      console.log('  ', h.name, 'freq_type:', h.freq_type, 'isDeleted:', h.isDeleted);
-    });
-
-    // 濡傛灉娌℃湁涔犳儻锛屾樉绀虹┖鐘舵€?
-    if (myHabits.length === 0) {
-      this.setData({
-        habitMatrix: [],
-        monthHabits: [],
-        yearHabits: [],
-        stats: {
-          checkinRate: 0,
-          totalCount: 0,
-          checkinDays: 0,
-          maxStreak: 0
-        }
-      });
-      return;
-    }
-
+    // Phase 6D - V1 路径：loadWeek/Month/YearData 直接从 reportService 获取数据
     try {
       if (currentTab === 'week') {
-        await this.loadWeekData(myHabits);
+        await this.loadWeekData();
       } else if (currentTab === 'month') {
-        await this.loadMonthData(myHabits);
+        await this.loadMonthData();
       } else if (currentTab === 'year') {
-        await this.loadYearData(myHabits);
+        await this.loadYearData();
       }
     } catch (err) {
-      console.error('鍔犺浇鏁版嵁澶辫触:', err);
+      console.error('加载数据失败:', err);
       this.setData({
         habitMatrix: [],
         monthHabits: [],
@@ -383,7 +309,6 @@ Page({
     }
   },
 
-  // 鍚堝苟宸插垹闄や絾鏈夋墦鍗¤褰曠殑涔犳儻
   // @deprecated Phase 6D - legacy path，保留用于 phase5 回滚，不迁移到 reportService
   mergeWithDeletedHabits(myHabits) {
     const app = getApp();
