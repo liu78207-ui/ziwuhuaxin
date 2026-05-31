@@ -14,6 +14,7 @@ describe('修习策略弹窗计划开始时间', () => {
     global.getApp.mockReturnValue({
       globalData: { MyHabits: [] },
       getSimulatedDateStr: jest.fn(() => '2026-05-09'),
+      getDebugOffset: jest.fn(() => -22),
       addUserStrategy: jest.fn()
     });
 

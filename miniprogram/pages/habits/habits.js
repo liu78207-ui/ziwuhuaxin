@@ -165,21 +165,17 @@ Page({
     const activeUserHabits = habitService.getActiveUserHabits();
     console.log('loadUserHabitsStatus - 活跃用户习惯:', activeUserHabits.length);
 
-    // 2. 获取所有内置习惯定义（用于填充 name、category 等）
-    const builtInHabits = habitService.getBuiltInHabits();
-
-    // 3. 构建 userHabitId -> userHabit 映射
+    // 2. 构建 userHabitId -> userHabit 映射
     const userHabitMap = {};
     activeUserHabits.forEach(uh => {
       userHabitMap[uh.habitId] = uh;  // key 为 habitId
     });
 
-    // 4. 更新习惯列表的 hasStrategy 状态
+    // 3. 更新习惯列表的 hasStrategy 状态
     const habits = this.data.habits.map(habit => {
       const habitId = String(habit._id);
       const userHabit = userHabitMap[habitId];
       if (userHabit) {
-        // 获取频次文本
         const policy = habitService.getActivePolicyVersion(userHabit.userHabitId);
         const freq_type = policy ? policy.frequencyType : 'daily';
         const freq_rules = policy
@@ -187,7 +183,17 @@ Page({
           : 1;
         const targetMinutes = policy ? policy.duration : (habit.default_duration || 20);
 
-        const freqText = this.getStrategyText({
+        const strategy = habitService.buildStrategyObject(userHabit.userHabitId, {
+          duration: targetMinutes,
+          frequencyType: freq_type,
+          frequencyConfig: freq_rules,
+          startDate: policy ? policy.startDate : ''
+        }, {
+          habitTitle: habit.title,
+          category: habit.category
+        });
+
+        const freqText = habitService.buildStrategyText({
           freq_type: freq_type,
           freq_rules: freq_rules,
           freq_category: freq_type === 'weekly' ? 'weekly' : (freq_rules > 1 ? 'daily-interval' : 'everyday')
@@ -198,17 +204,8 @@ Page({
           ...habit,
           hasStrategy: true,
           createdAt: userHabit.createdAt,
-          strategy: {
-            habit_id: userHabit.userHabitId,  // 使用 userHabitId
-            habit_title: habit.title,
-            category: habit.category,
-            duration: targetMinutes,
-            freq_type: freq_type,
-            freq_rules: freq_rules,
-            freq_category: freq_type === 'weekly' ? 'weekly' : (freq_rules > 1 ? 'daily-interval' : 'everyday'),
-            plan_start_date: policy ? policy.startDate : ''
-          },
-          strategyText: strategyText
+          strategy,
+          strategyText
         };
       }
       const { strategy, strategyText, hasStrategy, createdAt, ...rest } = habit;
@@ -745,7 +742,7 @@ Page({
     }
 
     // 生成策略显示文本（频次 + 时间）
-    const freqText = this.getStrategyText(strategy);
+    const freqText = habitService.buildStrategyText(strategy);
     const strategyText = `${freqText} · ${strategy.duration}分钟`;
 
     // 更新习惯列表显示状态
@@ -821,31 +818,21 @@ Page({
     });
   },
 
-  // ========== 计划开始时间相关方法 ==========
-  
+  // ========== 计划开始时间相关方法（委托给 habitService） ==========
+
   // 获取今天日期字符串
   getTodayDate() {
-    const app = getApp();
-    if (app && app.getSimulatedDateStr) {
-      return app.getSimulatedDateStr();
-    }
-    return new Date().toISOString().split('T')[0];
+    return habitService.getTodayDateStr(getApp());
   },
-  
+
   // 获取偏移日期
   getOffsetDate(days) {
-    const today = new Date(this.getTodayDate());
-    today.setDate(today.getDate() + days);
-    return today.toISOString().split('T')[0];
+    return habitService.getOffsetDateStr(days, getApp());
   },
-  
+
   // 获取下周一日期
   getNextMonday() {
-    const today = new Date(this.getTodayDate());
-    const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
-    const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-    today.setDate(today.getDate() + daysUntilMonday);
-    return today.toISOString().split('T')[0];
+    return habitService.getNextMondayStr(getApp());
   },
   
   // 点击计划开始时间选项（今天/明天/选择日期）

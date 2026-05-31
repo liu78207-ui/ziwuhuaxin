@@ -3,6 +3,7 @@
  * 习惯服务层
  *
  * Phase 3A: 负责 userHabitId 生成、用户习惯实例 CRUD、策略版本管理
+ * Phase 6B: 负责习惯列表展示模型构建、策略文本生成、日期计算辅助
  */
 
 const { getBuiltInHabit, getAllBuiltInHabits, isValidBuiltInHabitId } = require('../constants/habitLibrary')
@@ -358,6 +359,159 @@ async function runMigration() {
   }
 }
 
+// ==================== Phase 6B 展示辅助 ====================
+
+/**
+ * 构建策略显示文本
+ * @param {Object} strategy - 策略对象
+ * @returns {string}
+ */
+function buildStrategyText(strategy) {
+  const { freq_type, freq_rules, freq_category } = strategy
+
+  // 间隔打卡
+  if (freq_type === 'interval') {
+    const interval = freq_rules || 1
+    return `每${interval + 1}天`
+  }
+
+  // 每天或按天间隔（legacy：freq_category 为 daily-interval 但 freq_type 被保存为 daily）
+  if (freq_category === 'daily-interval' || freq_type === 'daily') {
+    if (freq_rules && freq_rules > 1) {
+      return `每${freq_rules + 1}天`
+    }
+    return '每天'
+  }
+
+  // 每周固定
+  if (freq_category === 'weekly' || freq_type === 'weekly') {
+    if (freq_rules && freq_rules.length > 0) {
+      const weekdayNames = ['', '一', '二', '三', '四', '五', '六', '日']
+      const days = freq_rules.map(d => weekdayNames[d]).join('、')
+      return `每周${days}`
+    }
+    return '每周'
+  }
+
+  return '每天'
+}
+
+/**
+ * 构建策略对象（供习惯添加/编辑使用）
+ * @param {string} userHabitId - 习惯实例ID
+ * @param {Object} policyInput - 策略输入（来自页面 picker 等）
+ * @param {Object} options - 额外选项 { habitTitle, category }
+ * @returns {Object}
+ */
+function buildStrategyObject(userHabitId, policyInput, options = {}) {
+  const freqType = policyInput.frequencyType || 'daily'
+  const freqRules = policyInput.frequencyConfig || { intervalDays: 1 }
+  const freqCategory = freqType === 'weekly' ? 'weekly'
+    : (freqRules > 1 ? 'daily-interval' : 'everyday')
+
+  return {
+    habit_id: userHabitId,
+    habit_title: options.habitTitle || '',
+    category: options.category || '',
+    duration: policyInput.duration,
+    freq_type: freqType,
+    freq_rules: freqRules,
+    freq_category: freqCategory,
+    plan_start_date: policyInput.startDate
+  }
+}
+
+/**
+ * 构建习惯列表展示模型（Phase 6B）
+ * 将内置习惯列表转换为带策略状态的展示列表
+ * @param {Array} builtInHabits - 内置习惯定义列表（来自页面 hardcoded）
+ * @returns {Array} - 带策略状态的展示列表
+ */
+function buildHabitDisplayList(builtInHabits) {
+  const activeUserHabits = getActiveUserHabits()
+
+  // 构建 habitId -> userHabit 映射
+  const userHabitMap = {}
+  activeUserHabits.forEach(uh => {
+    userHabitMap[uh.habitId] = uh
+  })
+
+  return builtInHabits.map(habit => {
+    const habitId = String(habit._id)
+    const userHabit = userHabitMap[habitId]
+
+    if (!userHabit) {
+      return {
+        ...habit,
+        hasStrategy: false
+      }
+    }
+
+    const policy = getActivePolicyVersion(userHabit.userHabitId)
+    const freqType = policy ? policy.frequencyType : 'daily'
+    const freqRules = policy
+      ? (policy.frequencyType === 'weekly' ? policy.frequencyConfig.weekdays : policy.frequencyConfig.intervalDays)
+      : 1
+    const duration = policy ? policy.duration : (habit.default_duration || 20)
+
+    const strategy = buildStrategyObject(userHabit.userHabitId, {
+      duration,
+      frequencyType: freqType,
+      frequencyConfig: freqRules,
+      startDate: policy ? policy.startDate : ''
+    }, {
+      habitTitle: habit.title,
+      category: habit.category
+    })
+
+    const freqText = buildStrategyText({
+      freq_type: freqType,
+      freq_rules: freqRules,
+      freq_category: freqType === 'weekly' ? 'weekly' : (freqRules > 1 ? 'daily-interval' : 'everyday')
+    })
+    const strategyText = `${freqText} · ${duration}分钟`
+
+    return {
+      ...habit,
+      hasStrategy: true,
+      createdAt: userHabit.createdAt,
+      strategy,
+      strategyText
+    }
+  })
+}
+
+/**
+ * 获取今天的日期字符串（支持模拟日期）
+ * @param {Object} app - 可选，微信小程序 app 对象，用于支持 DEBUG_DAY_OFFSET
+ * @returns {string} YYYY-MM-DD
+ */
+function getTodayDateStr(app) {
+  return timeService.getSimulatedDateStr(app || null)
+}
+
+/**
+ * 获取偏移日期字符串
+ * @param {number} days - 偏移天数
+ * @param {Object} app - 可选，微信小程序 app 对象
+ * @returns {string} YYYY-MM-DD
+ */
+function getOffsetDateStr(days, app) {
+  return timeService.addDays(timeService.getSimulatedDateStr(app || null), days)
+}
+
+/**
+ * 获取下个星期一的日期字符串
+ * @param {Object} app - 可选，微信小程序 app 对象
+ * @returns {string} YYYY-MM-DD
+ */
+function getNextMondayStr(app) {
+  const today = timeService.parseDate(timeService.getSimulatedDateStr(app || null))
+  const dayOfWeek = today.getUTCDay()
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek
+  return timeService.addDays(timeService.getSimulatedDateStr(app || null), daysUntilMonday)
+}
+
 module.exports = {
   // 内置习惯
   getBuiltInHabits,
@@ -384,5 +538,13 @@ module.exports = {
 
   // 迁移
   getMigrationMeta,
-  runMigration
+  runMigration,
+
+  // Phase 6B 展示辅助
+  buildStrategyText,
+  buildStrategyObject,
+  buildHabitDisplayList,
+  getTodayDateStr,
+  getOffsetDateStr,
+  getNextMondayStr
 }
