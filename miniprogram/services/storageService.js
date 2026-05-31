@@ -59,16 +59,18 @@ function setAllHabitsInfo(info) {
 
 /**
  * @deprecated Phase 7 起不再读写，openid 仅由云函数 cloud.getWXContext() 获取
+ * 已改为 no-op，后续版本将移除此方法
  */
 function getUserOpenid() {
-  return getItem(STORAGE_KEYS.userOpenid);
+  return null; // no-op
 }
 
 /**
  * @deprecated Phase 7 起不再读写，openid 仅由云函数 cloud.getWXContext() 获取
+ * 已改为 no-op，后续版本将移除此方法
  */
 function setUserOpenid(openid) {
-  return setItem(STORAGE_KEYS.userOpenid, openid);
+  return false; // no-op，不写入 storage
 }
 
 function getUserInfo() {

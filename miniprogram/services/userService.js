@@ -29,20 +29,24 @@ async function login(options = {}) {
   try {
     const res = await cloudService.callFunction('login', {});
     if (!res.success) {
-      throw new Error(res.message || 'login 云函数返回失败');
+      throw new Error(res.error?.message || 'login 云函数返回失败');
     }
 
     // 保存登录态（不存 openid）
+    // cloudService.callFunction 返回结构：{ success, data, error }
+    // login 云函数返回：{ success: true, userId, createdAt }
+    const userId = res.data?.userId;
+    const createdAt = res.data?.createdAt;
     const userInfo = {
-      _userId: res.userId,
-      createdAt: res.createdAt,
-      updatedAt: res.createdAt,
+      _userId: userId,
+      createdAt: createdAt,
+      updatedAt: createdAt,
       nickName: cachedUserInfo?.nickName || '',
       avatarUrl: cachedUserInfo?.avatarUrl || ''
     };
     storageService.setUserInfo(userInfo);
 
-    return { userId: res.userId, createdAt: res.createdAt };
+    return { userId, createdAt };
   } catch (e) {
     if (force) {
       throw e;

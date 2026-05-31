@@ -27,6 +27,8 @@ Page({
         selected: 3
       });
     }
+
+    this.refreshViewModel();
   },
 
   refreshViewModel() {
@@ -59,26 +61,18 @@ Page({
     });
   },
 
-  // 输入昵称
+  // 输入昵称（Phase 7B 暂缓云端保存，仅更新本地缓存）
   onInputNickname(e) {
     const nickName = e.detail.value;
     if (!nickName || nickName.trim() === '') {
       return;
     }
 
-    try {
-      // Phase 7B: 保存到云端
-      userService.saveUserInfo({ nickName: nickName.trim() });
-      this.setData({
-        'userInfo.nickName': nickName.trim()
-      });
-    } catch (err) {
-      console.error('保存昵称失败:', err);
-      wx.showToast({
-        title: '保存失败',
-        icon: 'none'
-      });
-    }
+    // 只写本地缓存，云端保存等 Phase 7B 实现 saveUserProfile 云函数后启用
+    userService.setUserInfo({ nickName: nickName.trim() });
+    this.setData({
+      'userInfo.nickName': nickName.trim()
+    });
   },
 
   // 退出登录
