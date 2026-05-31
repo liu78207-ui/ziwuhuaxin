@@ -146,13 +146,11 @@ Page({
   },
 
   consumePendingTabIntent() {
-    const app = getApp();
-    const pendingTab = app && app.globalData && app.globalData.pendingHabitsTab;
+    const pendingTab = habitService.consumePendingTabIntent();
     if (pendingTab !== 'sports') {
       return;
     }
 
-    delete app.globalData.pendingHabitsTab;
     this.setData({
       currentTab: 1,
       filteredHabits: this.filterHabits(this.data.habits, 1)

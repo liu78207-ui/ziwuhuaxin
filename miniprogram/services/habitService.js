@@ -520,6 +520,28 @@ function getNextMondayStr(app) {
   return timeService.addDays(timeService.getSimulatedDateStr(app || null), daysUntilMonday)
 }
 
+// ==================== Phase 6 跨页 Tab Intent（轻量状态） ====================
+
+let _pendingTabIntent = null
+
+/**
+ * 设置待消费的分页 tab 意图（home -> habits）
+ * @param {string} tab - 'sports' 等
+ */
+function requestPendingTab(tab) {
+  _pendingTabIntent = tab
+}
+
+/**
+ * 消费并返回待处理的 tab 意图（habits onLoad 时调用）
+ * @returns {string|null}
+ */
+function consumePendingTabIntent() {
+  const intent = _pendingTabIntent
+  _pendingTabIntent = null
+  return intent
+}
+
 module.exports = {
   // 内置习惯
   getBuiltInHabits,
@@ -554,5 +576,9 @@ module.exports = {
   buildHabitDisplayList,
   getTodayDateStr,
   getOffsetDateStr,
-  getNextMondayStr
+  getNextMondayStr,
+
+  // Phase 6 跨页 tab intent
+  requestPendingTab,
+  consumePendingTabIntent
 }

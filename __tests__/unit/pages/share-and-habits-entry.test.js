@@ -46,23 +46,29 @@ describe('share menu and habits entry behavior', () => {
 
   test('home empty-state plus stores a one-shot sports tab intent before switching tabs', () => {
     resetRuntime();
+    const habitService = require('../../../miniprogram/services/habitService');
     const page = loadPage('home');
 
     page.goToHabits();
 
-    expect(app.globalData.pendingHabitsTab).toBe('sports');
+    // Phase 6: intent stored in habitService, not app.globalData
+    expect(habitService.consumePendingTabIntent()).toBe('sports');
     expect(wx.switchTab).toHaveBeenCalledWith({ url: '/pages/habits/habits' });
   });
 
   test('habits page consumes sports tab intent once and shows sports habits', () => {
     resetRuntime({ globalData: { pendingHabitsTab: 'sports' } });
+    const habitService = require('../../../miniprogram/services/habitService');
+    // Pre-set intent in service (simulating home page transition)
+    habitService.requestPendingTab('sports');
     const page = loadPage('habits');
 
     page.onLoad();
     page.onShow();
 
     expect(page.data.currentTab).toBe(1);
-    expect(app.globalData.pendingHabitsTab).toBeUndefined();
+    // Intent was consumed from service, not globalData
+    expect(habitService.consumePendingTabIntent()).toBe(null);
     expect(page.data.filteredHabits.length).toBeGreaterThan(0);
     expect(page.data.filteredHabits.every((habit) => habit.category === page.data.categories[1])).toBe(true);
   });
@@ -75,7 +81,6 @@ describe('share menu and habits entry behavior', () => {
     page.onShow();
 
     expect(page.data.currentTab).toBe(0);
-    expect(app.globalData.pendingHabitsTab).toBeUndefined();
   });
 
   test.each([

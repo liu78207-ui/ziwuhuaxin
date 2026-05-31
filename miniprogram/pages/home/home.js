@@ -4,6 +4,7 @@
  */
 
 const homeService = require('../../services/homeService');
+const habitService = require('../../services/habitService');
 const checkinService = require('../../services/checkinService');
 const timeService = require('../../services/timeService');
 const share = require('../../utils/share.js');
@@ -52,11 +53,7 @@ Page({
 
   // 跳转到修习页面
   goToHabits() {
-    const app = getApp();
-    if (app && app.globalData) {
-      app.globalData.pendingHabitsTab = 'sports';
-    }
-
+    habitService.requestPendingTab('sports');
     wx.switchTab({
       url: '/pages/habits/habits'
     });
