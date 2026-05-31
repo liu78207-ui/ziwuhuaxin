@@ -405,9 +405,17 @@ function buildStrategyText(strategy) {
  */
 function buildStrategyObject(userHabitId, policyInput, options = {}) {
   const freqType = policyInput.frequencyType || 'daily'
-  const freqRules = policyInput.frequencyConfig || { intervalDays: 1 }
+  // 规范化 freqRules：支持数字或 { intervalDays } 或 { weekdays }
+  let freqRules
+  if (typeof policyInput.frequencyConfig === 'number') {
+    freqRules = policyInput.frequencyConfig
+  } else if (policyInput.frequencyType === 'weekly') {
+    freqRules = policyInput.frequencyConfig?.weekdays || []
+  } else {
+    freqRules = policyInput.frequencyConfig?.intervalDays || 1
+  }
   const freqCategory = freqType === 'weekly' ? 'weekly'
-    : (freqRules > 1 ? 'daily-interval' : 'everyday')
+    : (freqType === 'interval' || (typeof freqRules === 'number' && freqRules > 1) ? 'daily-interval' : 'everyday')
 
   return {
     habit_id: userHabitId,

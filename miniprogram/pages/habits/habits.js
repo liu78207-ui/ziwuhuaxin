@@ -161,56 +161,8 @@ Page({
 
   // 加载用户已添加的习惯状态
   loadUserHabitsStatus() {
-    // 1. 从 habitService 获取活跃用户习惯实例
-    const activeUserHabits = habitService.getActiveUserHabits();
-    console.log('loadUserHabitsStatus - 活跃用户习惯:', activeUserHabits.length);
-
-    // 2. 构建 userHabitId -> userHabit 映射
-    const userHabitMap = {};
-    activeUserHabits.forEach(uh => {
-      userHabitMap[uh.habitId] = uh;  // key 为 habitId
-    });
-
-    // 3. 更新习惯列表的 hasStrategy 状态
-    const habits = this.data.habits.map(habit => {
-      const habitId = String(habit._id);
-      const userHabit = userHabitMap[habitId];
-      if (userHabit) {
-        const policy = habitService.getActivePolicyVersion(userHabit.userHabitId);
-        const freq_type = policy ? policy.frequencyType : 'daily';
-        const freq_rules = policy
-          ? (policy.frequencyType === 'weekly' ? policy.frequencyConfig.weekdays : policy.frequencyConfig.intervalDays)
-          : 1;
-        const targetMinutes = policy ? policy.duration : (habit.default_duration || 20);
-
-        const strategy = habitService.buildStrategyObject(userHabit.userHabitId, {
-          duration: targetMinutes,
-          frequencyType: freq_type,
-          frequencyConfig: freq_rules,
-          startDate: policy ? policy.startDate : ''
-        }, {
-          habitTitle: habit.title,
-          category: habit.category
-        });
-
-        const freqText = habitService.buildStrategyText({
-          freq_type: freq_type,
-          freq_rules: freq_rules,
-          freq_category: freq_type === 'weekly' ? 'weekly' : (freq_rules > 1 ? 'daily-interval' : 'everyday')
-        });
-        const strategyText = `${freqText} · ${targetMinutes}分钟`;
-
-        return {
-          ...habit,
-          hasStrategy: true,
-          createdAt: userHabit.createdAt,
-          strategy,
-          strategyText
-        };
-      }
-      const { strategy, strategyText, hasStrategy, createdAt, ...rest } = habit;
-      return rest;
-    });
+    // 使用 habitService.buildHabitDisplayList 构建展示列表
+    const habits = habitService.buildHabitDisplayList(this.data.habits);
 
     this.setData({
       habits: habits,
@@ -768,37 +720,6 @@ Page({
       icon: 'success'
     });
     this.closeModal();
-  },
-
-  // 生成策略显示文本
-  getStrategyText(strategy) {
-    const { freq_type, freq_rules, freq_category } = strategy;
-    
-    // 间隔打卡
-    if (freq_type === 'interval') {
-      const interval = freq_rules || 1;
-      return `每${interval + 1}天`;
-    }
-    
-    // 每天或按天间隔（legacy：freq_category 为 daily-interval 但 freq_type 被保存为 daily）
-    if (freq_category === 'daily-interval' || freq_type === 'daily') {
-      if (freq_rules && freq_rules > 1) {
-        return `每${freq_rules + 1}天`;
-      }
-      return '每天';
-    }
-    
-    // 每周固定
-    if (freq_category === 'weekly' || freq_type === 'weekly') {
-      if (freq_rules && freq_rules.length > 0) {
-        const weekdayNames = ['', '一', '二', '三', '四', '五', '六', '日'];
-        const days = freq_rules.map(d => weekdayNames[d]).join('、');
-        return `每周${days}`;
-      }
-      return '每周';
-    }
-
-    return '每天';
   },
 
   // 更新星期选择文本
