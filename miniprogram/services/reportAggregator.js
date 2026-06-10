@@ -187,6 +187,12 @@ function resolveReportDayStatus(context) {
     }
   }
 
+  // 3.1 策略修改当天：优先使用 dailyCheckinState 的锁定事实源。
+  // 新口径不再按“新策略是否命中当天”决定分母，而只看当天最终状态。
+  if (isStrategyChangeDayState(dailyState)) {
+    return resolveStrategyChangeDayStatus(context)
+  }
+
   // 4. userHabit 生命周期检查
   const createdAt = userHabit?.createdAt
   const deletedAt = userHabit?.deletedAt
@@ -259,8 +265,86 @@ function resolveReportDayStatus(context) {
 
   // 7. 策略修改当天（通过 effectiveEndDate 判断）
   // 如果这个日期正好是旧版本的 effectiveEndDate，且有更新的版本存在
-  if (policyVersion.effectiveEndDate && compareDate(date, policyVersion.effectiveEndDate) === 0) {
-    return resolveStrategyChangeDayStatus(context)
+  // 关键修复：同时处理两种情况
+  // (a) policyVersion 是旧策略（effectiveEndDate = today）：原有逻辑
+  // (b) policyVersion 是新策略（effectiveEndDate = null）但存在策略同一天交接：新策略立即生效
+  const newPolicy = (context.policyVersions || []).find(pv => pv.effectiveEndDate === null)
+  const isPolicyHandoverToday = newPolicy &&
+    policyVersion.effectiveEndDate === null &&
+    newPolicy.effectiveStartDate === date
+
+  if ((policyVersion.effectiveEndDate && compareDate(date, policyVersion.effectiveEndDate) === 0) ||
+      isPolicyHandoverToday) {
+    // 关键：案台与观心必须使用同一套频率判定
+    // 找到最新版策略（effectiveEndDate === null）
+    // 注意：新策略的 effectiveStartDate 可能不是当天（如「从明天开始」），
+    // 此时 isDueOnDateByFrequency 会因 date < anchorDate 返回 false
+    if (newPolicy && !isDueOnDateByFrequency(newPolicy, date)) {
+      // 新策略的频率不包含当天
+      // 关键修复：同时检查 checked 和 canceled 状态
+      // 因为取消打卡后状态变成 canceled，但用户仍然希望看到自己的打卡行为
+      const isCheckedOrCanceled = dailyState?.status === DAY_STATUS.checked ||
+                                  dailyState?.status === DAY_STATUS.canceled
+      if (isCheckedOrCanceled) {
+        // 已打卡或已取消打卡：保留打卡记录，但不计入分母
+        return {
+          status: DAY_STATUS.canceled,
+          isDue: false,
+          contributesDenominator: false,
+          contributesNumerator: false,
+          reason: 'strategy_changed_canceled',
+          effectivePolicyVersionId: newPolicy.policyVersionId
+        }
+      }
+      // 未打卡：隐藏"应打未打"数据
+      return {
+        status: DAY_STATUS.not_required,
+        isDue: false,
+        contributesDenominator: false,
+        contributesNumerator: false,
+        reason: 'strategy_changed_to_not_due',
+        effectivePolicyVersionId: newPolicy.policyVersionId
+      }
+    }
+    // 新策略包含当天（或没有新策略）：保留旧版最终态，
+    // 但 isDue 与 isDueOnDateByFrequency 保持一致（案台观心统一）
+    const finalStatus = dailyState?.status || DAY_STATUS.unchecked
+    const isNewPolicyDue = newPolicy ? isDueOnDateByFrequency(newPolicy, date) : true
+    if (finalStatus === DAY_STATUS.checked) {
+      return {
+        status: DAY_STATUS.checked,
+        isDue: isNewPolicyDue,
+        contributesDenominator: isNewPolicyDue,
+        contributesNumerator: isNewPolicyDue,
+        reason: isNewPolicyDue
+          ? 'strategy_changed_after_checkin'
+          : 'strategy_changed_after_checkin_to_not_due',
+        effectivePolicyVersionId: policyVersion.policyVersionId
+      }
+    }
+    if (finalStatus === DAY_STATUS.canceled) {
+      return {
+        status: DAY_STATUS.canceled,
+        isDue: isNewPolicyDue,
+        contributesDenominator: isNewPolicyDue,
+        contributesNumerator: false,
+        reason: isNewPolicyDue
+          ? 'strategy_changed_canceled'
+          : 'strategy_changed_canceled_to_not_due',
+        effectivePolicyVersionId: policyVersion.policyVersionId
+      }
+    }
+    // unchecked
+    return {
+      status: DAY_STATUS.unchecked,
+      isDue: isNewPolicyDue,
+      contributesDenominator: isNewPolicyDue,
+      contributesNumerator: false,
+      reason: isNewPolicyDue
+        ? 'strategy_changed_without_checkin'
+        : 'strategy_changed_to_not_due_unchecked',
+      effectivePolicyVersionId: policyVersion.policyVersionId
+    }
   }
 
   // 8. 按频率规则判断是否应修
@@ -345,6 +429,14 @@ function resolveDeletedDayStatus(context) {
   }
 }
 
+function isStrategyChangeDayState(dailyState) {
+  if (!dailyState) return false
+  const reason = dailyState.lockedReason || dailyState.lockReason
+  return dailyState.hasPolicyChangedToday === true ||
+    reason === 'strategy_changed_after_checkin' ||
+    reason === 'strategy_changed_without_checkin'
+}
+
 /**
  * 策略修改当天特殊裁决
  * - 已打卡且最终 checked：分母+1，分子+1
@@ -355,6 +447,7 @@ function resolveDeletedDayStatus(context) {
 function resolveStrategyChangeDayStatus(context) {
   const { dailyState, policyVersion } = context
   const finalStatus = dailyState?.status || DAY_STATUS.unchecked
+  const effectivePolicyVersionId = dailyState?.policyVersionId || policyVersion?.policyVersionId || null
 
   if (finalStatus === DAY_STATUS.checked) {
     return {
@@ -363,7 +456,7 @@ function resolveStrategyChangeDayStatus(context) {
       contributesDenominator: true,
       contributesNumerator: true,
       reason: 'strategy_changed_after_checkin',
-      effectivePolicyVersionId: policyVersion.policyVersionId
+      effectivePolicyVersionId
     }
   }
 
@@ -372,8 +465,8 @@ function resolveStrategyChangeDayStatus(context) {
     isDue: false,
     contributesDenominator: false,
     contributesNumerator: false,
-    reason: finalStatus === DAY_STATUS.canceled ? 'strategy_changed_canceled' : 'strategy_changed_without_checkin',
-    effectivePolicyVersionId: policyVersion.policyVersionId
+    reason: 'strategy_changed_without_checkin',
+    effectivePolicyVersionId
   }
 }
 
@@ -425,6 +518,7 @@ function buildDayVerdicts(userHabit, policyVersions, dailyStates, startDate, end
     const verdict = resolveReportDayStatus({
       userHabit,
       policyVersion,
+      policyVersions,
       dailyState,
       date,
       todayKey,

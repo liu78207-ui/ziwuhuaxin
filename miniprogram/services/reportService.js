@@ -113,18 +113,10 @@ function resolveLockSnapshot(userHabit, policyVersions, date) {
     }
   }
 
-  // 检查是否是策略修改当天
-  // 找到该日有效的策略版本
-  const effectivePV = reportAggregator.resolveEffectivePolicyVersion(policyVersions, date)
-  if (effectivePV && effectivePV.effectiveEndDate) {
-    if (dateUtils.compareDate(date, effectivePV.effectiveEndDate) === 0) {
-      return {
-        date,
-        reason: 'strategy_change_day',
-        policyVersionId: effectivePV.policyVersionId
-      }
-    }
-  }
+  // 策略修改当天不再通过 lock snapshot 拦截，
+  // 而是在 reportAggregator.resolveReportDayStatus 的 item 7 分支中处理。
+  // 这样可以与案台 getTodayHabits 共用同一套频率判定（isDueOnDateByFrequency），
+  // 并区分"已打卡"和"未打卡"两种情况。
 
   return null
 }
@@ -205,10 +197,67 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
 function buildAggregatedReports(startDate, endDate, todayKey) {
   const userHabits = fetchUserHabits(null) // 获取所有实例
 
-  // 过滤有效实例（有策略版本的才参与报表）
+  // 过滤有效实例（与案台页统一逻辑）：
+  // 1. 必须至少有一个策略版本。
+  // 2. 关键：与案台一致——本周内「至少有一天是应修日」或「有有效完成记录」则展示。
+  //    - 至少有应修日：本周内任意一天按最新策略频率判定为应修 → 展示
+  //    - 有有效完成记录：本周内有 dailyState.status === 'checked' → 展示
+  //    - 否则：本周内无任何应修日且无打卡 → 隐藏
+  //    场景示例（user feedback）：
+  //    - daily → daily（从明天起）：本周从明天起每天都应修 → 展示
+  //    - 刚添加（无打卡）：今天应修 → 展示
+  //    - 软删除 + 无打卡：本周无应修日，无打卡 → 隐藏
+  //    - 软删除 + 有打卡：保留打卡 → 展示
+  //    - 未来策略（场景 B）：本周内有应修日 → 展示
+  // 3. 完全无策略的 habit 排除。
+  const dailyStates = fetchDailyStates(startDate, endDate)
+  const dates = dateUtils.buildDateRange(startDate, endDate)
+
   const validHabits = userHabits.filter(h => {
     const pvs = fetchPolicyVersionsByUserHabitId(h.userHabitId)
-    return pvs && pvs.length > 0
+    if (!pvs || pvs.length === 0) return false
+
+    // 找到最新策略（effectiveEndDate === null）
+    const latestPolicy = pvs.find(pv => pv.effectiveEndDate === null)
+
+    // 检查本周内是否至少有一天是应修日（基于最新策略频率判定）
+    // 与案台 getTodayHabits 共用 isDueOnDateByFrequency
+    // 关键修复：当最新策略的 effectiveStartDate 是今天时，
+    // 需要额外检查今天是否应修（因为周报 dates 不包含今天）
+    let hasAnyDueDay = false
+    if (latestPolicy) {
+      hasAnyDueDay = dates.some(date => {
+        // 如果最新策略的生效日期已到，使用最新策略判定
+        if (latestPolicy.effectiveStartDate <= date) {
+          return reportAggregator.isDueOnDateByFrequency(latestPolicy, date)
+        }
+        // 如果最新策略还没生效（effectiveStartDate > today），检查旧版本在今天的应修状态
+        // 找到昨天有效但今天已关闭的旧版本
+        const oldPolicy = pvs.find(pv =>
+          pv.effectiveEndDate !== null &&
+          pv.effectiveEndDate < latestPolicy.effectiveStartDate &&
+          dateUtils.compareDate(date, pv.effectiveEndDate) === 0
+        )
+        if (oldPolicy) {
+          return reportAggregator.isDueOnDateByFrequency(oldPolicy, date)
+        }
+        return false
+      })
+
+      // 额外检查：如果最新策略今天生效（effectiveStartDate === today），检查今天是否应修
+      // 这处理了"策略今天修改为每天"的场景，因为周报 dates 不包含今天
+      if (latestPolicy.effectiveStartDate === todayKey) {
+        hasAnyDueDay = hasAnyDueDay || reportAggregator.isDueOnDateByFrequency(latestPolicy, todayKey)
+      }
+    }
+
+    // 检查本周内是否有有效完成记录
+    const hasAnyCheckin = dailyStates.some(
+      s => s.userHabitId === h.userHabitId && s.status === 'checked'
+    )
+
+    // 核心规则：至少有一天是应修日 OR 有有效完成记录
+    return hasAnyDueDay || hasAnyCheckin
   })
 
   // 为每个有效实例构建报表
@@ -240,46 +289,85 @@ function buildAggregatedReports(startDate, endDate, todayKey) {
  * @returns {object}
  */
 function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
-  const habitReports = []
+  const dates = dateUtils.buildDateRange(startDate, endDate)
+  const habitReports = aggregated.habitGroups.map(group => {
+    const representative = group.instances.find(inst => !inst.deletedAt) || group.instances[0] || {}
+    const habit = {
+      habitId: group.habitId,
+      name: representative.name || group.name || '',
+      themeClass: representative.theme || group.theme || '',
+      isDeleted: group.instances.every(inst => inst.deletedAt),
+      deletedAt: representative.deletedAt || null
+    }
 
-  aggregated.habitGroups.forEach(group => {
-    group.instances.forEach(instance => {
-      // 构建兼容的 habit 对象
-      const habit = {
-        habitId: instance.habitId,
-        name: instance.name || group.name || '',
-        isDeleted: instance.deletedAt ? true : false,
-        deletedAt: instance.deletedAt || null
+    const days = dates.map(date => {
+      const dayItems = group.instances
+        .map(instance => {
+          const index = instance.days.findIndex(day => day.date === date)
+          if (index < 0) return null
+          const day = instance.days[index]
+          const verdict = instance._verdicts ? instance._verdicts[index] : null
+          return {
+            date: day.date,
+            status: day.status,
+            isDue: day.isDue || false,
+            shouldShow: day.isDue || false,
+            countsInDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
+            countsAsDone: verdict ? verdict.contributesNumerator : (day.status === 'checked'),
+            isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31'),
+            themeClass: instance.theme || group.theme || ''
+          }
+        })
+        .filter(Boolean)
+
+      const hasChecked = dayItems.some(day => day.status === 'checked' || day.countsAsDone)
+      const hasCanceled = dayItems.some(day => day.status === 'canceled')
+      const hasUnfinished = dayItems.some(day => day.status === 'unchecked' || day.countsInDenominator)
+      const hasLowConfidence = dayItems.some(day => day.status === 'low_confidence')
+      const hasFuture = dayItems.some(day => day.status === 'future')
+      const isDue = dayItems.some(day => day.isDue)
+      const countsInDenominator = dayItems.some(day => day.countsInDenominator)
+      const countsAsDone = dayItems.some(day => day.countsAsDone)
+
+      let status = 'not_required'
+      if (hasChecked) {
+        status = 'checked'
+      } else if (hasCanceled) {
+        status = 'canceled'
+      } else if (hasUnfinished) {
+        status = 'unchecked'
+      } else if (hasLowConfidence) {
+        status = 'low_confidence'
+      } else if (hasFuture) {
+        status = 'future'
       }
 
-      // 映射 days 数组，补充兼容字段
-      const days = instance.days.map((day, index) => {
-        const verdict = instance._verdicts ? instance._verdicts[index] : null
-        return {
-          date: day.date,
-          checked: day.status === 'checked',
-          isChecked: day.status === 'checked',
-          isDue: day.isDue || false,
-          shouldShow: day.isDue || false,
-          status: day.status,
-          // 使用 contributesDenominator 而非 isDue，确保特殊日 checked 计入分母
-          countsInDueDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
-          countsInDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
-          countsAsDone: day.status === 'checked',
-          isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31'),
-          // WXML 绑定需要 themeClass
-          themeClass: instance.themeClass || group.themeClass || ''
-        }
-      })
-
-      habitReports.push({
-        habitId: instance.habitId,
-        habit,
-        days,
-        dueCount: instance.dueCount,
-        doneCount: instance.doneCount
-      })
+      return {
+        date,
+        checked: status === 'checked',
+        isChecked: status === 'checked',
+        isDue,
+        shouldShow: isDue,
+        status,
+        countsInDueDenominator: countsInDenominator,
+        countsInDenominator,
+        countsAsDone,
+        isAfterDeletion: dayItems.length > 0 && dayItems.every(day => day.isAfterDeletion),
+        themeClass: representative.theme || group.theme || ''
+      }
     })
+
+    const dueCount = days.filter(day => day.countsInDenominator).length
+    const doneCount = days.filter(day => day.countsAsDone).length
+
+    return {
+      habitId: group.habitId,
+      habit,
+      days,
+      dueCount,
+      doneCount,
+      instances: group.instances
+    }
   })
 
   // 计算全局 stats
