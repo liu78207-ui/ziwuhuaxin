@@ -1,7 +1,7 @@
 # Test Matrix
 
-审计日期：2026-06-10
-复验日期：2026-06-10
+审计日期：2026-06-11
+审计基线：`93d62a9 chore: complete V1 governance validation`
 
 状态标记：
 
@@ -46,7 +46,7 @@
 | --- | --- | --- | --- |
 | 添加习惯 | `habitService.e2e.test.js`, `habits-edit-strategy.test.js`, `habits.test.js` | PASS | 添加走 habitService，生成 userHabitId。 |
 | 一键开始 | `habits-plan-start.test.js`, `habits.test.js` | PASS | 需补 UI 手工验收一键默认频次文案。 |
-| 编辑策略 | `habits-edit-strategy.test.js`, `strategy-change-day.test.js` | PASS | 策略修改当天低压力口径有测试。 |
+| 编辑策略 | `habits-edit-strategy.test.js`, `strategy-change-day.test.js`, `reportService.e2e.test.js` | PASS | 覆盖策略修改当天、未来策略、取消后案台/观心一致。 |
 | 删除习惯 | `habits-real-actions.test.js`, `deletion-policy.test.js` | PASS | 前端走 softDeleteHabit；旧云函数 removeStrategy 为兼容路径。 |
 | 重复添加同一习惯 | `habits-edit-strategy.test.js`, `habitService.e2e.test.js` | PASS | 删除后再添加走新 userHabitId。 |
 
@@ -56,7 +56,7 @@
 | --- | --- | --- | --- |
 | 打卡 | `checkinService` 相关测试、`home.test.js`, `syncCheckin` 集成 | PASS | 新链路走 checkinOperation/dailyCheckinState。 |
 | 取消打卡 | `checkinService.strategy-change.test.js`, `syncCheckin` 集成, `undoCheckin-real.test.js` | PASS | 新链路通过；旧兼容 `undoCheckin` 已改为取消标记并补写 operation/state。 |
-| 重复点击 | `home.js` 防抖静态 + `app.test.js` legacy 重复 | PARTIAL | 新 checkinService 快速重复点击缺少专门并发测试。 |
+| 重复点击 | `home.js` 防抖静态 + `app.test.js` + `user-flow.test.js` | PASS | 重复打卡路径已有自动化；真实快速连点仍建议手工确认。 |
 | 快速连续点击 | 静态 | PARTIAL | home.js 1s 防抖存在，但无异步 race 测试。 |
 | 离线打卡 | `syncService.test.js`, `app.test.js` | PASS | pending 队列覆盖，真实网络切换需手工。 |
 | 同步后状态 | `syncService.test.js`, `strategy-change-sync.test.js` | PASS | synced 回写队列状态覆盖。 |
@@ -71,7 +71,7 @@
 | 完成率 | `reportAggregator.test.js`, `reportService.test.js` | PASS | 页面月报映射仍计算 rate，但基于 service done/due。 |
 | 连续天数 | `reportAggregator.test.js` | PASS | streak 口径来自 reportAggregator。 |
 | 删除当天规则 | `reportService.test.js`, `deletion-policy.test.js` | PASS | 新服务覆盖。 |
-| 策略修改当天规则 | `strategy-change-day.test.js`, `strategy-change-sync.test.js` | PASS | 覆盖已打卡、未打卡、取消等场景。 |
+| 策略修改当天规则 | `strategy-change-day.test.js`, `strategy-change-sync.test.js`, `reportService.e2e.test.js` | PASS | 覆盖已打卡、未打卡、取消、daily/weekly 切换、周四取消后观心不显示未完成描边。 |
 
 ## F. 同步验收
 
