@@ -13,7 +13,8 @@
     "test:utils": "node node_modules/jest/bin/jest.js __tests__/unit/utils",
     "test:pages": "node node_modules/jest/bin/jest.js __tests__/unit/pages --coverage=false",
     "test:cloud": "node node_modules/jest/bin/jest.js __tests__/integration/cloudfunctions --coverage=false",
-    "verify:cloudfunctions": "node scripts/verify-v1-cloudfunctions.js"
+    "verify:cloudfunctions": "node scripts/verify-v1-cloudfunctions.js",
+    "verify:legacy-boundaries": "node scripts/verify-legacy-boundaries.js"
   },
   "keywords": [
     "微信小程序",

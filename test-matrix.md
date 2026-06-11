@@ -1,7 +1,7 @@
 # Test Matrix
 
 审计日期：2026-06-11
-审计基线：`93d62a9 chore: complete V1 governance validation`
+审计基线：V1 governance validation + legacy boundary hardening
 
 状态标记：
 
@@ -102,6 +102,8 @@
 | 页面直接计算报表 | PASS | `stats.js` legacy 报表计算已删除，页面只做 reportService 映射。 |
 | 页面直接操作同步状态 | PASS | 页面层未发现直接 pending 队列操作。 |
 | 页面直接生成业务日期 | PASS | `miniprogram/pages` 未发现 `new Date()`；周期和计划开始日期已改走 timeService 或日期字符串解析。 |
+| 页面或新 service 直调旧云函数 | PASS | `npm run verify:legacy-boundaries` 禁止 `doCheckin/undoCheckin/getStatsReport` 回流。 |
+| 页面调用 app legacy helper | PASS | `npm run verify:legacy-boundaries` 禁止页面调用 `saveMyHabits/saveCheckinLogs/addCheckinLog/removeCheckinLog/syncToCloud`。 |
 
 ## 建议手工验收清单
 

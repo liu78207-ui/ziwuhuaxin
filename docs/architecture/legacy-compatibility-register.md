@@ -22,9 +22,9 @@
 | 本地缓存 `AllHabitsInfo` | 仍用于历史展示兜底 | 删除习惯历史展示兼容 | 与 userHabitId 生命周期断链 | `storageService` / `reportService` | 删除习惯历史完全由 userHabit + policyVersion + dailyState 覆盖 | 保留为兜底 |
 | 旧键 `userStrategies` / `checkin_records` | 迁移兼容键 | 老版本缓存兼容 | 迁移重复、字段缺失 | `storageService` / `migrationService` | 迁移日志证明可重复执行且不再需要旧键 | 只允许迁移读取 |
 | 云函数 `syncLocalData` | compatibility function | `recoverData` 不可用或旧环境回退 | 恢复口径和新集合不一致 | `syncService` / `cloudService` | `recoverData` 在所有部署环境可用并覆盖分页恢复 | 保留为 fallback |
-| 云函数 `doCheckin` / `undoCheckin` | compatibility function | 老入口和云端测试兼容 | 绕过 `syncCheckin` 幂等和 operation/state 口径 | `syncCheckin` / `checkinService` | 前端无直接调用；云端兼容测试稳定；线上入口切换完成 | 保留，禁止页面直调 |
+| 云函数 `doCheckin` / `undoCheckin` | deprecated compatibility function | 老入口和云端测试兼容 | 绕过 `syncCheckin` 幂等和 operation/state 口径 | `syncCheckin` / `checkinService` | 前端无直接调用；云端兼容测试稳定；线上入口切换完成 | 保留，禁止页面和新 service 直调；由 `verify:legacy-boundaries` 守护 |
 | 云函数 `saveStrategy` / `removeStrategy` / `saveStrategyVersion` | compatibility function | 老策略保存入口兼容 | 按 `habit_id` 处理导致生命周期混用 | `syncHabit` / `habitService` | 策略保存全部走 syncHabit；旧函数只读或废弃验证完成 | 保留，禁止新增主路径 |
-| 云函数 `getStatsReport` / `getTodayTasks` / `getCheckinLogsByRange` | compatibility function | 老云端报表/任务入口兼容 | 与前端 reportService/habitService 口径分叉 | `reportService` / `habitService` | 前端不依赖；云端口径测试覆盖或明确废弃 | 保留，禁止页面直调 |
+| 云函数 `getStatsReport` / `getTodayTasks` / `getCheckinLogsByRange` | deprecated compatibility function | 老云端报表/任务入口兼容 | 与前端 reportService/habitService 口径分叉 | `reportService` / `habitService` | 前端不依赖；云端口径测试覆盖或明确废弃 | 保留，禁止页面和新 service 直调；`getStatsReport` 由 `verify:legacy-boundaries` 守护 |
 | `utils/share.js` | shareService 内部底层工具 | 复用已验证的微信分享菜单封装 | 若页面重新直接引用会造成入口分散 | `shareService` | 页面保持只调用 `shareService`；后续复制分享也进入 service | 保留为内部工具，禁止页面直调 |
 | `utils/reportCalculator.js` | 仍存在并有测试覆盖 | 历史算法资产和报表测试兼容 | 被页面或新功能误当成报表入口 | `reportService` / `reportAggregator` | reportService 完全覆盖相关能力且测试迁移完成 | 保留为内部/测试资产 |
 
@@ -40,9 +40,25 @@ wx.getStorageSync('CheckinLogs')
 wx.cloud.callFunction({ name: 'doCheckin' })
 wx.cloud.callFunction({ name: 'undoCheckin' })
 wx.cloud.callFunction({ name: 'getStatsReport' })
+getApp().saveMyHabits(...)
+getApp().saveCheckinLogs(...)
+getApp().addCheckinLog(...)
+getApp().removeCheckinLog(...)
+getApp().syncToCloud(...)
 ```
 
 如果测试需要构造旧数据，必须在测试名称或注释中明确说明是 legacy migration / compatibility 场景。
+
+2026-06-11 起，以下命令作为 legacy 边界静态闸门：
+
+```bash
+npm run verify:legacy-boundaries
+```
+
+该命令检查：
+
+- `miniprogram/pages` 和 `miniprogram/services` 不得调用 deprecated 云函数 `doCheckin`、`undoCheckin`、`getStatsReport`。
+- `miniprogram/pages` 不得调用 `app.js` legacy helper：`saveMyHabits`、`saveCheckinLogs`、`addCheckinLog`、`removeCheckinLog`、`syncToCloud`。
 
 ## 4. app.js legacy helper 审计结果
 
@@ -59,13 +75,13 @@ wx.cloud.callFunction({ name: 'getStatsReport' })
 | 分组 | helper | 当前用途 | 退出建议 |
 |---|---|---|---|
 | 加载/迁移 | `loadGlobalDataFromStorage`、`migrateOldStrategy`、`migrateOldRecords` | 启动时加载旧缓存并兼容 `userStrategies` / `checkin_records` | 迁移到 `storageService` / `migrationService` 测试后再瘦身 |
-| MyHabits 写入 | `saveMyHabits`、`addHabit`、`removeHabit`、`restoreHabit`、`saveUserStrategies`、`addUserStrategy`、`removeUserStrategy` | 旧 app API 和旧测试兼容 | 新代码禁止调用；测试迁移到 `habitService` 后逐步删除 |
+| MyHabits 写入 | `saveMyHabits`、`addHabit`、`removeHabit`、`restoreHabit`、`saveUserStrategies`、`addUserStrategy`、`removeUserStrategy` | 旧 app API 和旧测试兼容 | `saveMyHabits` 已标记 `@deprecated`；新代码禁止调用；测试迁移到 `habitService` 后逐步删除 |
 | MyHabits 查询 | `getAllHabits`、`getDeletedHabits`、`getHabitById` | 旧页面/测试查询接口 | 确认页面均走 `homeService` / `habitService` 后仅保留测试兼容 |
 | 删除历史兜底 | `saveDeletedHabitInfo` | 写 `AllHabitsInfo` 兜底历史展示 | 待报表历史完全由 `userHabit + policyVersion + dailyState` 覆盖后退出 |
-| CheckinLogs 写入 | `saveCheckinLogs`、`addCheckinLog`、`removeCheckinLog`、`removeLogsByDate`、`removeHabitLogs` | 旧打卡流水兼容 | 新代码禁止调用；迁移到 `checkinService` / `dailyCheckinState` 测试后退出 |
+| CheckinLogs 写入 | `saveCheckinLogs`、`addCheckinLog`、`removeCheckinLog`、`removeLogsByDate`、`removeHabitLogs` | 旧打卡流水兼容 | `saveCheckinLogs/addCheckinLog/removeCheckinLog` 已标记 `@deprecated`；新代码禁止调用；迁移到 `checkinService` / `dailyCheckinState` 测试后退出 |
 | CheckinLogs 查询 | `getLogsByHabitId`、`getLogsByDate`、`isCheckedOnDate`、`getLogsByDateRange`、`calculateStreak`、`calculateTotalDays` | 旧报表/测试查询接口 | 报表测试全部走 `reportService` 后退出 |
 | 调试日志 | `printAllLogs` | 旧调试输出 | 禁止页面调用；如需调试应进入 debugMode/service 日志 |
-| 旧同步桥 | `syncFromCloud`、`syncToCloud`、`buildLegacyCheckinSyncPayload`、`enqueueLegacyCheckinLogs`、`reconcileLegacyCheckinLogsAfterSync` | 将旧 `CheckinLogs` pending 项迁入 `syncService` / `syncCheckin` | 待旧 pending 迁移测试和 recoverData 覆盖后退出 |
+| 旧同步桥 | `syncFromCloud`、`syncToCloud`、`buildLegacyCheckinSyncPayload`、`enqueueLegacyCheckinLogs`、`reconcileLegacyCheckinLogsAfterSync` | 将旧 `CheckinLogs` pending 项迁入 `syncService` / `syncCheckin` | `syncToCloud` 已标记 `@deprecated`；待旧 pending 迁移测试和 recoverData 覆盖后退出 |
 
 ### 4.2 退出优先级
 

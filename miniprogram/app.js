@@ -229,7 +229,10 @@ App({
 
   // ========== MyHabits 操作==========
 
-  // 保存 MyHabits 到本地存储
+  /**
+   * @deprecated V1 legacy compatibility only.
+   * 新代码不得调用；习惯读写必须通过 habitService / storageService。
+   */
   saveMyHabits(habits) {
     this.globalData.MyHabits = habits
     try {
@@ -433,7 +436,10 @@ App({
 
   // ========== CheckinLogs 操作==========
 
-  // 保存 CheckinLogs 到本地存储
+  /**
+   * @deprecated V1 legacy compatibility only.
+   * 新代码不得调用；打卡最终状态必须通过 checkinService / syncService / dailyCheckinState。
+   */
   saveCheckinLogs(logs) {
     this.globalData.CheckinLogs = logs
     try {
@@ -444,7 +450,10 @@ App({
     }
   },
 
-  // 添加打卡记录
+  /**
+   * @deprecated V1 legacy compatibility only.
+   * 新代码不得调用；打卡必须通过 checkinService.checkin/toggleCheckin。
+   */
   addCheckinLog(habitId, dateStr, syncStatus = 0) {
     const logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
@@ -472,7 +481,10 @@ App({
     return false
   },
 
-  // 取消打卡记录（逻辑删除，标记为待删除）
+  /**
+   * @deprecated V1 legacy compatibility only.
+   * 新代码不得调用；取消打卡必须通过 checkinService.undoCheckin/toggleCheckin。
+   */
   removeCheckinLog(habitId, dateStr) {
     let logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
@@ -619,7 +631,7 @@ App({
   // ========== 数据同步相关 ==========
 
   /**
-   * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
+   * @deprecated V1 legacy compatibility only. Phase 4+ - 已废弃，同步统一走 syncService
    * 本方法仅保留兼容旧调用方；不得再直接读取旧 checkin_logs 云函数。
    */
   async syncFromCloud() {

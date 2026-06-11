@@ -1,7 +1,7 @@
 # Static Audit
 
 审计日期：2026-06-11
-审计基线：`93d62a9 chore: complete V1 governance validation`
+审计基线：V1 governance validation + legacy boundary hardening
 
 ## 执行命令
 
@@ -10,6 +10,7 @@ rg -n "wx\\.getStorageSync|wx\\.setStorageSync|wx\\.removeStorageSync|wx\\.cloud
 rg -n "legacyLoadWeekData|legacyLoadMonthData|legacyLoadYearData|calculateStatsWithStrategy|calculateDueCount|mergeWithDeletedHabits" miniprogram/pages/stats/stats.js
 rg -n "pendingOperations|setPendingOperations|updatePendingItem|dailyCheckinState|dailyCheckinStates" miniprogram/pages
 rg -n "#e64340" miniprogram
+npm run verify:legacy-boundaries
 node --check miniprogram/app.js miniprogram/pages/home/home.js miniprogram/pages/habits/habits.js miniprogram/pages/stats/stats.js miniprogram/pages/profile/profile.js miniprogram/services/timeService.js miniprogram/services/checkinService.js miniprogram/services/habitService.js miniprogram/services/reportService.js miniprogram/services/syncService.js miniprogram/services/userService.js miniprogram/services/shareService.js cloudfunctions/login/index.js cloudfunctions/recoverData/index.js cloudfunctions/syncCheckin/index.js cloudfunctions/syncHabit/index.js cloudfunctions/migrateV1Data/index.js
 ```
 
@@ -24,6 +25,7 @@ node --check miniprogram/app.js miniprogram/pages/home/home.js miniprogram/pages
 | 页面直接操作同步状态 | PASS | 页面层无 pending 队列、dailyCheckinState 直连命中。 |
 | 分享入口 | PASS | 四主页面不再直接引用 `utils/share.js`，由 `shareService` 承接。 |
 | 危险色 | PASS | `#e64340` 无命中；删除确认使用 `#F0655B`，全局有 `--color-danger` alias。 |
+| legacy 边界静态闸门 | PASS | `verify:legacy-boundaries` 已禁止页面和新 service 直调 `doCheckin/undoCheckin/getStatsReport`；页面不得调用指定 app legacy helper。 |
 | 语法检查 | PASS | app、四主页面、核心 services、核心云函数 `node --check` 通过。 |
 
 ## 仍需关注
@@ -32,16 +34,19 @@ node --check miniprogram/app.js miniprogram/pages/home/home.js miniprogram/pages
    - 函数：`exports.main`
    - 风险原因：仍是兼容旧集合入口，和新 `syncCheckin` 模型并存。
    - 影响范围：旧调用方继续使用时，可能绕过前端新链路的 operation/daily state 治理。
-   - 修复建议：保留兼容窗口时标记 deprecated；新调用方禁止接入；后续代理到 `syncCheckin` 或下线。
+   - 当前治理：已通过 `verify:legacy-boundaries` 禁止页面和新 service 直调。
+   - 修复建议：保留兼容窗口时继续标记 deprecated；后续代理到 `syncCheckin` 或下线。
 
 2. `cloudfunctions/getStatsReport/index.js`
    - 函数：`exports.main`
    - 风险原因：仍是兼容旧集合报表入口，和前端 `reportService/reportAggregator` 并存。
    - 影响范围：旧后台/旧版本调用可能出现报表解释差异。
-   - 修复建议：标记 deprecated；若必须保留，补充与 V2 数据模型一致的适配测试。
+   - 当前治理：已通过 `verify:legacy-boundaries` 禁止页面和新 service 直调。
+   - 修复建议：继续标记 deprecated；若必须保留，补充与 V2 数据模型一致的适配测试。
 
 3. `miniprogram/app.js`
    - 函数：`saveMyHabits`、`saveCheckinLogs`、`addCheckinLog`、`removeCheckinLog`、`syncToCloud`
    - 风险原因：legacy API 外壳仍保留。
    - 影响范围：后续开发误用旧 API 会增加维护成本。
-   - 修复建议：继续保留 legacy register；新增静态检查或注释，逐步迁出到 service 层。
+   - 当前治理：`saveMyHabits/saveCheckinLogs/addCheckinLog/removeCheckinLog/syncToCloud` 已标记 `@deprecated`；页面调用由 `verify:legacy-boundaries` 拦截。
+   - 修复建议：继续保留 legacy register，逐步迁出到 service 层。
