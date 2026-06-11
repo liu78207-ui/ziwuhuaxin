@@ -29,7 +29,8 @@
     "condition": false,
     "swc": false,
     "disableSWC": true,
-    "disableUseStrict": false
+    "disableUseStrict": false,
+    "useCompilerPlugins": false
   },
   "simulatorType": "wechat",
   "simulatorPluginLibVersion": {},
@@ -39,7 +40,7 @@
     "tabIndent": "insertSpaces",
     "tabSize": 2
   },
-  "libVersion": "2.29.2",
+  "libVersion": "3.15.1",
   "packOptions": {
     "ignore": [],
     "include": []

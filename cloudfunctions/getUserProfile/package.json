@@ -1,0 +1,9 @@
+{
+  "name": "getUserProfile",
+  "version": "1.0.0",
+  "description": "V1: get current user profile by server-side OPENID",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

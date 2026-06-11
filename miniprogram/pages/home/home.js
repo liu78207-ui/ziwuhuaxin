@@ -7,7 +7,7 @@ const homeService = require('../../services/homeService');
 const habitService = require('../../services/habitService');
 const checkinService = require('../../services/checkinService');
 const timeService = require('../../services/timeService');
-const share = require('../../utils/share.js');
+const shareService = require('../../services/shareService');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -60,14 +60,11 @@ Page({
   },
 
   onLoad() {
-    const app = getApp();
-    app.printAllLogs();
-
     this.loadViewModel();
   },
 
   onShow() {
-    share.enableShareMenu();
+    shareService.enableShareMenu();
 
     // 先清空任务列表，强制视图刷新
     this.setData({ taskList: [] });
@@ -176,13 +173,13 @@ Page({
     const checkedCount = taskList.filter(item => item.isChecked).length;
     const totalCount = taskList.length;
 
-    return share.appMessage(
+    return shareService.appMessage(
       `子午花信 · ${timeInfo.shichen || '今日修习'} | 今日已打卡 ${checkedCount}/${totalCount} 项`,
       '/pages/home/home'
     );
   },
 
   onShareTimeline() {
-    return share.timeline('子午花信 · 顺时修习，日日有信', 'from=timeline&page=home');
+    return shareService.getShareTimeline('home');
   }
 });

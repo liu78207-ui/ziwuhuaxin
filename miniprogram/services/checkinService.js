@@ -42,7 +42,11 @@ async function checkin(userHabitId, date) {
   storageService.saveCheckinOperation(operation)
 
   // 5. 创建/更新 DailyCheckinState
-  const state = createCheckedState(userHabitId, habit.habitId, date, operation.operationId)
+  const state = applyStrategyChangeLock(
+    createCheckedState(userHabitId, habit.habitId, date, operation.operationId),
+    existingState,
+    habit.latestPolicyVersionId
+  )
   storageService.setDailyState(state)
 
   // 6. 进入 pending 队列，等待云端同步（Phase 4）
@@ -57,6 +61,9 @@ async function checkin(userHabitId, date) {
     operationId: operation.operationId,
     idempotencyKey: operation.idempotencyKey,
     action: 'checkin',
+    hasPolicyChangedToday: state.hasPolicyChangedToday === true,
+    lockedReason: state.lockedReason,
+    lockReason: state.lockReason,
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
@@ -103,7 +110,11 @@ async function undoCheckin(userHabitId, date) {
   storageService.saveCheckinOperation(operation)
 
   // 6. 更新 DailyCheckinState
-  const state = createCanceledState(userHabitId, habit.habitId, date, operation.operationId)
+  const state = applyStrategyChangeLock(
+    createCanceledState(userHabitId, habit.habitId, date, operation.operationId),
+    existingState,
+    habit.latestPolicyVersionId
+  )
   storageService.setDailyState(state)
 
   // 7. 进入 pending 队列，等待云端同步（Phase 4）
@@ -118,6 +129,9 @@ async function undoCheckin(userHabitId, date) {
     operationId: operation.operationId,
     idempotencyKey: operation.idempotencyKey,
     action: 'undo',
+    hasPolicyChangedToday: state.hasPolicyChangedToday === true,
+    lockedReason: state.lockedReason,
+    lockReason: state.lockReason,
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
@@ -182,6 +196,39 @@ function getCheckinHistory(userHabitId, date) {
   return operations.filter(op => op.date === date)
 }
 
+function isStrategyChangedState(state) {
+  if (!state) return false
+  const reason = state.lockedReason || state.lockReason
+  return state.hasPolicyChangedToday === true ||
+    reason === 'strategy_changed_after_checkin' ||
+    reason === 'strategy_changed_without_checkin'
+}
+
+function getStrategyChangeLockedReason(status) {
+  return status === DAILY_STATE_STATUS.checked
+    ? 'strategy_changed_after_checkin'
+    : 'strategy_changed_without_checkin'
+}
+
+function applyStrategyChangeLock(nextState, previousState, policyVersionId) {
+  const state = {
+    ...nextState,
+    policyVersionId
+  }
+
+  if (!isStrategyChangedState(previousState)) {
+    return state
+  }
+
+  const lockedReason = getStrategyChangeLockedReason(state.status)
+  return {
+    ...state,
+    hasPolicyChangedToday: true,
+    lockedReason,
+    lockReason: lockedReason
+  }
+}
+
 module.exports = {
   checkin,
   undoCheckin,
@@ -189,5 +236,6 @@ module.exports = {
   getDailyState,
   getDailyStatesByDate,
   getDailyStatesByRange,
-  getCheckinHistory
+  getCheckinHistory,
+  applyStrategyChangeLock
 }

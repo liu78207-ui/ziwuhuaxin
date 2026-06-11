@@ -1,3 +1,6 @@
+const fs = require('fs');
+const path = require('path');
+
 /**
  * 修习页面 - “我的”Tab 筛选测试
  */
@@ -47,5 +50,25 @@ describe('修习页面我的Tab', () => {
 
     expect(page.filterHabits(habits, 1).map(h => h.title)).toEqual(['八段锦', '太极拳']);
     expect(page.filterHabits(habits, 2).map(h => h.title)).toEqual(['艾灸']);
+  });
+
+  test('我的Tab空状态提供添加入口', () => {
+    const wxml = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/habits/habits.wxml'),
+      'utf8'
+    );
+
+    expect(wxml).toContain('currentTab === 0 ? \'还没有添加习惯\' : \'暂无该分类习惯\'');
+    expect(wxml).toContain('wx:if="{{currentTab === 0}}" bindtap="goAddFromMyTab"');
+    expect(wxml).toContain('立即添加习惯');
+
+    page.data.habits = [
+      { _id: '1', title: '八段锦', category: '运动类' },
+      { _id: '12', title: '艾灸', category: '理疗类' }
+    ];
+    page.goAddFromMyTab();
+
+    expect(page.data.currentTab).toBe(1);
+    expect(page.data.filteredHabits.map(h => h.title)).toEqual(['八段锦']);
   });
 });

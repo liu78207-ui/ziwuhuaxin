@@ -99,10 +99,11 @@ describe('share menu and habits entry behavior', () => {
 
     page.onShow();
 
-    expect(wx.showShareMenu).toHaveBeenCalledWith({
+    expect(wx.showShareMenu).toHaveBeenCalledWith(expect.objectContaining({
       withShareTicket: true,
-      menus: ['shareAppMessage', 'shareTimeline']
-    });
+      menus: ['shareAppMessage', 'shareTimeline'],
+      fail: expect.any(Function)
+    }));
     expect(page.onShareAppMessage()).toEqual(expect.objectContaining({
       title: expect.any(String),
       path: expectedPath

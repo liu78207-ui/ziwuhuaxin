@@ -260,6 +260,35 @@
   border: 2rpx solid var(--theme-color, var(--c-primary));
 }
 
+/* 取消的应修日：与 unchecked 同义，符合"应修未完成"约定 */
+.wt-dot.canceled {
+  background: #FFFFFF;
+  border: 2rpx solid var(--theme-color, var(--c-primary));
+}
+
+/* 非应修日：与 inactive 视觉一致 */
+.wt-dot.not_required {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+.wt-dot.low_confidence {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+/* 未来日期：与非应修日统一为浅灰色块 */
+.wt-dot.future {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+}
+
+/* 多个 userHabitId 同日部分完成：主题浅底 + 主题色虚线 */
+.wt-dot.partial {
+  background: var(--theme-bg, var(--c-primary-light));
+  border: 2rpx dashed var(--theme-color, var(--c-primary));
+}
+
 /* ============================================
    底部数据看板
    ============================================ */
@@ -423,6 +452,34 @@
   background: #F4F6F8;
   border: 2rpx solid transparent;
   color: #B0B0B0;
+  box-sizing: border-box;
+}
+
+.mc-cell.canceled {
+  background: #FFFFFF;
+  border: 2rpx solid var(--theme-color, var(--c-primary));
+  color: var(--ink-title);
+  box-sizing: border-box;
+}
+
+.mc-cell.not_required {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+  color: #B0B0B0;
+  box-sizing: border-box;
+}
+
+.mc-cell.low_confidence {
+  background: #F4F6F8;
+  border: 2rpx solid transparent;
+  color: #B0B0B0;
+  box-sizing: border-box;
+}
+
+.mc-cell.partial {
+  background: var(--theme-bg, var(--c-primary-light));
+  border: 2rpx dashed var(--theme-color, var(--c-primary));
+  color: var(--ink-title);
   box-sizing: border-box;
 }
 

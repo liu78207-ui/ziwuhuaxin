@@ -33,4 +33,23 @@ describe('wechat upload quality config', () => {
       });
     });
   });
+
+  test('does not use deprecated system info APIs in miniprogram javascript', () => {
+    function walk(dir) {
+      return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          return walk(fullPath);
+        }
+        return fullPath.endsWith('.js') ? [fullPath] : [];
+      });
+    }
+
+    const offenders = walk(miniprogramRoot).filter(file => {
+      const content = fs.readFileSync(file, 'utf8');
+      return content.includes('wx.getSystemInfoSync') || content.includes('wx.getSystemInfo(');
+    });
+
+    expect(offenders).toEqual([]);
+  });
 });

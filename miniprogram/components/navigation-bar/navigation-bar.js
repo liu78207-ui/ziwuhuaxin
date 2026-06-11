@@ -50,18 +50,33 @@ Component({
   },
   lifetimes: {
     attached() {
-      const rect = wx.getMenuButtonBoundingClientRect()
-      wx.getSystemInfo({
-        success: (res) => {
-          const isAndroid = res.platform === 'android'
-          const isDevtools = res.platform === 'devtools'
-          this.setData({
-            ios: !isAndroid,
-            innerPaddingRight: `padding-right: ${res.windowWidth - rect.left}px`,
-            leftWidth: `width: ${res.windowWidth - rect.left }px`,
-            safeAreaTop: isDevtools || isAndroid ? `height: calc(var(--height) + ${res.safeArea.top}px); padding-top: ${res.safeArea.top}px` : ``
-          })
-        }
+      let rect = { left: 0 }
+      let windowInfo = {}
+      let deviceInfo = {}
+      try {
+        rect = wx.getMenuButtonBoundingClientRect()
+      } catch (e) {
+        console.warn('navigation-bar getMenuButtonBoundingClientRect failed:', e && e.message ? e.message : String(e || 'unknown error'))
+      }
+      try {
+        windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : {}
+      } catch (e) {
+        console.warn('navigation-bar getWindowInfo failed:', e && e.message ? e.message : String(e || 'unknown error'))
+      }
+      try {
+        deviceInfo = wx.getDeviceInfo ? wx.getDeviceInfo() : {}
+      } catch (e) {
+        console.warn('navigation-bar getDeviceInfo failed:', e && e.message ? e.message : String(e || 'unknown error'))
+      }
+      const isAndroid = deviceInfo.platform === 'android'
+      const isDevtools = deviceInfo.platform === 'devtools'
+      const safeAreaTop = windowInfo.safeArea?.top || windowInfo.statusBarHeight || 0
+      const leftWidth = Math.max(0, (windowInfo.windowWidth || 0) - rect.left)
+      this.setData({
+        ios: !isAndroid,
+        innerPaddingRight: `padding-right: ${leftWidth}px`,
+        leftWidth: `width: ${leftWidth}px`,
+        safeAreaTop: isDevtools || isAndroid ? `height: calc(var(--height) + ${safeAreaTop}px); padding-top: ${safeAreaTop}px` : ``
       })
     },
   },

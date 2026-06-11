@@ -19,9 +19,18 @@ Component({
 
   lifetimes: {
     attached() {
-      const systemInfo = wx.getSystemInfoSync();
+      let windowInfo = {};
+      try {
+        windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : {};
+      } catch (e) {
+        console.warn('tab-bar getWindowInfo failed:', e && e.message ? e.message : String(e || 'unknown error'));
+      }
+      const safeAreaBottom = windowInfo.safeAreaInsets?.bottom ||
+        (windowInfo.safeArea && windowInfo.windowHeight
+          ? Math.max(0, windowInfo.windowHeight - windowInfo.safeArea.bottom)
+          : 0);
       this.setData({
-        safeAreaBottom: systemInfo.safeAreaInsets?.bottom || 0
+        safeAreaBottom
       });
     }
   },

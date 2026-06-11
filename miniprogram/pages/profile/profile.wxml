@@ -11,19 +11,24 @@
   <view class="profile-content">
     <!-- 头像选择按钮 -->
     <view class="avatar-wrapper">
-      <button class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar">
+      <button wx:if="{{isLoggedIn}}" class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" disabled="{{isAvatarSaving}}">
+        <image class="avatar-img" src="{{displayAvatarUrl || userInfo.avatarUrl || '/assets/icons/profile.png'}}" mode="aspectFill" lazy-load></image>
+      </button>
+      <button wx:else class="avatar-btn" bindtap="onLogin" disabled="{{isLoggingIn}}">
         <image class="avatar-img" src="{{displayAvatarUrl || userInfo.avatarUrl || '/assets/icons/profile.png'}}" mode="aspectFill" lazy-load></image>
       </button>
     </view>
-    
+
     <!-- 昵称输入框 -->
-    <input 
-      type="nickname" 
-      class="pv-name" 
-      value="{{userInfo.nickName}}" 
-      bindblur="onInputNickname" 
-      placeholder="点击设置昵称" 
+    <input
+      wx:if="{{isLoggedIn}}"
+      type="nickname"
+      class="pv-name"
+      value="{{userInfo.nickName}}"
+      bindblur="onInputNickname"
+      placeholder="点击设置昵称"
     />
+    <view wx:else class="pv-name pv-login-name" bindtap="onLogin">{{userInfo.nickName}}</view>
     
     <view class="pv-tag">早鸟作息</view>
 

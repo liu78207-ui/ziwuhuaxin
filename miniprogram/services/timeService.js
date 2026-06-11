@@ -40,6 +40,10 @@ function formatDate(date) {
   return dateUtils.formatDate(date)
 }
 
+function formatTimestamp(timestamp) {
+  return dateUtils.formatDate(dateUtils.asAsiaShanghai(new Date(timestamp)))
+}
+
 function addDays(dateStr, days) {
   return dateUtils.addDays(dateStr, days)
 }
@@ -132,6 +136,7 @@ module.exports = {
   getSimulatedDateStr,
   parseDate,
   formatDate,
+  formatTimestamp,
   addDays,
   dateDiff,
   compareDate,

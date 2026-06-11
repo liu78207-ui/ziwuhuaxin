@@ -1,5 +1,5 @@
 const iconMap = require('../../utils/iconMap.js');
-const share = require('../../utils/share.js');
+const shareService = require('../../services/shareService');
 const habitService = require('../../services/habitService');
 
 Page({
@@ -39,12 +39,12 @@ Page({
     showDailyIntervalPickerModal: false,
     showWeekdayPicker: false,
     showPlanStartDatePickerModal: false, // 计划开始日期选择弹窗
-    
+
     // picker-view 选中值
     durationPickerValue: [3], // 默认选中 20 分钟（索引3）
     dailyIntervalPickerValue: [1], // 默认选中 2 天（索引1）
     weekdayPickerValue: [0], // 默认选中周一
-    
+
     // 计划开始时间配置
     planStartType: 'custom',
     planStartDate: '', // 'today' | 'tomorrow' | 'custom'
@@ -55,7 +55,7 @@ Page({
     ],
     planStartDateCustom: '', // 自定义日期选择器的值
     planStartHint: '', // 提示信息
-    
+
     // 自定义操作菜单
     showActionMenu: false,
     actionMenuTitle: '',
@@ -90,14 +90,14 @@ Page({
       { _id: '9', title: '游泳', category: '运动类', description: '全身运动，增强心肺', default_duration: 45 },
       { _id: '10', title: '跑步', category: '运动类', description: '有氧运动，释放压力', default_duration: 30 },
       { _id: '11', title: '跳绳', category: '运动类', description: '简单高效，燃脂塑形', default_duration: 15 },
-      
+
       // 理疗类
       { _id: '12', title: '艾灸', category: '理疗类', description: '温阳散寒，提升免疫力', default_duration: 30 },
       { _id: '13', title: '刮痧', category: '理疗类', description: '活血化瘀，排毒养颜', default_duration: 20 },
       { _id: '14', title: '拔罐', category: '理疗类', description: '疏通经络，祛湿排毒', default_duration: 15 },
       { _id: '15', title: '推拿', category: '理疗类', description: '放松肌肉，缓解疲劳', default_duration: 30 },
       { _id: '16', title: '经络拍打', category: '理疗类', description: '疏通经络，促进循环', default_duration: 15 },
-      
+
       // 起居类
       { _id: '17', title: '晨起温水', category: '起居类', description: '清肠排毒，唤醒身体', default_duration: 5 },
       { _id: '18', title: '梳头', category: '起居类', description: '疏通头部经络，提神醒脑', default_duration: 5 },
@@ -105,7 +105,7 @@ Page({
       { _id: '20', title: '揉腹', category: '起居类', description: '调理脾胃，促进消化', default_duration: 10 },
       { _id: '21', title: '睡前泡脚', category: '起居类', description: '活血通络，促进睡眠', default_duration: 20 }
     ];
-    
+
     // 处理习惯数据，添加图标和主题类，并按首字母排序
     const processedHabits = allHabits
       .map(habit => {
@@ -129,7 +129,7 @@ Page({
   },
 
   onShow() {
-    share.enableShareMenu();
+    shareService.enableShareMenu();
 
     console.log('habits页面 onShow');
 
@@ -178,6 +178,13 @@ Page({
     });
   },
 
+  goAddFromMyTab() {
+    this.setData({
+      currentTab: 1,
+      filteredHabits: this.filterHabits(this.data.habits, 1)
+    });
+  },
+
   filterHabits(habits, tabIndex) {
     if (tabIndex === 0) {
       return habits.filter(h => h.hasStrategy);
@@ -207,7 +214,7 @@ Page({
             wx.showModal({
               title: '删除习惯',
               content: `确定要删除「${habit.title}」吗？\n历史打卡数据将保留`,
-              confirmColor: 'var(--c-coral)',
+              confirmColor: '#F0655B',
               success: (modalRes) => {
                 if (modalRes.confirm) {
                   this.removeStrategy(habit);
@@ -248,10 +255,10 @@ Page({
   onActionMenuSelect(e) {
     const index = e.currentTarget.dataset.index;
     const callback = this.data.actionMenuCallback;
-    
+
     // 先关闭弹窗
     this.closeActionMenu();
-    
+
     // 执行回调
     if (callback) {
       setTimeout(() => {
@@ -281,7 +288,7 @@ Page({
   openAddStrategyModal(habit) {
     // 重置 weekdays 的选中状态
     const weekdays = this.data.weekdays.map(day => ({ ...day, checked: false }));
-    
+
     // 获取今天的日期
     const today = this.getTodayDate();
 
@@ -312,9 +319,8 @@ Page({
   // 打开修改策略弹窗
   openEditStrategyModal(habit) {
     // 从当前 habit 中读取已有策略
-    const strategy = habit.strategy || {};
+    const strategy = this.normalizeStrategyForEdit(habit);
     const freqCategory = strategy.freq_category || 'everyday';
-    const freqType = strategy.freq_type || 'daily';
     const freqRules = strategy.freq_rules;
 
     // 解析已有的策略设置
@@ -337,18 +343,18 @@ Page({
       ...day,
       checked: selectedWeekdays.includes(day.value)
     }));
-    
+
     // 处理计划开始时间
     const today = this.getTodayDate();
     const savedPlanStartDate = strategy.plan_start_date || today;
     const habitCreatedAt = habit.createdAt || today;
     const minDate = habitCreatedAt < today ? habitCreatedAt : today;
-    
+
     // 判断计划开始时间选项
     let planStartType = 'custom';
     let planStartDate = 'today';
     let planStartDateCustom = '';
-    
+
     if (savedPlanStartDate === today) {
       planStartDate = 'today';
     } else if (savedPlanStartDate === this.getOffsetDate(1)) {
@@ -380,6 +386,39 @@ Page({
       planStartHint: '',
       minPlanStartDate: minDate
     });
+  },
+
+  normalizeStrategyForEdit(habit) {
+    const strategy = habit.strategy || {};
+    const rawFrequencyType = strategy.freq_type || strategy.frequencyType || 'daily';
+    const rawFrequencyConfig = strategy.frequencyConfig || {};
+    let freqRules = strategy.freq_rules;
+
+    if (freqRules === undefined || freqRules === null) {
+      if (rawFrequencyType === 'weekly') {
+        freqRules = Array.isArray(rawFrequencyConfig)
+          ? rawFrequencyConfig
+          : (Array.isArray(rawFrequencyConfig.weekdays) ? rawFrequencyConfig.weekdays : []);
+      } else {
+        freqRules = typeof rawFrequencyConfig === 'number'
+          ? rawFrequencyConfig
+          : (rawFrequencyConfig.intervalDays || 1);
+      }
+    }
+
+    const freqCategory = strategy.freq_category ||
+      (rawFrequencyType === 'weekly'
+        ? 'weekly'
+        : (Number(freqRules) > 1 ? 'daily-interval' : 'everyday'));
+
+    return {
+      ...strategy,
+      duration: strategy.duration || habit.targetMinutes || habit.default_duration || 20,
+      freq_type: rawFrequencyType,
+      freq_rules: freqRules,
+      freq_category: freqCategory,
+      plan_start_date: strategy.plan_start_date || strategy.startDate || strategy.effectiveStartDate || ''
+    };
   },
 
   // 移除习惯策略
@@ -453,17 +492,17 @@ Page({
       }
       return day;
     });
-    
+
     const selectedWeekdays = weekdays
       .filter(day => day.checked)
       .map(day => day.value);
-    
+
     const weekdayNames = ['', '一', '二', '三', '四', '五', '六', '日'];
-    const selectedWeekdaysText = selectedWeekdays.length > 0 
+    const selectedWeekdaysText = selectedWeekdays.length > 0
       ? selectedWeekdays.map(d => weekdayNames[d]).join(', ')
       : '一, 三, 日';
-    
-    this.setData({ 
+
+    this.setData({
       weekdays,
       selectedWeekdays,
       selectedWeekdaysText
@@ -498,7 +537,7 @@ Page({
   // 打开按天间隔选择器
   openDailyIntervalPicker() {
     const index = this.data.dailyIntervalOptions.indexOf(this.data.dailyInterval);
-    this.setData({ 
+    this.setData({
       showDailyIntervalPickerModal: true,
       dailyIntervalPickerValue: [index >= 0 ? index : 1]
     });
@@ -573,7 +612,7 @@ Page({
   // 打开时长选择器
   openDurationPicker() {
     const index = this.data.durationOptions.indexOf(this.data.selectedDuration);
-    this.setData({ 
+    this.setData({
       showDurationPickerModal: true,
       durationPickerValue: [index >= 0 ? index : 3]
     });
@@ -664,17 +703,34 @@ Page({
     // 获取计划开始日期
     const planStartDate = this.getFinalPlanStartDate();
 
-    // 1. 调用 habitService 添加用户习惯实例（创建 userHabitId + 首个策略版本）
+    // 判断是新增还是修改：
+    // - 新增：habit.strategy.habit_id 不存在，或指向一个已删除的 userHabit
+    // - 修改：habit.strategy.habit_id 存在且指向一个 active 的 userHabit
+    const existingUserHabitId = habit.strategy && habit.strategy.habit_id
+    const isEdit = existingUserHabitId
+      && habitService.getHabitByUserHabitId(existingUserHabitId)
+      && habitService.getHabitByUserHabitId(existingUserHabitId).status === 'active'
+
+    const policyInput = {
+      duration: this.data.selectedDuration || habit.default_duration || 30,
+      frequencyType: freq_type,
+      frequencyConfig: freq_type === 'weekly' ? { weekdays: freq_rules } : { intervalDays: freq_rules },
+      startDate: planStartDate
+    }
+
+    // 1. 调用 habitService：新增用 addHabit，修改用 updateHabitPolicy
     let userHabitId;
     let strategy;
     try {
-      const userHabit = await habitService.addHabit(habit._id, {
-        duration: this.data.selectedDuration || habit.default_duration || 30,
-        frequencyType: freq_type,
-        frequencyConfig: freq_type === 'weekly' ? { weekdays: freq_rules } : { intervalDays: freq_rules },
-        startDate: planStartDate
-      });
-      userHabitId = userHabit.userHabitId;
+      if (isEdit) {
+        const userHabit = await habitService.updateHabitPolicy(existingUserHabitId, policyInput)
+        userHabitId = userHabit.userHabitId
+        console.log('habitService.updateHabitPolicy 完成:', userHabitId)
+      } else {
+        const userHabit = await habitService.addHabit(habit._id, policyInput)
+        userHabitId = userHabit.userHabitId
+        console.log('habitService.addHabit 完成:', userHabitId)
+      }
       strategy = {
         habit_id: userHabitId,
         habit_title: habit.title,
@@ -685,9 +741,8 @@ Page({
         freq_category: freqCategory,
         plan_start_date: planStartDate
       };
-      console.log('habitService.addHabit 完成:', userHabitId);
     } catch (e) {
-      console.error('habitService.addHabit 失败:', e);
+      console.error('保存策略失败:', e);
       return;
     }
 
@@ -725,12 +780,12 @@ Page({
     const selectedWeekdays = this.data.weekdays
       .filter(day => day.checked)
       .map(day => day.value);
-    
+
     const weekdayNames = ['', '一', '二', '三', '四', '五', '六', '日'];
-    const selectedWeekdaysText = selectedWeekdays.length > 0 
+    const selectedWeekdaysText = selectedWeekdays.length > 0
       ? selectedWeekdays.map(d => '周' + weekdayNames[d]).join('，')
       : '周一，周三，周日';
-    
+
     this.setData({
       selectedWeekdays,
       selectedWeekdaysText
@@ -753,11 +808,11 @@ Page({
   getNextMonday() {
     return habitService.getNextMondayStr(getApp());
   },
-  
+
   // 点击计划开始时间选项（今天/明天/选择日期）
   onPlanStartOptionClick(e) {
     const value = e.currentTarget.dataset.value;
-    
+
     if (value === 'custom') {
       // 打开日期选择弹窗
       this.openPlanStartDatePicker();
@@ -772,7 +827,7 @@ Page({
           planStartDate = this.getOffsetDate(1);
           break;
       }
-      
+
       this.setData({
         planStartDate: value,
         planStartDateCustom: '',
@@ -780,37 +835,35 @@ Page({
       });
     }
   },
-  
+
   // 打开计划开始日期选择弹窗
   openPlanStartDatePicker() {
-    const today = new Date(this.getTodayDate());
-    const currentYear = today.getFullYear();
-    
+    const todayStr = this.getTodayDate();
+    const [currentYear, currentMonth, currentDay] = todayStr.split('-').map(Number);
+
     // 生成年份数组（当前年份前后10年）
     const years = [];
     for (let i = currentYear - 10; i <= currentYear + 10; i++) {
       years.push(i);
     }
-    
+
     // 生成月份数组
     const months = [];
     for (let i = 1; i <= 12; i++) {
       months.push(i);
     }
-    
+
     // 生成日期数组
     const days = [];
     for (let i = 1; i <= 31; i++) {
       days.push(i);
     }
-    
+
     // 设置当前选中的日期为今天
-    const todayStr = this.getTodayDate();
-    const todayDate = new Date(todayStr);
-    const yearIndex = years.indexOf(todayDate.getFullYear());
-    const monthIndex = todayDate.getMonth();
-    const dayIndex = todayDate.getDate() - 1;
-    
+    const yearIndex = years.indexOf(currentYear);
+    const monthIndex = currentMonth - 1;
+    const dayIndex = currentDay - 1;
+
     this.setData({
       showPlanStartDatePickerModal: true,
       planStartDateYears: years,
@@ -820,40 +873,40 @@ Page({
       planStartDatePickerTempValue: todayStr
     });
   },
-  
+
   // 关闭计划开始日期选择弹窗
   closePlanStartDatePicker() {
     this.setData({ showPlanStartDatePickerModal: false });
   },
-  
+
   // 日期选择器变化
   onPlanStartDatePickerChange(e) {
     const value = e.detail.value;
     const years = this.data.planStartDateYears;
     const months = this.data.planStartDateMonths;
     const days = this.data.planStartDateDays;
-    
+
     const year = years[value[0]];
     const month = months[value[1]];
     const day = days[value[2]];
-    
+
     // 格式化日期
     const monthStr = month < 10 ? '0' + month : month;
     const dayStr = day < 10 ? '0' + day : day;
     const selectedDate = `${year}-${monthStr}-${dayStr}`;
-    
+
     this.setData({
       planStartDatePickerTempValue: selectedDate
     });
   },
-  
+
   // 确认日期选择
   confirmPlanStartDatePicker() {
     const selectedDate = this.data.planStartDatePickerTempValue;
     const today = this.getTodayDate();
     const habit = this.data.selectedHabit;
     const createdAt = habit.createdAt || today;
-    
+
     // 校验：不能早于习惯创建日
     if (selectedDate < createdAt) {
       wx.showToast({
@@ -862,37 +915,37 @@ Page({
       });
       return;
     }
-    
+
     this.setData({
       planStartDate: 'custom',
       planStartDateCustom: selectedDate,
       planStartHint: this.generatePlanStartHint(selectedDate)
     });
-    
+
     this.closePlanStartDatePicker();
   },
-  
+
   // 生成提示信息
   generatePlanStartHint(planStartDate) {
     const today = this.getTodayDate();
-    
+
     if (planStartDate > today) {
       // 未来日期
       return `计划将从${planStartDate}开始，首页打卡按钮将于${planStartDate}首次显示`;
     }
-    
+
     return '';
   },
-  
+
   // 获取最终的计划开始日期
   getFinalPlanStartDate() {
     const { planStartDate, planStartDateCustom } = this.data;
-    
+
     // 自定义模式
     if (planStartDate === 'custom' && planStartDateCustom) {
       return planStartDateCustom;
     }
-    
+
     // 根据选项计算
     switch (planStartDate) {
       case 'today':
@@ -907,10 +960,10 @@ Page({
   },
 
   onShareAppMessage() {
-    return share.appMessage('子午花信 · 选一项修习，从今天开始', '/pages/habits/habits');
+    return shareService.getShareMessage('habits');
   },
 
   onShareTimeline() {
-    return share.timeline('子午花信 · 选一项修习，从今天开始', 'from=timeline&page=habits');
+    return shareService.getShareTimeline('habits');
   }
 });

@@ -6,12 +6,13 @@ const db = cloud.database();
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const OPENID = wxContext.OPENID;
+  const serverTime = Date.now();
 
   // Phase 7: openid 安全边界 — 云端自行通过 getWXContext 获取，不落地到前端
   // login 云函数职责：查询/创建 users 文档，返回内部 userId，不返回 openid
 
   if (!OPENID) {
-    return { success: false, code: 'NO_OPENID', message: '无法获取用户身份' };
+    return { success: false, code: 'NO_OPENID', message: '无法获取用户身份', serverTime };
   }
 
   try {
@@ -26,10 +27,24 @@ exports.main = async (event, context) => {
     if (userResult.data && userResult.data.length > 0) {
       // 已存在，返回 userId 和 createdAt
       const user = userResult.data[0];
+      const createdAt = user.createdAt || now;
+      const patch = {};
+      if (!user.createdAt) {
+        patch.createdAt = createdAt;
+      }
+      if (!user.updatedAt) {
+        patch.updatedAt = createdAt;
+      }
+      if (Object.keys(patch).length > 0) {
+        await db.collection('users').doc(user._id).update({
+          data: patch
+        });
+      }
       return {
         success: true,
         userId: user._id,
-        createdAt: user.createdAt
+        createdAt,
+        serverTime
       };
     }
 
@@ -49,10 +64,11 @@ exports.main = async (event, context) => {
     return {
       success: true,
       userId: addResult._id,
-      createdAt: now
+      createdAt: now,
+      serverTime
     };
   } catch (e) {
     console.error('login 云函数异常:', e);
-    return { success: false, code: 'CLOUD_ERROR', message: e.message };
+    return { success: false, code: 'CLOUD_ERROR', message: e.message, serverTime };
   }
 };

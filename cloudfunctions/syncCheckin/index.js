@@ -45,6 +45,9 @@ exports.main = async (event, context) => {
     policyVersionId,
     date,
     action, // 'checkin' | 'undo'
+    hasPolicyChangedToday,
+    lockedReason,
+    lockReason,
     clientCreatedAt: rawClientCreatedAt,
     clientSequence: rawClientSequence
   } = event;
@@ -72,6 +75,13 @@ exports.main = async (event, context) => {
   const canceledAt = action === 'undo' ? serverTime : null;
   const clientCreatedAt = rawClientCreatedAt || event.clientTime || null;
   const clientSequence = typeof rawClientSequence === 'number' ? rawClientSequence : 0;
+  const strategyLockReason = lockedReason || lockReason || (
+    hasPolicyChangedToday
+      ? (dailyStateStatus === 'checked'
+        ? 'strategy_changed_after_checkin'
+        : 'strategy_changed_without_checkin')
+      : undefined
+  );
 
   let opRecordId = null;
   let opAlreadyExisted = false;
@@ -162,6 +172,8 @@ exports.main = async (event, context) => {
           lastOperationId: operationId || idempotencyKey,
           lastOperationClientTime: clientCreatedAt || null,
           lastOperationClientSequence: clientSequence,
+          ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
+          ...(strategyLockReason ? { lockedReason: strategyLockReason, lockReason: strategyLockReason } : {}),
           syncStatus: 'synced',
           updatedAt: serverTime
         }
@@ -182,6 +194,8 @@ exports.main = async (event, context) => {
           lastOperationId: operationId || idempotencyKey,
           lastOperationClientTime: clientCreatedAt || null,
           lastOperationClientSequence: clientSequence,
+          ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
+          ...(strategyLockReason ? { lockedReason: strategyLockReason, lockReason: strategyLockReason } : {}),
           syncStatus: 'synced',
           updatedAt: serverTime
         }

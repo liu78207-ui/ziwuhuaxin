@@ -23,7 +23,12 @@ describe('修习策略弹窗计划开始时间', () => {
   }
 
   beforeEach(() => {
+    jest.useFakeTimers().setSystemTime(new Date('2026-05-30T16:00:00.000Z'));
     page = loadHabitsPage();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
   test('模板只保留开始时间选项组', () => {

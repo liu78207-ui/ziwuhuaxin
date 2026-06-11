@@ -104,6 +104,10 @@
   font-weight: 400;
 }
 
+.pv-login-name:active {
+  opacity: 0.7;
+}
+
 /* 身份标签 */
 .pv-tag {
   font-size: 24rpx;

@@ -7,7 +7,13 @@ const DEFAULT_IMAGE = '/images/share-cover.png';
 
 function enableShareMenu() {
   if (typeof wx !== 'undefined' && wx.showShareMenu) {
-    wx.showShareMenu(SHARE_MENU_OPTIONS);
+    wx.showShareMenu({
+      ...SHARE_MENU_OPTIONS,
+      fail: (err) => {
+        const message = err && err.errMsg ? err.errMsg : String(err || 'unknown error');
+        console.warn('share.enableShareMenu 失败:', message);
+      }
+    });
   }
 }
 

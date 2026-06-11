@@ -1,0 +1,48 @@
+{
+  "required": [
+    "login",
+    "getUserProfile",
+    "saveUserProfile",
+    "migrateV1Data",
+    "recoverData",
+    "syncCheckin",
+    "syncHabit"
+  ],
+  "compatibility": [
+    "syncLocalData",
+    "doCheckin",
+    "undoCheckin",
+    "saveStrategy",
+    "removeStrategy",
+    "saveStrategyVersion",
+    "getHabits",
+    "getTodayTasks",
+    "getStatsReport",
+    "getCheckinLogsByRange",
+    "getUserStrategies"
+  ],
+  "manualSmokeTests": [
+    {
+      "name": "login",
+      "data": {}
+    },
+    {
+      "name": "getUserProfile",
+      "data": {}
+    },
+    {
+      "name": "recoverData",
+      "data": {}
+    },
+    {
+      "name": "migrateV1Data",
+      "data": {
+        "dryRun": true
+      }
+    },
+    {
+      "name": "syncLocalData",
+      "data": {}
+    }
+  ]
+}

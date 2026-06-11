@@ -1,130 +1,159 @@
-/**
- * 登录云函数 (login) 集成测试
- * 测试用户登录、openid获取等
- */
+function createMockCloud(initialCollections, wxContext = { OPENID: 'openid_1' }) {
+  const collections = JSON.parse(JSON.stringify(initialCollections))
+  const calls = { adds: [], updates: [] }
+  const counters = {}
 
-const mockCloud = {
-  init: jest.fn(),
-  getWXContext: jest.fn()
-};
+  function ensureCollection(name) {
+    if (!collections[name]) {
+      collections[name] = []
+    }
+    return collections[name]
+  }
 
-describe('login 云函数集成测试', () => {
-  let main;
+  function matches(query, doc) {
+    return Object.keys(query || {}).every(key => doc[key] === query[key])
+  }
 
-  beforeAll(() => {
-    main = async (event, context) => {
-      const wxContext = mockCloud.getWXContext();
-      
-      return {
-        event,
-        openid: wxContext.OPENID,
-        appid: wxContext.APPID,
-        unionid: wxContext.UNIONID,
-        env: wxContext.ENV
-      };
-    };
-  });
+  function collectionApi(name) {
+    ensureCollection(name)
+    return {
+      where(query) {
+        const matched = ensureCollection(name).filter(doc => matches(query, doc))
+        const state = { limitValue: matched.length }
+        const queryApi = {
+          limit(value) {
+            state.limitValue = value
+            return queryApi
+          },
+          get: jest.fn(() => Promise.resolve({
+            data: matched.slice(0, state.limitValue)
+          }))
+        }
+        return queryApi
+      },
+      add(payload) {
+        counters[name] = (counters[name] || 0) + 1
+        const record = {
+          ...(payload.data || {}),
+          _id: `${name}_${counters[name]}`
+        }
+        ensureCollection(name).push(record)
+        calls.adds.push({ collection: name, payload })
+        return Promise.resolve({ _id: record._id })
+      },
+      doc(id) {
+        return {
+          update(payload) {
+            const record = ensureCollection(name).find(item => item._id === id)
+            if (record) {
+              Object.assign(record, payload.data || {})
+            }
+            calls.updates.push({ collection: name, id, payload })
+            return Promise.resolve({ updated: record ? 1 : 0 })
+          }
+        }
+      }
+    }
+  }
 
+  jest.doMock('wx-server-sdk', () => ({
+    DYNAMIC_CURRENT_ENV: 'test-env',
+    init: jest.fn(),
+    getWXContext: jest.fn(() => wxContext),
+    database: jest.fn(() => ({
+      collection: jest.fn(collectionApi)
+    }))
+  }), { virtual: true })
+
+  return { collections, calls }
+}
+
+describe('login cloud function', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
-  });
+    jest.resetModules()
+    jest.clearAllMocks()
+  })
 
-  describe('登录功能测试', () => {
-    test('应该返回用户openid', async () => {
-      mockCloud.getWXContext.mockReturnValue({
-        OPENID: 'test_openid_123',
-        APPID: 'test_appid_456',
-        UNIONID: 'test_unionid_789',
-        ENV: 'test-env'
-      });
+  test('creates a user document for a new openid without returning openid', async () => {
+    const { collections } = createMockCloud({ users: [] })
 
-      const result = await main({}, {});
+    const { main } = require('../../../cloudfunctions/login/index.js')
+    const result = await main({ code: 'wx_code_1' }, {})
 
-      expect(result.openid).toBe('test_openid_123');
-      expect(result.appid).toBe('test_appid_456');
-    });
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      userId: 'users_1',
+      createdAt: expect.any(String),
+      serverTime: expect.any(Number)
+    }))
+    expect(result.openid).toBeUndefined()
+    expect(collections.users[0]).toEqual(expect.objectContaining({
+      _openid: 'openid_1',
+      createdAt: result.createdAt,
+      updatedAt: result.createdAt
+    }))
+  })
 
-    test('openid不应该为空', async () => {
-      mockCloud.getWXContext.mockReturnValue({
-        OPENID: 'user_123',
-        APPID: 'app_456'
-      });
+  test('returns existing createdAt without updating a complete user document', async () => {
+    const { calls } = createMockCloud({
+      users: [{
+        _id: 'user_1',
+        _openid: 'openid_1',
+        createdAt: '2026-05-31T00:00:00.000Z',
+        updatedAt: '2026-05-31T00:00:00.000Z'
+      }]
+    })
 
-      const result = await main({}, {});
+    const { main } = require('../../../cloudfunctions/login/index.js')
+    const result = await main({}, {})
 
-      expect(result.openid).toBeTruthy();
-      expect(typeof result.openid).toBe('string');
-    });
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      userId: 'user_1',
+      createdAt: '2026-05-31T00:00:00.000Z',
+      serverTime: expect.any(Number)
+    }))
+    expect(calls.updates).toHaveLength(0)
+  })
 
-    test('不同用户应该返回不同openid', async () => {
-      // 用户A
-      mockCloud.getWXContext.mockReturnValue({ OPENID: 'user_a_openid' });
-      const resultA = await main({}, {});
+  test('backfills createdAt for an existing legacy user document', async () => {
+    const { collections, calls } = createMockCloud({
+      users: [{
+        _id: 'legacy_user_1',
+        _openid: 'openid_1',
+        nickName: 'Legacy User'
+      }]
+    })
 
-      // 用户B
-      mockCloud.getWXContext.mockReturnValue({ OPENID: 'user_b_openid' });
-      const resultB = await main({}, {});
+    const { main } = require('../../../cloudfunctions/login/index.js')
+    const result = await main({}, {})
 
-      expect(resultA.openid).not.toBe(resultB.openid);
-    });
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      userId: 'legacy_user_1',
+      createdAt: expect.any(String),
+      serverTime: expect.any(Number)
+    }))
+    expect(collections.users[0]).toEqual(expect.objectContaining({
+      createdAt: result.createdAt,
+      updatedAt: result.createdAt
+    }))
+    expect(calls.updates).toHaveLength(1)
+    expect(calls.updates[0]).toEqual(expect.objectContaining({
+      collection: 'users',
+      id: 'legacy_user_1'
+    }))
+  })
 
-    test('相同用户多次登录应该返回相同openid', async () => {
-      mockCloud.getWXContext.mockReturnValue({ OPENID: 'same_user_openid' });
+  test('returns NO_OPENID when wx context has no openid', async () => {
+    createMockCloud({}, { OPENID: '' })
 
-      const result1 = await main({}, {});
-      const result2 = await main({}, {});
+    const { main } = require('../../../cloudfunctions/login/index.js')
+    const result = await main({}, {})
 
-      expect(result1.openid).toBe(result2.openid);
-    });
-  });
-
-  describe('上下文信息测试', () => {
-    test('应该返回完整的上下文信息', async () => {
-      mockCloud.getWXContext.mockReturnValue({
-        OPENID: 'test_openid',
-        APPID: 'test_appid',
-        UNIONID: 'test_unionid',
-        ENV: 'cloud-env-id',
-        SOURCE: 'wx_client'
-      });
-
-      const result = await main({}, {});
-
-      expect(result).toHaveProperty('openid');
-      expect(result).toHaveProperty('appid');
-      expect(result).toHaveProperty('unionid');
-      expect(result).toHaveProperty('env');
-    });
-
-    test('应该返回环境ID', async () => {
-      mockCloud.getWXContext.mockReturnValue({
-        OPENID: 'test_openid',
-        ENV: 'my-cloud-env'
-      });
-
-      const result = await main({}, {});
-
-      expect(result.env).toBe('my-cloud-env');
-    });
-  });
-
-  describe('参数传递测试', () => {
-    test('应该原样返回传入的参数', async () => {
-      mockCloud.getWXContext.mockReturnValue({ OPENID: 'test' });
-
-      const eventData = { userInfo: { nickName: '张三' }, fromPage: 'home' };
-      const result = await main(eventData, {});
-
-      expect(result.event).toEqual(eventData);
-    });
-
-    test('空参数应该正常处理', async () => {
-      mockCloud.getWXContext.mockReturnValue({ OPENID: 'test' });
-
-      const result = await main({}, {});
-
-      expect(result.event).toEqual({});
-      expect(result.openid).toBe('test');
-    });
-  });
-});
+    expect(result).toEqual(expect.objectContaining({
+      success: false,
+      code: 'NO_OPENID'
+    }))
+  })
+})

@@ -595,6 +595,7 @@ AI Coding Agent 修改代码后必须说明：
 - `docs/architecture/technical-architecture.md`
 - `docs/architecture/state-machine.md`
 - `docs/architecture/migration-plan.md`
+- `docs/architecture/legacy-compatibility-register.md`
 - `docs/governance/code-boundary-rules.md`
 - `docs/governance/testing-strategy.md`
 - `docs/governance/logging-debugging.md`

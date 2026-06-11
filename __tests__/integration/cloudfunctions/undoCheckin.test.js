@@ -8,6 +8,7 @@ const mockDb = {
   where: jest.fn(() => mockDb),
   get: jest.fn(),
   remove: jest.fn(),
+  update: jest.fn(),
   doc: jest.fn(() => mockDb),
   orderBy: jest.fn(() => mockDb)
 };
@@ -55,7 +56,10 @@ describe('undoCheckin 云函数集成测试', () => {
         }
 
         const logId = existingLog.data[0]._id;
-        await mockDb.remove();
+        mockDb.doc(logId);
+        await mockDb.update({
+          data: { sync_status: 2 }
+        });
 
         return { success: true, message: '取消打卡成功' };
 
@@ -75,7 +79,7 @@ describe('undoCheckin 云函数集成测试', () => {
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       const result = await main({ habit_id: '1' }, {});
 
@@ -83,16 +87,18 @@ describe('undoCheckin 云函数集成测试', () => {
       expect(result.message).toBe('取消打卡成功');
     });
 
-    test('取消应删除正确的记录', async () => {
+    test('取消应标记正确的记录', async () => {
       mockCloud.getWXContext.mockReturnValue({ OPENID: 'test_openid_123' });
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       await main({ habit_id: '1' }, {});
 
-      expect(mockDb.remove).toHaveBeenCalled();
+      expect(mockDb.doc).toHaveBeenCalledWith('log_001');
+      expect(mockDb.update).toHaveBeenCalled();
+      expect(mockDb.remove).not.toHaveBeenCalled();
     });
   });
 
@@ -117,7 +123,7 @@ describe('undoCheckin 云函数集成测试', () => {
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_002', habit_id: '2', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       const result2 = await main({ habit_id: '2' }, {});
       expect(result2.success).toBe(true);
@@ -159,7 +165,7 @@ describe('undoCheckin 云函数集成测试', () => {
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       await main({ habit_id: 1 }, {});
 
@@ -184,27 +190,27 @@ describe('undoCheckin 云函数集成测试', () => {
       expect(result.message).toBe('数据库连接失败');
     });
 
-    test('删除失败应返回错误信息', async () => {
+    test('取消标记失败应返回错误信息', async () => {
       mockCloud.getWXContext.mockReturnValue({ OPENID: 'test_openid_123' });
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockRejectedValue(new Error('删除失败'));
+      mockDb.update.mockRejectedValue(new Error('取消标记失败'));
 
       const result = await main({ habit_id: '1' }, {});
 
       expect(result.success).toBe(false);
-      expect(result.message).toBe('删除失败');
+      expect(result.message).toBe('取消标记失败');
     });
   });
 
   describe('数据隔离', () => {
-    test('用户只能删除自己的打卡记录', async () => {
+    test('用户只能取消标记自己的打卡记录', async () => {
       mockCloud.getWXContext.mockReturnValue({ OPENID: 'user_001' });
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       await main({ habit_id: '1' }, {});
 
@@ -224,7 +230,7 @@ describe('undoCheckin 云函数集成测试', () => {
       mockDb.get.mockResolvedValue({
         data: [{ _id: 'log_001', habit_id: '1', checkin_date: '2026-04-14' }]
       });
-      mockDb.remove.mockResolvedValue({ deleted: 1 });
+      mockDb.update.mockResolvedValue({ updated: 1 });
 
       const resultB = await main({ habit_id: '1' }, {});
       expect(resultB.success).toBe(true);

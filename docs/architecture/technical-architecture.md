@@ -2,78 +2,87 @@
 
 ## 一、当前项目技术现状盘点
 
-当前项目是微信小程序 + 腾讯云开发工程，入口配置在 `miniprogram/app.json`，云函数目录为 `cloudfunctions/`。根目录现有 `miniprogram/`、`cloudfunctions/`、`docs/`、`reports/`、`__tests__/`、`typings/` 等目录；`miniprogram/styles/` 已存在但为空。
+当前项目是微信小程序 + 腾讯云开发工程，入口配置在 `miniprogram/app.json`，云函数目录为 `cloudfunctions/`。根目录现有 `miniprogram/`、`cloudfunctions/`、`docs/`、`reports/`、`__tests__/`、`typings/` 等目录。2026-06-11 当前核对基线为 HEAD `af6127a`，工作区存在未提交变更；`npm test -- --runInBand` 为 54 suites / 601 tests 全部通过，`npm run verify:cloudfunctions` 通过。
 
 四个主页面已落到当前代码：
-- 案台：首页：[miniprogram/pages/home/home.js](C:/Users/YouYou/WeChatProjects/miniprogram-1/miniprogram/pages/home/home.js)
-- 修习：[miniprogram/pages/habits/habits.js](C:/Users/YouYou/WeChatProjects/miniprogram-1/miniprogram/pages/habits/habits.js)
-- 观心：[miniprogram/pages/stats/stats.js](C:/Users/YouYou/WeChatProjects/miniprogram-1/miniprogram/pages/stats/stats.js)
-- 归藏：[miniprogram/pages/profile/profile.js](C:/Users/YouYou/WeChatProjects/miniprogram-1/miniprogram/pages/profile/profile.js)
+- 案台：首页：`miniprogram/pages/home/home.js`
+- 修习：`miniprogram/pages/habits/habits.js`
+- 观心：`miniprogram/pages/stats/stats.js`
+- 归藏：`miniprogram/pages/profile/profile.js`
 
 当前自定义 TabBar 实际使用 `miniprogram/custom-tab-bar/`，`app.json` 设置了 `"custom": true`；四个页面 `onShow` 内分别同步 `selected: 0/1/2/3`。但项目内还存在 `components/tab-bar/`、`components/nav-bar/`、`components/navigation-bar/`，目前没有作为一级导航验收对象，边界需要冻结。
 
-当前全局样式主要集中在 [miniprogram/app.wxss](C:/Users/YouYou/WeChatProjects/miniprogram-1/miniprogram/app.wxss)，已有五主题色雏形：`t-green`、`t-red`、`t-yellow`、`t-blue`、`t-purple`，但 token 命名与 UI 规范不完全一致，页面 wxss 中仍有硬编码旧色，例如 `#C4786A`、`#8B9A7C`、`#D4A574`、`#F4F6F8`、`#FFFFFF` 等。
+当前全局样式主要集中在 `miniprogram/app.wxss`，已有五主题色与危险色 token。`#e64340` 当前已清零；`#F0655B`、`--c-red`、`--color-danger` 仍需通过 UI token 审计保持一致，不应继续扩散旧危险色。
 
-当前习惯数据来源混杂：
-- 内置 21 个习惯硬编码在 `pages/habits/habits.js`。
-- 图标和主题映射在 `utils/iconMap.js`。
-- 用户习惯实例主要存在 `app.globalData.MyHabits` 与本地缓存 `MyHabits`。
-- 云端当前使用 `user_strategies` 表承载“用户已添加习惯 + 当前策略”，还没有独立 `user_habits`。
+当前 service 层已落地：
+- `timeService`：业务日期、周/月/年边界和调试日期入口。
+- `storageService`：本地缓存和旧缓存迁移入口。
+- `cloudService`：前端云函数统一封装。
+- `habitService`：用户习惯、策略版本、今日习惯生成、策略修改当天锁定。
+- `checkinService`：打卡、取消、operation、daily state、本地乐观更新。
+- `homeService`：首页视图模型。
+- `reportService` / `reportAggregator`：周/月/年报表、策略命中、特殊日裁决、多生命周期聚合。
+- `syncService`：pending、retry/retrying、recoverData、syncLocalData fallback。
+- `userService`：登录和用户资料。
 
-当前打卡数据来源：
-- 本地使用 `app.globalData.CheckinLogs` 与缓存 `CheckinLogs`。
-- 云端使用 `checkin_logs`。
-- `doCheckin` 写入云端日志，`undoCheckin` 直接删除日志。
-- 尚未实现 PRD 要求的 `checkin_operations` 与 `daily_checkin_states` 双层模型。
+当前习惯与策略数据状态：
+- 内置习惯仍主要由修习页和现有常量/工具承载，后续不应在页面继续扩散新的业务数据源。
+- 用户习惯实例已引入 `userHabitId` 生命周期边界，旧 `MyHabits` 缓存仍作为兼容存储入口存在。
+- 策略版本已按 `policyVersionId` / `userHabitId` 归属，策略修改当天通过锁定字段保持首页和观心一致。
+- 云端新集合方向为 `user_habits`、`habit_policy_versions`，同时保留旧 `user_strategies` 等兼容入口。
 
-当前报表数据来源：
-- `pages/stats/stats.js` 直接读取 `MyHabits`、`CheckinLogs` 并做大量报表拼接。
-- `utils/reportCalculator.js` 已有可保留的周期聚合能力。
-- `cloudfunctions/getStatsReport` 也复制了一套报表计算逻辑。
-- 存在“页面层、utils、云函数”多处重复计算报表的问题。
+当前打卡与状态数据状态：
+- 打卡和取消已通过前端 service 生成 operation 并更新 `dailyCheckinState`。
+- 云函数 `syncCheckin`、`doCheckin`、`undoCheckin` 等仍并存；其中兼容函数不得作为新业务绕过 service/cloudService 的理由。
+- `undoCheckin` 不应再通过物理删除唯一历史记录表达取消，取消必须落到 operation/state 口径。
+- 本地旧 `CheckinLogs` 和 `app.globalData.CheckinLogs` 仍是兼容债务，需要登记退出条件，不能直接删除。
 
-当前本地缓存使用：
-- `MyHabits`、`CheckinLogs`、`AllHabitsInfo`、`user_openid`、`userInfo`、`operationLogs`、旧键 `userStrategies`、`checkin_records`。
-- 页面层直接调用 `wx.getStorageSync` / `wx.setStorageSync` 很多，必须收敛到 `storageService`。
+当前报表数据状态：
+- `pages/stats/stats.js` 当前通过 `reportService` 获取报表视图数据，legacy 报表方法未发现。
+- `reportService` / `reportAggregator` 是唯一报表聚合入口，支持删除当天、策略修改当天、同一 `habitId` 多个 `userHabitId` 聚合展示。
+- 报表口径仍需以 `docs/v1/v1-report-rules.md` 为准；页面不得恢复分母、分子、streak 或策略命中计算。
+
+当前本地缓存与全局状态：
+- 页面层当前静态搜索未发现直接 `wx.getStorageSync` / `wx.setStorageSync` / `wx.removeStorageSync` / `wx.cloud.callFunction` / `new Date()` 业务日期计算。
+- `app.js` 仍保留 `globalData.MyHabits`、`globalData.CheckinLogs` 和多组 legacy helper；这些是兼容层，不是新代码可依赖的主入口。
+- 旧键 `MyHabits`、`CheckinLogs`、`AllHabitsInfo`、`userStrategies`、`checkin_records` 等必须通过 `storageService` / migration 口径访问。
 
 当前腾讯云开发使用：
-- `app.js` 初始化 `wx.cloud.init({ traceUser: true })`。
-- 已有云函数：`login`、`saveStrategy`、`saveStrategyVersion`、`removeStrategy`、`doCheckin`、`undoCheckin`、`syncLocalData`、`getTodayTasks`、`getStatsReport`、`getCheckinLogsByRange` 等。
-- 当前集合主要为 `users`、`habits`、`user_strategies`、`user_strategy_versions`、`checkin_logs`。
+- 已有核心云函数：`login`、`getUserProfile`、`saveUserProfile`、`migrateV1Data`、`recoverData`、`syncCheckin`、`syncHabit`。
+- 已有兼容云函数：`syncLocalData`、`doCheckin`、`undoCheckin`、`saveStrategy`、`removeStrategy`、`saveStrategyVersion`、`getHabits`、`getTodayTasks`、`getStatsReport`、`getCheckinLogsByRange`、`getUserStrategies`。
+- 云函数长期原则仍是通过 `cloud.getWXContext()` 获取 openid，前端不得保存或传递 openid 作为可信身份。
 
-当前未发现 DeepSeek API 接入代码。没有 `deepseekProxy` 云函数，也没有前端 API Key 痕迹。
+当前 AI / DeepSeek 状态：
+- DeepSeek 仍是可选能力，不属于 V1 核心链路。
+- 如后续启用，必须通过 `deepseekProxy` 云函数和 `aiService`，不得把 API Key 放在前端。
 
 可保留部分：
 - 四个主页面的现有 UI 骨架。
 - `custom-tab-bar` 作为唯一一级导航。
-- `utils/iconMap.js` 的习惯图标映射，但应迁移成常量或主题工具。
-- `utils/reportCalculator.js` 的报表核心算法，可升级为 `services/reportService` 或 `services/reportAggregator`。
-- `syncLocalData` 的分页恢复思路。
-- 现有 Jest 测试资产，尤其报表、云函数、恢复相关测试。
+- `utils/iconMap.js` 的习惯图标映射。
+- `shareService` 当前为四主页面分享入口；`utils/share.js` 仅作为内部底层工具。
+- `syncLocalData` 的分页恢复兼容思路。
+- 现有 Jest 测试资产，尤其报表、云函数、恢复、策略修改当天相关测试。
 
-必须重构部分：
-- `app.js` 中过重的业务状态、缓存、同步、迁移、打卡逻辑。
-- 页面层直接读写缓存和云函数。
-- `habitId` 同时承担内置习惯 ID 与用户实例 ID 的设计。
-- 云端 `user_strategies` 同时承担实例和策略的设计。
-- 打卡从 `checkin_logs` 直接推导报表的设计。
-- 报表计算分散在页面、utils、云函数的设计。
-- 业务日期散落 `new Date()` 的设计。
+仍需治理部分：
+- `app.js` 中过重的兼容状态、旧 helpers 和 `globalData.MyHabits/CheckinLogs`。
+- 旧集合、旧云函数和新集合/新云函数的边界登记与退出条件。
+- 分享入口后续继续收敛到 `shareService`，复制分享信息能力尚未落地。
+- UI token 中危险色别名与硬编码色的持续预防。
 
 风险最高部分：
-- `habitId` 与未来 `userHabitId` 混用，删除后重加同一内置习惯会造成生命周期混算。
-- 删除习惯后报表依赖 `AllHabitsInfo` 兜底，仍有断链风险。
-- `undoCheckin` 直接删除云端日志，不保留取消流水。
-- `saveStrategyVersion` 按 `habit_id` 关闭版本，不按 `userHabitId`，无法支持同一习惯多实例。
-- `stats.js` 仍有大量页面内计算逻辑，容易和 `reportCalculator` 结果不一致。
-- `#e64340` 仍在删除确认中使用，应替换为 `#F0655B` 或 `--color-danger`。
+- `app.js` 兼容层被误当成新主链路继续扩写。
+- 旧 `habitId` / 新 `userHabitId` 在兼容恢复和云端同步中混用。
+- 策略修改当天、取消打卡、非应修日展示在首页和观心之间不一致。
+- 清缓存恢复时旧集合和新集合合并造成重复、丢失或状态回退。
+- 以治理名义批量删除旧云函数或旧缓存，导致线上用户恢复失败。
 
 ## 二、目标技术架构总览
 
 推荐采用“保留 UI，重写数据层、服务层和云同步层”的分层架构。
 
 调用关系：
-`pages -> services -> storage/cloud/models/constants/utils -> cloudfunctions -> cloud database`  
+`pages -> services -> storage/cloud/models/constants/utils -> cloudfunctions -> cloud database`
 组件只接收 props 和触发 events，不直接读写缓存、云端或全局业务状态。
 
 页面层 `pages`：
@@ -289,11 +298,11 @@ V1 保留接口和字段，不强制实现复杂分布式裁决。
 {
   stateId, openid, userHabitId, habitId, policyVersionId,
   date, status, checkedAt, canceledAt,
-  lastOperationId, isLocked, lockReason,
+  lastOperationId, isLocked, lockReason, hasPolicyChangedToday,
   syncStatus, updatedAt
 }
 ```
-首页和报表优先读它，不直接累计操作流水。
+首页和报表优先读它，不直接累计操作流水。策略修改当天可使用 `lockReason` 或兼容字段 `lockedReason` 表达低压力锁定口径。
 
 `reportData`
 ```js
@@ -366,7 +375,7 @@ V1 默认运行时生成，不长期持久化。
 - 分享与复制不得携带 openid、昵称、头像、打卡明细。
 
 清缓存恢复流程：
-用户打开小程序 -> `login` -> `recoverData` 拉取用户习惯、策略、近期 `daily_checkin_states` -> `storageService` 写缓存 -> `migrationService` 补字段 -> `reportService` 重新计算 -> 页面恢复。  
+用户打开小程序 -> `login` -> `recoverData` 拉取用户习惯、策略、近期 `daily_checkin_states` -> `storageService` 写缓存 -> `migrationService` 补字段 -> `reportService` 重新计算 -> 页面恢复。
 V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报表时分页加载。云端无数据则初始化空用户。若用户清缓存前有未同步数据，因本地已丢失只能以云端为准，并提示“已从云端恢复，部分未同步离线操作可能无法找回”。恢复失败不阻断进入，展示空状态和重试入口。
 
 ## 六、DeepSeek API 技术方案
@@ -396,20 +405,22 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 `app.onLaunch` 只做基础初始化：云开发初始化、`timeService.refreshServerTime()`、`userService.login()`、`storageService.loadCache()`、`migrationService.migrate()`、`syncService.recoverOrSync()`、生成今日状态。页面通过 service 读取结果。
 
 首页今日习惯：
-输入 `userHabit`、`policyVersion`、`dailyCheckinState`、业务日期。输出 `todayHabitList`、`completedCount`、`totalCount`、`progressPercent`。  
+输入 `userHabit`、`policyVersion`、`dailyCheckinState`、业务日期。输出 `todayHabitList`、`completedCount`、`totalCount`、`progressPercent`。
 由 `habitService.getTodayHabits(date)`、`checkinService.getStatesByRange()`、`reportService.calculateTodayProgress()` 或 `habitService` 返回的今日进度视图模型协作。删除当天已打卡临时保留；未打卡删除则移除；超过 12 个今日习惯提示调整频次。
 
 添加习惯：
 从 `builtInHabit` 选择 -> 生成 `userHabitId` -> 创建首个 `policyVersion` -> 本地保存 pending -> `syncHabit` -> 刷新首页和修习页。
 
 编辑策略：
-生成新 `policyVersion` -> 关闭旧版本 -> 若当天已打卡，锁定今日为应修且完成；若当天未打卡且新策略不应修，今日不计分母 -> 刷新首页 -> 报表按版本计算。
+生成新 `policyVersion` -> 关闭旧版本 -> 标记当天 `hasPolicyChangedToday` -> 根据 `dailyCheckinState` 最终状态写入锁定口径 -> 刷新首页 -> 报表按版本计算。当天最终为 `checked` 时锁定 `strategy_changed_after_checkin`，分母 1、分子 1；当天最终为 `canceled`、`unchecked` 或 `not_required` 时锁定 `strategy_changed_without_checkin`，分母 0、分子 0。同一天多次编辑以后续最后一次保存成功的策略作为未来策略。
 
 删除习惯：
 二次确认 -> 软删除 `userHabit` -> 关闭当前策略版本 -> 保留历史状态和流水 -> 今日已打卡则首页保留取消入口 -> 未打卡则移除今日任务 -> 报表保留历史。
 
 打卡/取消：
 前端防抖 -> 本地乐观更新 `dailyCheckinState` -> 生成 `checkinOperation` -> pending 入缓存 -> `syncCheckin` 幂等写云端 -> 成功更新 `syncStatus`，失败保留 pending 并提示稍后同步。
+
+同一天多次打卡和取消都保留操作流水，`dailyCheckinState.status` 以最后一次有效操作归并结果为准。若当天发生过策略修改，取消后的最终状态不得再按完成计入报表，且当天按低压力口径不计分母。
 
 周/月/年报表：
 `reportService` 读取 `userHabit`、策略版本、`dailyCheckinState`，按自然周/月/年计算。农历只展示，不参与计算。同 `habitId` 多个 `userHabitId` 默认聚合展示，但生命周期不混算。未来日期不计分母。输出周报 7 天状态、月历、年热力图。
@@ -487,7 +498,7 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 ```
 
 必须支持：
-每天、每周固定星期、间隔天数、策略版本切换、删除当天、策略修改当天、同 habitId 多实例聚合、未来日期、非应修日、部分完成、全部完成、应修未完成。
+每天、每周固定星期、间隔天数、策略版本切换、删除当天、策略修改当天、同一天多次策略修改、同一天多次打卡或取消、同 habitId 多实例聚合、未来日期、非应修日、部分完成、全部完成、应修未完成。
 
 缓存策略：
 - V1 可缓存最近一次周/月/年报表到内存或 `reportCache`。
@@ -525,7 +536,7 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 | 快速点击 | 重复操作 | 防抖 + 幂等键 | checkinService | 操作处理中 | 否 |
 | 删除后报表 | 历史断链 | 保留实例和状态 | reportService | 无需提示 | 否 |
 | 多实例聚合 | 混算 | 按 userHabitId 算，按 habitId 展示聚合 | reportService | 无需提示 | 否 |
-| 策略修改当天 | 分母摇摆 | 锁定状态 | reportService | 无需提示 | 否 |
+| 策略修改当天 | 分母摇摆 | `dailyCheckinState` 最终状态 + 低压力锁定 | reportService | 无需提示 | 否 |
 | 删除当天 | 漏打误算 | 锁定状态 | reportService | 无需提示 | 否 |
 | 跨天刷新 | 首页旧任务 | TimeService 触发刷新 | timeService | 已刷新今日修习 | 否 |
 | 低可信时间 | 污染报表 | 标记待处理 | timeService/syncService | 日期待确认 | 否 |
@@ -589,37 +600,37 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 
 ## 十三、分阶段实施路线图
 
-阶段 0：冻结与备份  
+阶段 0：冻结与备份
 目标：冻结当前 UI 和脏工作树，避免混乱。修改文件：无或仅记录文档。前置：确认当前分支。验收：现状盘点完成。风险：已有未提交改动。建议先做：是。
 
-阶段 1：文档落地  
+阶段 1：文档落地
 目标：输出 `technical-architecture.md`、`data-architecture.md`、`cloudbase-architecture.md`、`service-api-design.md`、`refactor-roadmap.md`。前置：本方案确认。验收：文档可指导实现。建议先做：是。
 
-阶段 2：TimeService 和常量层  
+阶段 2：TimeService 和常量层
 修改文件：新增 `services/timeService.js`、`constants/*`、`utils/dateUtils.js`。验收：业务日期不再由页面直接 `new Date()` 生成。风险：测试需更新。建议先做：是。
 
-阶段 3：数据模型层  
+阶段 3：数据模型层
 修改文件：新增 `models/*`。验收：`habitId/userHabitId/policyVersionId` 边界明确。风险：兼容旧缓存。建议先做：是。
 
-阶段 4：服务层抽离  
+阶段 4：服务层抽离
 修改文件：新增 `storageService/cloudService/habitService/checkinService/reportService`，页面逐步调用。验收：页面不直接读写缓存和云函数。风险：改动面大。建议先做：是。
 
-阶段 5：腾讯云开发接入与恢复机制  
+阶段 5：腾讯云开发接入与恢复机制
 修改文件：新增 `syncHabit/syncCheckin/recoverData`，升级现有云函数或兼容旧函数。验收：清缓存可恢复近期数据。风险：集合迁移。建议先做：是。
 
-阶段 6：首页打卡链路稳定  
+阶段 6：首页打卡链路稳定
 修改文件：`home.js` 接入服务层。验收：打卡、取消、断网、重复点击稳定。风险：乐观更新与云端确认冲突。建议先做：是。
 
-阶段 7：观心报表聚合  
+阶段 7：观心报表聚合
 修改文件：`reportService`、`stats.js`。验收：周/月/年报表特殊口径稳定。风险：历史数据兼容。建议先做：是。
 
-阶段 8：UI 局部对齐  
+阶段 8：UI 局部对齐
 修改文件：`styles/design-tokens.wxss`、`app.wxss`、`habits.wxss/wxml`、`custom-tab-bar`。验收：危险色、token、导航边界通过。风险：视觉回归。建议先做：中后。
 
-阶段 9：DeepSeek API 预留或接入  
+阶段 9：DeepSeek API 预留或接入
 修改文件：`aiService.js`、`deepseekProxy`。验收：失败不影响核心功能。风险：合规和成本。建议：V1 只预留。
 
-阶段 10：测试验收  
+阶段 10：测试验收
 覆盖：打卡、取消、删除、策略修改、清缓存恢复、周/月/年报表、分享、异常状态。验收：核心链路 Jest 通过，手工验证四主页面。建议先做：最终阶段。
 
 ## 十四、最终输出文件内容映射

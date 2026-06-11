@@ -181,7 +181,8 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
     ...instanceReport,
     habitId: userHabit.habitId,
     name,
-    theme
+    theme,
+    _policyVersions: policyVersions
   }
 }
 
@@ -256,8 +257,14 @@ function buildAggregatedReports(startDate, endDate, todayKey) {
       s => s.userHabitId === h.userHabitId && s.status === 'checked'
     )
 
+    // 策略修改当天的 canceled/unchecked 不计分，但仍需要在观心展示，
+    // 否则首页已显示/可取消的习惯会在报表列表中消失。
+    const hasAnyVisibleState = dailyStates.some(
+      s => s.userHabitId === h.userHabitId && isVisibleReportState(s, latestPolicy, s.date)
+    )
+
     // 核心规则：至少有一天是应修日 OR 有有效完成记录
-    return hasAnyDueDay || hasAnyCheckin
+    return hasAnyDueDay || hasAnyCheckin || hasAnyVisibleState
   })
 
   // 为每个有效实例构建报表
@@ -272,6 +279,41 @@ function buildAggregatedReports(startDate, endDate, todayKey) {
 }
 
 // ==================== 适配层 ====================
+
+function isStrategyChangeStateLike(item) {
+  if (!item) return false
+  const reason = item.lockedReason || item.lockReason || item.reason
+  return item.hasPolicyChangedToday === true ||
+    reason === 'strategy_changed_after_checkin' ||
+    reason === 'strategy_changed_without_checkin' ||
+    reason === 'strategy_changed_canceled' ||
+    reason === 'strategy_changed_to_not_due' ||
+    reason === 'strategy_changed_after_checkin_to_not_due' ||
+    reason === 'strategy_changed_canceled_to_not_due' ||
+    reason === 'strategy_changed_to_not_due_unchecked'
+}
+
+function getLatestPolicy(policyVersions) {
+  return (policyVersions || []).find(pv => pv.effectiveEndDate === null) || null
+}
+
+function isLatestPolicyDueOnDate(policyVersion, date) {
+  if (!policyVersion || !date) return false
+  if (policyVersion.effectiveStartDate && dateUtils.compareDate(date, policyVersion.effectiveStartDate) < 0) {
+    return false
+  }
+  return reportAggregator.isDueOnDateByFrequency(policyVersion, date)
+}
+
+function isVisibleReportState(item, latestPolicy, date) {
+  if (!item) return false
+  if (item.status === 'checked') return true
+  if (!isStrategyChangeStateLike(item)) return false
+  if (item.status === 'canceled' || item.status === 'unchecked') {
+    return isLatestPolicyDueOnDate(latestPolicy, date || item.date)
+  }
+  return false
+}
 
 /**
  * 将 reportAggregator 的输出适配为 stats.js 期望的格式
@@ -307,14 +349,16 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
           if (index < 0) return null
           const day = instance.days[index]
           const verdict = instance._verdicts ? instance._verdicts[index] : null
+          const latestPolicy = getLatestPolicy(instance._policyVersions || [])
           return {
             date: day.date,
             status: day.status,
             isDue: day.isDue || false,
-            shouldShow: day.isDue || false,
+            shouldShow: day.isDue || isVisibleReportState({ ...day, ...(verdict || {}) }, latestPolicy, day.date),
             countsInDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
             countsAsDone: verdict ? verdict.contributesNumerator : (day.status === 'checked'),
             isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31'),
+            reason: verdict ? verdict.reason : null,
             themeClass: instance.theme || group.theme || ''
           }
         })
@@ -347,7 +391,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
         checked: status === 'checked',
         isChecked: status === 'checked',
         isDue,
-        shouldShow: isDue,
+        shouldShow: isDue || dayItems.some(day => day.shouldShow),
         status,
         countsInDueDenominator: countsInDenominator,
         countsInDenominator,
@@ -366,6 +410,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
       days,
       dueCount,
       doneCount,
+      hasVisibleState: days.some(day => day.shouldShow || day.countsInDenominator || day.countsAsDone),
       instances: group.instances
     }
   })

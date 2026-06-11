@@ -5,6 +5,7 @@ const ziwu = require('../utils/ziwu')
 const timeService = require('./timeService')
 const habitService = require('./habitService')
 const checkinService = require('./checkinService')
+const storageService = require('./storageService')
 
 const CIRCLE_COLORS = [
   '#F5E6E0', '#E8E4D9', '#D4E5E0', '#E5DED4', '#D9E2E8', '#E8D9D9'
@@ -54,6 +55,57 @@ function getEmojiByCategory(category) {
   return emojiMap[category] || '🧘'
 }
 
+function calculateHabitPracticeDays(habitId) {
+  const habits = storageService.getMyHabitsWithMigration()
+  const userHabitIds = new Set(
+    habits
+      .filter(habit => String(habit.habitId) === String(habitId))
+      .map(habit => habit.userHabitId)
+  )
+
+  const checkedDates = new Set(
+    storageService.getDailyCheckinStates()
+      .filter(state => userHabitIds.has(state.userHabitId) && state.status === 'checked')
+      .map(state => state.date)
+  )
+
+  return checkedDates.size
+}
+
+function chooseTodayHabit(current, next, todayStates) {
+  if (!current) return next
+
+  const currentState = todayStates.find(s => s.userHabitId === current.userHabitId)
+  const nextState = todayStates.find(s => s.userHabitId === next.userHabitId)
+  const currentChecked = currentState && currentState.status === 'checked'
+  const nextChecked = nextState && nextState.status === 'checked'
+
+  if (nextChecked && !currentChecked) return next
+  if (currentChecked && !nextChecked) return current
+  if (next.status === 'active' && current.status !== 'active') return next
+  return current
+}
+
+function mergeTodayHabitsByHabitId(todayHabits, todayStates) {
+  const groups = new Map()
+  todayHabits.forEach(habit => {
+    const habitId = String(habit.habitId)
+    groups.set(habitId, chooseTodayHabit(groups.get(habitId), habit, todayStates))
+  })
+  return Array.from(groups.values())
+}
+
+function sortTodayHabitsByLifecycle(habits) {
+  return habits.slice().sort((a, b) => {
+    const createdA = a.createdAt || ''
+    const createdB = b.createdAt || ''
+    if (createdA !== createdB) {
+      return createdA < createdB ? -1 : 1
+    }
+    return String(a.userHabitId || '').localeCompare(String(b.userHabitId || ''))
+  })
+}
+
 /**
  * 获取首页 ViewModel
  */
@@ -76,10 +128,15 @@ async function getHomeViewModel() {
   // 今日打卡状态
   const todayStates = checkinService.getDailyStatesByDate(todayKey)
 
+  const mergedTodayHabits = sortTodayHabitsByLifecycle(
+    mergeTodayHabitsByHabitId(todayHabits, todayStates)
+  )
+
   // 构建 taskList
-  const taskList = todayHabits.map((habit, index) => {
+  const taskList = mergedTodayHabits.map((habit, index) => {
     const state = todayStates.find(s => s.userHabitId === habit.userHabitId)
     const isDone = state && state.status === 'checked'
+    const practiceDays = calculateHabitPracticeDays(habit.habitId)
 
     return {
       _id: habit.userHabitId,
@@ -88,7 +145,7 @@ async function getHomeViewModel() {
       category: habit.category || '运动类',
       duration: habit.duration,
       isChecked: isDone,
-      streak: state?.streak || 0,
+      streak: practiceDays,
       bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length],
       iconUrl: getIconUrl(habit.name),
       themeClass: getThemeClass(habit.category),

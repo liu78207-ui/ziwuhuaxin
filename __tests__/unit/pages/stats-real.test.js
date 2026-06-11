@@ -450,6 +450,44 @@ describe('stats page V1 report links', () => {
     expect(wxml).toContain('yh-dot {{dot.level}} {{dot.themeClass}}');
   });
 
+  test('周报应修未完成使用主题描边，非应修和未来使用浅灰色块', () => {
+    const wxss = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
+      'utf8'
+    );
+    expect(wxss).toMatch(/\.wt-dot\.unchecked\s*\{[^}]*background:\s*#FFFFFF/s);
+    expect(wxss).toMatch(/\.wt-dot\.unchecked\s*\{[^}]*border:\s*2rpx solid var\(--theme-color/s);
+    expect(wxss).toMatch(/\.wt-dot\.canceled\s*\{[^}]*background:\s*#FFFFFF/s);
+    expect(wxss).toMatch(/\.wt-dot\.canceled\s*\{[^}]*border:\s*2rpx solid var\(--theme-color/s);
+    expect(wxss).toMatch(/\.wt-dot\.not_required\s*\{[^}]*background:\s*#F4F6F8/s);
+    expect(wxss).toMatch(/\.wt-dot\.future\s*\{[^}]*background:\s*#F4F6F8/s);
+    expect(wxss).toMatch(/\.wt-dot\.future\s*\{[^}]*border:\s*2rpx solid transparent/s);
+    expect(wxss).toMatch(/\.wt-dot\.partial\s*\{[^}]*background:\s*var\(--theme-bg,\s*var\(--c-primary-light\)\)/s);
+  });
+
+  test('not_required/future/low_confidence/partial 在周报有显式样式', () => {
+    const wxss = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
+      'utf8'
+    );
+    expect(wxss).toMatch(/\.wt-dot\.not_required\s*\{/s);
+    expect(wxss).toMatch(/\.wt-dot\.future\s*\{/s);
+    expect(wxss).toMatch(/\.wt-dot\.low_confidence\s*\{/s);
+    expect(wxss).toMatch(/\.wt-dot\.partial\s*\{/s);
+  });
+
+  test('canceled/not_required/future/low_confidence/partial 在月报 cell 有显式样式', () => {
+    const wxss = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
+      'utf8'
+    );
+    expect(wxss).toMatch(/\.mc-cell\.canceled\s*\{/s);
+    expect(wxss).toMatch(/\.mc-cell\.not_required\s*\{/s);
+    expect(wxss).toMatch(/\.mc-cell\.future\s*\{/s);
+    expect(wxss).toMatch(/\.mc-cell\.low_confidence\s*\{/s);
+    expect(wxss).toMatch(/\.mc-cell\.partial\s*\{/s);
+  });
+
   // ----- V1 数据测试 -----
 
   test('deleted userHabit shows checked status in week report', async () => {

@@ -136,6 +136,7 @@ pages -> services -> cloudfunctions
 - [docs/architecture/technical-architecture.md](docs/architecture/technical-architecture.md)
 - [docs/architecture/state-machine.md](docs/architecture/state-machine.md)
 - [docs/architecture/migration-plan.md](docs/architecture/migration-plan.md)
+- [docs/architecture/legacy-compatibility-register.md](docs/architecture/legacy-compatibility-register.md)
 
 ## UI
 
@@ -147,6 +148,7 @@ pages -> services -> cloudfunctions
 - [docs/v1/v1-product-boundary.md](docs/v1/v1-product-boundary.md)
 - [docs/v1/v1-report-rules.md](docs/v1/v1-report-rules.md)
 - [docs/v1/v1-sync-strategy.md](docs/v1/v1-sync-strategy.md)
+- [docs/v2/v2-plan.md](docs/v2/v2-plan.md)
 
 ## Product
 

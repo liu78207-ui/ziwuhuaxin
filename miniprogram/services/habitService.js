@@ -11,6 +11,8 @@ const { generateUserHabitId, generatePolicyVersionId } = require('../constants/i
 const storageService = require('./storageService')
 const timeService = require('./timeService')
 const syncService = require('./syncService')
+const reportAggregator = require('./reportAggregator')
+const { DAILY_STATE_STATUS, createDailyCheckinState } = require('../models/dailyCheckinState')
 
 // ==================== 内置习惯 ====================
 
@@ -292,6 +294,87 @@ function getPolicyVersionsByUserHabitId(userHabitId) {
 }
 
 /**
+ * 更新用户习惯的策略
+ *
+ * 复用现有 userHabitId，关闭当前有效策略版本并创建新版本。
+ * 适用于「修习」页面修改策略的场景。
+ *
+ * @param {string} userHabitId - 必须已存在的 userHabitId
+ * @param {object} policyInput - 策略配置 { duration, frequencyType, frequencyConfig, startDate }
+ * @returns {Promise<UserHabit>} 更新后的 userHabit
+ */
+async function updateHabitPolicy(userHabitId, policyInput) {
+  const habit = getHabitByUserHabitId(userHabitId)
+  if (!habit) {
+    throw new Error(`UserHabit not found: ${userHabitId}`)
+  }
+  if (habit.status !== 'active') {
+    throw new Error(`UserHabit is not active: ${userHabitId}`)
+  }
+
+  const previousPolicy = storageService.getActivePolicyVersion(userHabitId)
+
+  // 复用 createPolicyVersion：它会关闭旧版本并创建新版本。
+  // updateHabitPolicy 自己入队，才能携带策略修改当天的 dailyState 锁定字段。
+  const policyVersion = await createPolicyVersion(userHabitId, policyInput, { skipSync: true })
+  const strategyChangedDailyState = markStrategyChangedToday(
+    userHabitId,
+    timeService.getBusinessDate(),
+    policyVersion.policyVersionId
+  )
+
+  syncService.pushWithDedup('habit', 'updatePolicy', {
+    userHabitId,
+    habitId: habit.habitId,
+    policyVersionId: policyVersion.policyVersionId,
+    duration: policyVersion.duration,
+    frequencyType: policyVersion.frequencyType,
+    frequencyConfig: policyVersion.frequencyConfig,
+    startDate: policyVersion.startDate,
+    effectiveStartDate: policyVersion.effectiveStartDate,
+    previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
+    previousEffectiveEndDate: previousPolicy ? policyVersion.effectiveStartDate : null,
+    strategyChangedDailyState
+  })
+
+  // 重新读取 userHabit（latestPolicyVersionId 已被 createPolicyVersion 更新）
+  return getHabitByUserHabitId(userHabitId)
+}
+
+function resolveStrategyChangeLockedReason(status) {
+  return status === DAILY_STATE_STATUS.checked
+    ? 'strategy_changed_after_checkin'
+    : 'strategy_changed_without_checkin'
+}
+
+function markStrategyChangedToday(userHabitId, date, policyVersionId) {
+  const habit = getHabitByUserHabitId(userHabitId)
+  if (!habit || !date) return null
+
+  const existingState = storageService.getDailyState(userHabitId, date)
+  const status = existingState?.status || DAILY_STATE_STATUS.unchecked
+  const baseState = existingState || createDailyCheckinState({
+    userHabitId,
+    habitId: habit.habitId,
+    date,
+    status
+  })
+
+  const state = {
+    ...baseState,
+    status,
+    policyVersionId,
+    hasPolicyChangedToday: true,
+    lockedReason: resolveStrategyChangeLockedReason(status),
+    lockReason: resolveStrategyChangeLockedReason(status),
+    updatedAt: new Date().toISOString()
+  }
+
+  storageService.setDailyState(state)
+  return state
+}
+
+/**
  * 关闭策略版本
  * @param {string} policyVersionId
  * @param {string} effectiveEndDate
@@ -304,30 +387,67 @@ function closePolicyVersion(policyVersionId, effectiveEndDate) {
 
 /**
  * 获取今日应修习惯列表
+ *
+ * 过滤规则（与观心页 isDueOnDateByFrequency 完全统一）：
+ * 1. 仅 status === 'active' 的 userHabit。
+ * 2. 必须存在 effectiveEndDate === null 的最新版策略（不存在则视为未来，跳过）。
+ * 3. 策略 effectiveStartDate <= date 视为今日有效；否则视为未来策略，不展示。
+ * 4. 同一 userHabit 的多个策略版本只考虑最新版（effectiveEndDate === null）。
+ * 5. 今日必须为该策略的应修日（基于频率规则：daily / weekly / interval），
+ *    调用 reportAggregator.isDueOnDateByFrequency。
+ *    这是关键：与观心页的应修裁决共用同一函数，避免出现「案台显示但观心不计分」
+ *    或「观心应修但案台不显示」的不一致。
+ *
  * @param {string} date - 业务日期 YYYY-MM-DD
  * @returns {Promise<TodayHabit[]>}
  */
 async function getTodayHabits(date) {
-  const activeHabits = getActiveUserHabits()
+  const allHabits = storageService.getMyHabitsWithMigration()
   const states = storageService.getDailyStatesByDate(date)
 
-  return activeHabits.map(habit => {
-    const policy = storageService.getActivePolicyVersion(habit.userHabitId)
-    const state = states.find(s => s.userHabitId === habit.userHabitId)
+  return allHabits
+    .map(habit => {
+      const policy = storageService.getActivePolicyVersion(habit.userHabitId)
+      const state = states.find(s => s.userHabitId === habit.userHabitId)
+      return { habit, policy, state }
+    })
+    .filter(({ habit, policy, state }) => {
+      const deletedAt = habit.deletedAt ? String(habit.deletedAt).split('T')[0] : null
+      const isDeletedCheckedToday = habit.status === 'deleted' &&
+        deletedAt === date &&
+        state &&
+        state.status === 'checked'
 
-    return {
-      userHabitId: habit.userHabitId,
-      habitId: habit.habitId,
-      name: getBuiltInHabitDef(habit.habitId)?.name || '',
-      category: getBuiltInHabitDef(habit.habitId)?.category || '',
-      duration: habit.targetMinutes || policy?.duration || 20,
-      policy,
-      isChecked: state && state.status === 'checked',
-      stateId: state ? state.stateId : null,
-      status: habit.status,
-      createdAt: habit.createdAt
-    }
-  })
+      if (isDeletedCheckedToday) return true
+      if (habit.status !== 'active') return false
+      if (!policy) return false
+      if (!policy.effectiveStartDate) return false
+      // 关键例外：用户今天已打卡 → 无论新策略如何，都展示（让用户看到自己的打卡）
+      // 覆盖两种场景：
+      // (a) 新策略在今天之后（被改成明天/未来）
+      // (b) 新策略频率不包含今天（如改成 weekly 周三，今天是周二）
+      if (state && state.status === 'checked') {
+        return true
+      }
+      if (policy.effectiveStartDate > date) return false
+      // 应修日判定：与观心页的 buildDayVerdicts 使用同一个函数
+      return reportAggregator.isDueOnDateByFrequency(policy, date)
+    })
+    .map(({ habit, policy, state }) => {
+      return {
+        userHabitId: habit.userHabitId,
+        habitId: habit.habitId,
+        name: getBuiltInHabitDef(habit.habitId)?.name || '',
+        category: getBuiltInHabitDef(habit.habitId)?.category || '',
+        duration: habit.targetMinutes || policy?.duration || 20,
+        policy,
+        isChecked: state && state.status === 'checked',
+        stateId: state ? state.stateId : null,
+        status: habit.status,
+        createdAt: habit.createdAt,
+        deletedAt: habit.deletedAt || null
+      }
+    })
 }
 
 // ==================== 迁移辅助 ====================
@@ -404,15 +524,20 @@ function buildStrategyText(strategy) {
  * @returns {Object}
  */
 function buildStrategyObject(userHabitId, policyInput, options = {}) {
-  const freqType = policyInput.frequencyType || 'daily'
-  // 规范化 freqRules：支持数字或 { intervalDays } 或 { weekdays }
+  const freqType = policyInput.frequencyType || policyInput.freq_type || 'daily'
+  const frequencyConfig = policyInput.frequencyConfig
+  // 规范化 freqRules：支持数字、数组、{ intervalDays }、{ weekdays } 以及旧字段 freq_rules
   let freqRules
-  if (typeof policyInput.frequencyConfig === 'number') {
-    freqRules = policyInput.frequencyConfig
-  } else if (policyInput.frequencyType === 'weekly') {
-    freqRules = policyInput.frequencyConfig?.weekdays || []
+  if (policyInput.freq_rules !== undefined && policyInput.freq_rules !== null) {
+    freqRules = policyInput.freq_rules
+  } else if (typeof frequencyConfig === 'number') {
+    freqRules = frequencyConfig
+  } else if (Array.isArray(frequencyConfig)) {
+    freqRules = frequencyConfig
+  } else if (freqType === 'weekly') {
+    freqRules = frequencyConfig?.weekdays || []
   } else {
-    freqRules = policyInput.frequencyConfig?.intervalDays || 1
+    freqRules = frequencyConfig?.intervalDays || 1
   }
   const freqCategory = freqType === 'weekly' ? 'weekly'
     : (freqType === 'interval' || (typeof freqRules === 'number' && freqRules > 1) ? 'daily-interval' : 'everyday')
@@ -425,7 +550,7 @@ function buildStrategyObject(userHabitId, policyInput, options = {}) {
     freq_type: freqType,
     freq_rules: freqRules,
     freq_category: freqCategory,
-    plan_start_date: policyInput.startDate
+    plan_start_date: policyInput.startDate || policyInput.plan_start_date || ''
   }
 }
 
@@ -562,6 +687,8 @@ module.exports = {
   getActivePolicyVersion,
   getPolicyVersionsByUserHabitId,
   closePolicyVersion,
+  updateHabitPolicy,
+  markStrategyChangedToday,
 
   // 今日习惯
   getTodayHabits,

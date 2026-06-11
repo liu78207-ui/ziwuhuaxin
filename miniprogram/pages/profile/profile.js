@@ -3,8 +3,12 @@
  * 页面层只负责：UI 渲染、用户事件响应、调用 Service
  */
 
-const share = require('../../utils/share.js');
+const shareService = require('../../services/shareService');
 const userService = require('../../services/userService');
+
+function getErrorMessage(err) {
+  return err && err.message ? err.message : String(err || 'unknown error');
+}
 
 Page({
   data: {
@@ -12,7 +16,9 @@ Page({
       avatarUrl: '',
       nickName: ''
     },
-    displayAvatarUrl: ''
+    displayAvatarUrl: '',
+    isAvatarSaving: false,
+    isLoggingIn: false
   },
 
   onLoad() {
@@ -20,7 +26,7 @@ Page({
   },
 
   onShow() {
-    share.enableShareMenu();
+    shareService.enableShareMenu();
 
     if (typeof this.getTabBar === 'function' && this.getTabBar()) {
       this.getTabBar().setData({
@@ -38,12 +44,35 @@ Page({
       displayAvatarUrl: vm.displayAvatarUrl,
       buttonText: vm.buttonText,
       memberSince: vm.memberSince,
-      isLoggedIn: vm.isLoggedIn
+      isLoggedIn: vm.isLoggedIn,
+      canEditProfile: vm.canEditProfile
     });
   },
 
-  // 选择头像（Phase 7D — 选图 + 上传云端 + 保存）
+  async onLogin() {
+    if (this.data.isLoggingIn) {
+      return;
+    }
+
+    this.setData({ isLoggingIn: true });
+    try {
+      await userService.login({ force: true });
+      this.refreshViewModel();
+      wx.showToast({ title: '登录成功', icon: 'success' });
+    } catch (err) {
+      console.error('登录失败:', getErrorMessage(err));
+      wx.showToast({ title: '登录失败，请稍后重试', icon: 'none' });
+    } finally {
+      this.setData({ isLoggingIn: false });
+    }
+  },
+
+  // 选择头像（Phase 7D – 选图 + 上传云端 + 保存）
   async onChooseAvatar(e) {
+    if (this.data.isAvatarSaving) {
+      return;
+    }
+
     const { avatarUrl } = e.detail;
     if (!avatarUrl) {
       console.error('获取头像临时路径失败');
@@ -55,6 +84,8 @@ Page({
       wx.showToast({ title: '请先登录', icon: 'none' });
       return;
     }
+
+    this.setData({ isAvatarSaving: true });
 
     const userInfo = userService.getUserInfo();
     const previousAvatarUrl = userInfo.avatarUrl || '';
@@ -72,11 +103,12 @@ Page({
     try {
       cloudUrl = await userService.uploadAvatar(avatarUrl, cloudPath);
     } catch (err) {
-      console.error('头像上传失败:', err);
+      console.error('头像上传失败:', getErrorMessage(err));
       // 回滚 UI 和本地缓存
       this.setData({ displayAvatarUrl: previousDisplayUrl });
       userService.setUserInfo({ avatarUrl: previousAvatarUrl });
       wx.showToast({ title: '上传失败', icon: 'none' });
+      this.setData({ isAvatarSaving: false });
       return;
     }
 
@@ -86,11 +118,13 @@ Page({
       this.setData({ displayAvatarUrl: cloudUrl });
       wx.showToast({ title: '头像已更新', icon: 'none' });
     } catch (err) {
-      console.error('头像保存失败:', err);
+      console.error('头像保存失败:', getErrorMessage(err));
       // 回滚 UI 和本地缓存
       this.setData({ displayAvatarUrl: previousDisplayUrl });
       userService.setUserInfo({ avatarUrl: previousAvatarUrl });
       wx.showToast({ title: '保存失败', icon: 'none' });
+    } finally {
+      this.setData({ isAvatarSaving: false });
     }
   },
 
@@ -154,10 +188,10 @@ Page({
   },
 
   onShareAppMessage() {
-    return share.appMessage('子午花信 · 顺时修习，日日有信', '/pages/profile/profile');
+    return shareService.getShareMessage('profile');
   },
 
   onShareTimeline() {
-    return share.timeline('子午花信 · 顺时修习，日日有信', 'from=timeline&page=profile');
+    return shareService.getShareTimeline('profile');
   }
 });

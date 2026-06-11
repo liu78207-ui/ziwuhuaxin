@@ -1,0 +1,9 @@
+{
+  "name": "saveStrategyVersion",
+  "version": "1.0.0",
+  "description": "Compatibility: save legacy strategy version records",
+  "main": "index.js",
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

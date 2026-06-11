@@ -4,6 +4,46 @@
 const storageService = require('./storageService');
 const cloudService = require('./cloudService');
 
+const DEFAULT_AVATAR_URL = '/assets/icons/profile.png';
+
+function wxLogin() {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    console.info('userService.wxLogin 开始');
+    const timer = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      console.warn('userService.wxLogin 超时');
+      reject(new Error('wx.login timeout'));
+    }, 8000);
+    const finish = (fn, value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    wx.login({
+      success: (res) => {
+        if (res && res.code) {
+          console.info('userService.wxLogin 完成');
+          finish(resolve, res.code);
+          return;
+        }
+        finish(reject, new Error('wx.login 未返回 code'));
+      },
+      fail: (err) => {
+        const message = err && err.errMsg ? err.errMsg : 'wx.login 调用失败';
+        console.warn('userService.wxLogin 失败:', message);
+        finish(reject, new Error(message));
+      }
+    });
+  });
+}
+
 /**
  * 登录（静默 + 强制）
  * - 有本地缓存时直接返回，不阻塞启动
@@ -12,22 +52,25 @@ const cloudService = require('./cloudService');
  * @returns {Promise<Object>} - { userId, createdAt }
  */
 async function login(options = {}) {
-  const { force = false } = options;
+  const { force = false, refreshCloud = false } = options;
 
   // 检查本地缓存是否已登录
   const cachedUserInfo = storageService.getUserInfo();
   if (cachedUserInfo && cachedUserInfo.createdAt) {
     // 有缓存，直接返回（不阻塞）
     if (!force) {
-      // 静默模式：异步刷新云端资料，不等待
-      refreshUserInfo().catch(() => {});
+      // 静默启动不做后台云刷新，避免云环境异常时产生不可见的 timeout。
+      if (refreshCloud) {
+        refreshUserInfo().catch(() => {});
+      }
       return { userId: cachedUserInfo._userId, createdAt: cachedUserInfo.createdAt };
     }
   }
 
   // 无缓存或强制登录，调用云函数
   try {
-    const res = await cloudService.callFunction('login', {});
+    const code = await wxLogin();
+    const res = await cloudService.callFunction('login', { code });
     if (!res.success) {
       throw new Error(res.error?.message || 'login 云函数返回失败');
     }
@@ -36,7 +79,10 @@ async function login(options = {}) {
     // cloudService.callFunction 返回结构：{ success, data, error }
     // login 云函数返回：{ success: true, userId, createdAt }
     const userId = res.data?.userId;
-    const createdAt = res.data?.createdAt;
+    if (!userId) {
+      throw new Error('login 云函数未返回 userId');
+    }
+    const createdAt = res.data?.createdAt || new Date().toISOString();
     const userInfo = {
       _userId: userId,
       createdAt: createdAt,
@@ -197,7 +243,8 @@ function getProfileViewModel() {
   if (!loggedIn) {
     return {
       isLoggedIn: false,
-      displayAvatarUrl: '/assets/default-avatar.png',
+      canEditProfile: false,
+      displayAvatarUrl: DEFAULT_AVATAR_URL,
       nickName: '点击登录',
       memberSince: '',
       buttonText: '登录，子午花信'
@@ -206,8 +253,9 @@ function getProfileViewModel() {
 
   return {
     isLoggedIn: true,
-    displayAvatarUrl: userInfo.avatarUrl || '/assets/default-avatar.png',
-    nickName: userInfo.nickName || '匿名修习者',
+    canEditProfile: true,
+    displayAvatarUrl: userInfo.avatarUrl || DEFAULT_AVATAR_URL,
+    nickName: userInfo.nickName || '',
     memberSince: userInfo.createdAt || '',
     buttonText: '退出登录'
   };

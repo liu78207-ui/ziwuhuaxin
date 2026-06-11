@@ -114,7 +114,7 @@ function hasDuplicatePending(entityType, entityId, action) {
     i.entityType === entityType &&
     i.entityId === entityId &&
     i.action === action &&
-    (i.status === 'pending' || i.status === 'syncing')
+    (i.status === 'pending' || i.status === 'syncing' || i.status === 'retrying')
   )
 }
 
@@ -128,7 +128,7 @@ function pushWithDedup(entityType, action, payload) {
   const idempotencyKey = payload.idempotencyKey || generateIdempotencyKey(entityType, action, payload)
   const existing = getPendingOperations().find(i =>
     i.idempotencyKey === idempotencyKey &&
-    (i.status === 'pending' || i.status === 'syncing')
+    (i.status === 'pending' || i.status === 'syncing' || i.status === 'retrying')
   )
 
   if (existing) {
@@ -206,9 +206,9 @@ async function processQueue() {
           })
         } else {
           const newRetryCount = (currentItem?.retryCount || 0) + 1
-          // 失败项保持 'failed'，不改为 'pending'，以便 nextRetryAt 检查生效
+          // 仍可重试的失败项标记为 retrying，超过上限才进入 failed。
           storageService.updatePendingItem(item.queueId, {
-            status: newRetryCount >= 3 ? 'failed' : 'failed',
+            status: newRetryCount >= 3 ? 'failed' : 'retrying',
             lastError: result.error?.message || '未知错误',
             retryCount: newRetryCount,
             nextRetryAt: calculateNextRetry(newRetryCount),
@@ -219,7 +219,7 @@ async function processQueue() {
         const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
         const newRetryCount = (currentItem?.retryCount || 0) + 1
         storageService.updatePendingItem(item.queueId, {
-          status: newRetryCount >= 3 ? 'failed' : 'failed',
+          status: newRetryCount >= 3 ? 'failed' : 'retrying',
           lastError: e.message,
           retryCount: newRetryCount,
           nextRetryAt: calculateNextRetry(newRetryCount),
@@ -230,10 +230,10 @@ async function processQueue() {
 
     // 失败重试项放回队尾（最多保留3次）
     const finalQueue = getPendingOperations()
-    const failedItems = finalQueue.filter(i => i.status === 'failed' && i.retryCount < 3)
-    const doneItems = finalQueue.filter(i => i.status !== 'failed' || i.retryCount >= 3)
-    if (failedItems.length > 0) {
-      setPendingOperations([...doneItems, ...failedItems])
+    const retryingItems = finalQueue.filter(i => i.status === 'retrying' && i.retryCount < 3)
+    const otherItems = finalQueue.filter(i => i.status !== 'retrying' || i.retryCount >= 3)
+    if (retryingItems.length > 0) {
+      setPendingOperations([...otherItems, ...retryingItems])
     }
   } finally {
     isProcessing = false
@@ -266,10 +266,30 @@ async function retry(queueId) {
  */
 function getNetworkTypeAsync() {
   return new Promise((resolve) => {
-    wx.getNetworkType({
-      success: (res) => resolve(res.networkType),
-      fail: () => resolve('none')
-    })
+    let settled = false
+    console.info('syncService.getNetworkType 开始')
+    const timer = setTimeout(() => {
+      if (settled) return
+      settled = true
+      console.warn('syncService.getNetworkType 超时，按 none 处理')
+      resolve('none')
+    }, 3000)
+    const finish = (networkType) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      console.info('syncService.getNetworkType 完成:', networkType)
+      resolve(networkType)
+    }
+    try {
+      wx.getNetworkType({
+        success: (res) => finish(res.networkType),
+        fail: () => finish('none')
+      })
+    } catch (e) {
+      console.warn('syncService.getNetworkType 异常:', e && e.message ? e.message : String(e || 'unknown error'))
+      finish('none')
+    }
   })
 }
 
@@ -278,12 +298,26 @@ function getNetworkTypeAsync() {
  */
 async function recoverOrSync() {
   try {
+    const queue = getPendingOperations()
+    const hasPendingWork = queue.some(item => item.status !== 'synced')
+    console.info('syncService.recoverOrSync 开始:', `pending=${queue.length}`)
+    if (!hasPendingWork) {
+      console.info('syncService.recoverOrSync 跳过: no pending work')
+      return { success: true, skipped: true, reason: 'NO_PENDING_WORK' }
+    }
+
     const networkType = await getNetworkTypeAsync()
-    if (networkType === 'none') return
+    if (networkType === 'none') {
+      console.info('syncService.recoverOrSync 跳过: offline')
+      return { success: false, skipped: true, reason: 'OFFLINE' }
+    }
 
     await processQueue()
+    console.info('syncService.recoverOrSync 完成')
+    return { success: true, skipped: false }
   } catch (e) {
-    console.error('syncService.recoverOrSync failed:', e)
+    console.error('syncService.recoverOrSync failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    return { success: false, error: e && e.message ? e.message : String(e || 'unknown error') }
   }
 }
 
@@ -291,53 +325,112 @@ async function recoverOrSync() {
  * 从云端恢复 V1 数据到本地缓存
  * 在本地关键缓存为空时调用（清缓存/换设备/首次登录）
  */
-async function recoverFromCloud() {
-  try {
-    const result = await cloudService.callFunction('recoverData', {})
-    if (!result.success) {
-      throw new Error(result.error?.message || 'recoverData 云函数返回失败')
-    }
+function isFunctionNotFoundError(error) {
+  const message = error?.message || ''
+  const code = error?.code || ''
+  return code === 'FUNCTION_NOT_FOUND' ||
+    message.includes('-501000') ||
+    message.includes('FUNCTION_NOT_FOUND') ||
+    message.includes('FunctionName parameter could not be found')
+}
 
-    // cloudService.callFunction 返回 { success, data }
-    // recoverData 云函数返回 { success, data: { userHabits, policyVersions, dailyStates } }
-    // 所以实际数据在 result.data.data
-    const payload = result.data?.data || result.data || {}
-    const { userHabits, policyVersions, dailyStates } = payload
+function isTimeoutError(error) {
+  const message = (error?.message || '').toLowerCase()
+  const code = error?.code || ''
+  return code === cloudService.ERROR_CODES.TIMEOUT ||
+    message.includes('timeout')
+}
 
-    // 恢复 userHabits -> MyHabits
-    if (userHabits && Array.isArray(userHabits)) {
-      const migratedHabits = userHabits.map(h => ({
-        userHabitId: h.userHabitId,
-        habitId: h.habitId,
-        name: h.name || '',
-        category: h.category || '运动类',
-        targetMinutes: h.targetMinutes || 20,
-        themeClass: h.themeClass || 't-default',
-        iconUrl: h.iconUrl || '',
-        status: h.status || 'active',
-        createdAt: h.createdAt || '',
-        deletedAt: h.deletedAt || null,
-        latestPolicyVersionId: h.latestPolicyVersionId || '',
-        syncStatus: 1
-      }))
-      storageService.setMyHabits(migratedHabits)
-    }
+function isCollectionMissingError(error) {
+  const message = error?.message || ''
+  return message.includes('-502005') ||
+    message.includes('collection not exists') ||
+    message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+    message.includes('ResourceNotFound') ||
+    message.includes('Db or Table not exist')
+}
 
-    // 恢复 policyVersions
-    if (policyVersions && Array.isArray(policyVersions)) {
-      storageService.setPolicyVersions(policyVersions)
-    }
+function shouldFallbackToLegacyRecover(error) {
+  return isFunctionNotFoundError(error) ||
+    isTimeoutError(error) ||
+    isCollectionMissingError(error)
+}
 
-    // 恢复 dailyStates
-    if (dailyStates && Array.isArray(dailyStates)) {
-      storageService.setDailyCheckinStates(dailyStates)
-    }
-
-    return { success: true }
-  } catch (e) {
-    console.error('syncService.recoverFromCloud failed:', e)
-    throw e
+function persistLegacyRecoverPayload(payload) {
+  if (payload.MyHabits && Array.isArray(payload.MyHabits)) {
+    storageService.setMyHabits(payload.MyHabits)
   }
+  if (payload.CheckinLogs && Array.isArray(payload.CheckinLogs)) {
+    storageService.setCheckinLogs(payload.CheckinLogs)
+  }
+  if (payload.AllHabitsInfo && typeof payload.AllHabitsInfo === 'object') {
+    storageService.setAllHabitsInfo(payload.AllHabitsInfo)
+  }
+}
+
+async function recoverFromLegacyCloud() {
+  const result = await cloudService.callFunction('syncLocalData', {})
+  if (!result.success) {
+    return {
+      success: false,
+      source: 'none',
+      error: result.error || {
+        code: 'RECOVER_FAILED',
+        message: 'syncLocalData cloud function failed'
+      }
+    }
+  }
+
+  const payload = result.data?.data || result.data || {}
+  persistLegacyRecoverPayload(payload)
+  return { success: true, source: 'syncLocalData' }
+}
+
+async function recoverFromCloud() {
+  const result = await cloudService.callFunction('recoverData', {})
+  if (!result.success) {
+    if (shouldFallbackToLegacyRecover(result.error)) {
+      return recoverFromLegacyCloud()
+    }
+    throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+  }
+
+  // cloudService.callFunction 返回 { success, data }
+  // recoverData 云函数返回 { success, data: { userHabits, policyVersions, dailyStates } }
+  // 所以实际数据在 result.data.data
+  const payload = result.data?.data || result.data || {}
+  const { userHabits, policyVersions, dailyStates } = payload
+
+  // 恢复 userHabits -> MyHabits
+  if (userHabits && Array.isArray(userHabits)) {
+    const migratedHabits = userHabits.map(h => ({
+      userHabitId: h.userHabitId,
+      habitId: h.habitId,
+      name: h.name || h.title || h.habitTitle || '',
+      category: h.category || '运动类',
+      targetMinutes: h.targetMinutes || h.duration || 20,
+      themeClass: h.themeClass || 't-default',
+      iconUrl: h.iconUrl || '',
+      status: h.status || 'active',
+      createdAt: h.createdAt || '',
+      deletedAt: h.deletedAt || null,
+      latestPolicyVersionId: h.latestPolicyVersionId || '',
+      syncStatus: 1
+    }))
+    storageService.setMyHabits(migratedHabits)
+  }
+
+  // 恢复 policyVersions
+  if (policyVersions && Array.isArray(policyVersions)) {
+    storageService.setPolicyVersions(policyVersions)
+  }
+
+  // 恢复 dailyStates
+  if (dailyStates && Array.isArray(dailyStates)) {
+    storageService.setDailyCheckinStates(dailyStates)
+  }
+
+  return { success: true, source: 'recoverData' }
 }
 
 /**

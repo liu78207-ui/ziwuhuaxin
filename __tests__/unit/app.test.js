@@ -554,35 +554,61 @@ describe('App.js 功能测试', () => {
       expect(app.isCheckedOnDate('strategy-1', '2026-05-16')).toBe(false);
     });
 
-    test('syncToCloud treats duplicate cloud checkins as synced', async () => {
+    test('syncToCloud migrates legacy pending checkins through syncCheckin', async () => {
       const app = loadAppConfig();
+      const storage = {};
+      wx.getStorageSync.mockImplementation((key) => storage[key]);
+      wx.setStorageSync.mockImplementation((key, value) => {
+        storage[key] = value;
+      });
       app.globalData.isOnline = true;
       app.globalData.CheckinLogs = [
         { logId: 'local-1', habitId: 'strategy-1', date: '2026-05-16', sync_status: 0 }
       ];
       global.getCurrentPages = jest.fn(() => []);
       wx.cloud.callFunction.mockResolvedValue({
-        result: { success: false, code: 'ALREADY_CHECKED', message: '今日已打卡' }
+        result: { success: true, data: { status: 'checked' } }
       });
 
       await app.syncToCloud();
 
+      expect(wx.cloud.callFunction).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'syncCheckin',
+        data: expect.objectContaining({
+          userHabitId: 'strategy-1',
+          date: '2026-05-16',
+          action: 'checkin'
+        })
+      }));
       expect(app.globalData.CheckinLogs[0].sync_status).toBe(1);
     });
 
-    test('syncToCloud removes delete markers when cloud checkin is already absent', async () => {
+    test('syncToCloud migrates legacy delete markers through syncCheckin undo', async () => {
       const app = loadAppConfig();
+      const storage = {};
+      wx.getStorageSync.mockImplementation((key) => storage[key]);
+      wx.setStorageSync.mockImplementation((key, value) => {
+        storage[key] = value;
+      });
       app.globalData.isOnline = true;
       app.globalData.CheckinLogs = [
         { logId: 'local-1', habitId: 'strategy-1', date: '2026-05-16', sync_status: 2 }
       ];
       global.getCurrentPages = jest.fn(() => []);
       wx.cloud.callFunction.mockResolvedValue({
-        result: { success: false, code: 'CHECKIN_NOT_FOUND', message: '今日未打卡，无需取消' }
+        result: { success: true, data: { status: 'canceled' } }
       });
 
       await app.syncToCloud();
 
+      expect(wx.cloud.callFunction).toHaveBeenCalledWith(expect.objectContaining({
+        name: 'syncCheckin',
+        data: expect.objectContaining({
+          userHabitId: 'strategy-1',
+          date: '2026-05-16',
+          action: 'undo'
+        })
+      }));
       expect(app.globalData.CheckinLogs).toEqual([]);
     });
 

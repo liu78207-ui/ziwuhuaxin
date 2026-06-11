@@ -5,7 +5,7 @@
  * 职责：
  * - 封装 wx.cloud.callFunction
  * - 标准化错误码和返回结构
- * - 超时处理（默认 10s）
+ * - 统一错误归类（网络 / 超时 / 服务端）
  * - 网络异常时标记 shouldPending（供 syncService 入队）
  * - serverTime 校准
  * - Phase 7D: 新增云存储上传/临时 URL 能力
@@ -16,8 +16,6 @@
  * - 业务逻辑判断
  */
 
-const CLOUD_FUNCTION_TIMEOUT = 10000 // 10s
-
 const ERROR_CODES = {
   NETWORK_ERROR: 'NETWORK_ERROR',
   TIMEOUT: 'TIMEOUT',
@@ -26,22 +24,32 @@ const ERROR_CODES = {
   UNAUTH: 'UNAUTH'
 }
 
+function getErrorMessage(error) {
+  return error && error.message ? error.message : String(error || '调用失败')
+}
+
 /**
  * 统一云函数调用入口
  * @param {string} name - 云函数名称
  * @param {object} data - 调用参数
- * @param {object} options - { timeout, retries }
+ * @param {object} options - { slow }
  * @returns {Promise<{success: boolean, data?: object, error?: {code: string, message: string}, serverTime?: number, shouldPending?: boolean}>}
  */
 async function callFunction(name, data, options = {}) {
-  const { timeout = CLOUD_FUNCTION_TIMEOUT } = options
+  const { slow = false } = options
+  const startedAt = Date.now()
+  const callOptions = {
+    name,
+    data
+  }
+  if (slow) {
+    callOptions.slow = true
+  }
 
   try {
-    const result = await wx.cloud.callFunction({
-      name,
-      data,
-      timeout
-    })
+    console.info('cloudService.callFunction 开始:', name)
+    const result = await wx.cloud.callFunction(callOptions)
+    console.info('cloudService.callFunction 完成:', name, `${Date.now() - startedAt}ms`)
 
     if (result.errMsg && !result.errMsg.includes('ok')) {
       return {
@@ -54,7 +62,10 @@ async function callFunction(name, data, options = {}) {
     if (result.result && result.result.success === false) {
       return {
         success: false,
-        error: result.result.error || { code: ERROR_CODES.SERVER_ERROR, message: result.result.message || '云函数返回错误' }
+        error: result.result.error || {
+          code: result.result.code || ERROR_CODES.SERVER_ERROR,
+          message: result.result.message || '云函数返回错误'
+        }
       }
     }
 
@@ -64,16 +75,21 @@ async function callFunction(name, data, options = {}) {
       serverTime: result.result?.serverTime || null
     }
   } catch (e) {
-    const errMsg = e.message || ''
-    const isNetworkError = errMsg.includes('network') || errMsg.includes('ERR_NETWORK') || errMsg.includes('fail')
+    const errMsg = getErrorMessage(e)
+    const normalizedMsg = errMsg.toLowerCase()
+    const isTimeout = normalizedMsg.includes('timeout')
+    const isNetworkError = normalizedMsg.includes('network') || errMsg.includes('ERR_NETWORK') || normalizedMsg.includes('fail')
+    const code = isTimeout ? ERROR_CODES.TIMEOUT : (isNetworkError ? ERROR_CODES.NETWORK_ERROR : ERROR_CODES.SERVER_ERROR)
+
+    console.warn('cloudService.callFunction 失败:', name, code, errMsg)
 
     return {
       success: false,
       error: {
-        code: isNetworkError ? ERROR_CODES.NETWORK_ERROR : ERROR_CODES.SERVER_ERROR,
+        code,
         message: errMsg || '调用失败'
       },
-      shouldPending: isNetworkError // 网络异常时标记进入 pending 队列
+      shouldPending: isTimeout || isNetworkError // 网络/超时异常时标记进入 pending 队列
     }
   }
 }
@@ -116,7 +132,7 @@ async function uploadFile(tempFilePath, cloudPath) {
     }
     throw new Error(result.errMsg || '上传失败')
   } catch (e) {
-    console.error('cloudService.uploadFile 失败:', e)
+    console.error('cloudService.uploadFile 失败:', getErrorMessage(e))
     throw e
   }
 }
@@ -137,7 +153,7 @@ async function getTempFileURL(cloudPath) {
     const file = res.fileList && res.fileList[0]
     return (file && file.tempFileURL) || cloudPath
   } catch (e) {
-    console.error('cloudService.getTempFileURL 失败:', e)
+    console.error('cloudService.getTempFileURL 失败:', getErrorMessage(e))
     return cloudPath
   }
 }

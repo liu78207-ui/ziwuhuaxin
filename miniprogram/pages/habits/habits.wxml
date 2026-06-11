@@ -11,11 +11,11 @@
 
     <!-- 顶部 Tab 切换器 -->
     <view class="tabs-top">
-      <view 
-        class="tab-l-item {{currentTab === index ? 'active' : ''}}" 
-        wx:for="{{categories}}" 
+      <view
+        class="tab-l-item {{currentTab === index ? 'active' : ''}}"
+        wx:for="{{categories}}"
         wx:key="index"
-        bindtap="switchTab" 
+        bindtap="switchTab"
         data-index="{{index}}">
         {{item}}
       </view>
@@ -30,13 +30,13 @@
         <image class="icon-img-sm" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
         <text wx:else>{{item.emoji || '养'}}</text>
       </view>
-      
+
       <!-- 中间信息 -->
       <view class="card-info">
         <text class="lc-title">{{item.title}}</text>
         <text class="lc-desc">{{item.strategyText || item.frequencyText || '每日 · ' + item.default_duration + '分钟'}}</text>
       </view>
-      
+
       <!-- 右侧添加按钮 -->
       <view class="add-btn {{item.hasStrategy ? 'added' : ''}}">
         <text class="btn-icon">{{item.hasStrategy ? '✓' : '+'}}</text>
@@ -45,8 +45,8 @@
 
     <!-- 空状态 -->
     <view class="empty-state" wx:if="{{filteredHabits.length === 0 && !loading}}">
-      <text class="empty-text">暂无该分类习惯</text>
-      <button class="init-btn" bindtap="initHabits" wx:if="{{currentTab === 0}}">初始化习惯数据</button>
+      <text class="empty-text">{{currentTab === 0 ? '还没有添加习惯' : '暂无该分类习惯'}}</text>
+      <button class="init-btn" wx:if="{{currentTab === 0}}" bindtap="goAddFromMyTab">立即添加习惯</button>
     </view>
   </scroll-view>
 </view>
@@ -56,7 +56,7 @@
 <view class="strategy-modal {{showModal ? 'show' : ''}}">
   <!-- 顶部指示条 -->
   <view class="modal-indicator"></view>
-  
+
   <!-- 标题 -->
   <view class="modal-header">
     <text class="sh-title">{{selectedHabit.title}}策略</text>
@@ -134,9 +134,9 @@
       <!-- 自定义选项：今天/明天/选择日期 -->
       <view class="setting-item sub-item">
         <view class="plan-start-options">
-          <view 
-            class="plan-start-option {{planStartDate === item.value ? 'selected' : ''}}" 
-            wx:for="{{planStartDateOptions}}" 
+          <view
+            class="plan-start-option {{planStartDate === item.value ? 'selected' : ''}}"
+            wx:for="{{planStartDateOptions}}"
             wx:key="value"
             bindtap="onPlanStartOptionClick"
             data-value="{{item.value}}">
@@ -203,9 +203,9 @@
     <text class="picker-close" bindtap="closeWeekdayPicker">✕</text>
   </view>
   <view class="weekday-list">
-    <view 
-      class="weekday-option {{item.checked ? 'checked' : ''}}" 
-      wx:for="{{weekdays}}" 
+    <view
+      class="weekday-option {{item.checked ? 'checked' : ''}}"
+      wx:for="{{weekdays}}"
       wx:key="index"
       bindtap="toggleWeekday"
       data-index="{{index}}">
@@ -248,9 +248,9 @@
   <view class="action-sheet-mask" bindtap="closeActionMenu"></view>
   <view class="action-sheet-content">
     <view class="action-sheet-list">
-      <view 
-        class="action-sheet-item" 
-        wx:for="{{actionMenuItems}}" 
+      <view
+        class="action-sheet-item"
+        wx:for="{{actionMenuItems}}"
         wx:key="index"
         bindtap="onActionMenuSelect"
         data-index="{{index}}">

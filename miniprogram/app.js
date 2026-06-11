@@ -2,6 +2,11 @@ const timeService = require('./services/timeService.js')
 const iconMap = require('./utils/iconMap.js')
 const syncService = require('./services/syncService.js')
 const userService = require('./services/userService.js')
+const storageService = require('./services/storageService.js')
+
+function getErrorMessage(err) {
+  return err && err.message ? err.message : String(err || 'unknown error')
+}
 
 App({
   globalData: {
@@ -34,19 +39,11 @@ App({
 
   // 获取模拟日期（如果处于调试模式）
   getSimulatedDate() {
-    const DEBUG_DAY_OFFSET = this.getDebugOffset();
-    const today = new Date();
-    if (DEBUG_DAY_OFFSET !== 0) {
-      today.setDate(today.getDate() + DEBUG_DAY_OFFSET);
-    }
-    return today;
+    return timeService.getSimulatedDate(this);
   },
 
   formatDateKey(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return timeService.formatDate(date);
   },
 
   getEntityHabitId(entity) {
@@ -84,19 +81,28 @@ App({
     // 从本地存储加载全局数据
     this.loadGlobalDataFromStorage()
     // Phase 7: 登录逻辑收敛到 userService（静默模式）
-    userService.login({ force: false }).catch(err => {
-      console.warn('登录失败（静默模式）：', err.message);
-    });
     // 初始化网络状态监听
     this.initNetworkListener()
-    // 启动时：优先检查本地缓存是否需要从云端恢复
-    if (syncService.needsLocalRecovery()) {
-      syncService.recoverFromCloud().catch(err => {
-        console.warn('云端恢复失败（继续使用本地空缓存）：', err.message)
+    userService.login({ force: false })
+      .then(() => {
+        console.info('app.onLaunch login 完成')
+        // 启动时：登录成功后再检查本地缓存是否需要从云端恢复
+        if (syncService.needsLocalRecovery()) {
+          return syncService.recoverFromCloud()
+        }
+        return { success: true, source: 'localCache' }
       })
-    }
-    // 然后处理 pending 队列同步
-    syncService.recoverOrSync()
+      .then((recoverResult) => {
+        console.info('app.onLaunch recover 完成:', recoverResult && recoverResult.source ? recoverResult.source : 'none')
+        // 登录成功后再处理 pending 队列同步，避免云环境异常时启动连环 timeout
+        return syncService.recoverOrSync()
+      })
+      .then((syncResult) => {
+        console.info('app.onLaunch recoverOrSync 完成:', syncResult && syncResult.reason ? syncResult.reason : 'done')
+      })
+      .catch(err => {
+        console.warn('登录或云端恢复失败（继续使用本地数据）：', err.message)
+      })
   },
 
   // ========== 数据持久层==========
@@ -105,7 +111,7 @@ App({
   loadGlobalDataFromStorage() {
     try {
       // 加载 MyHabits（用户习惯配置表）
-      let myHabits = wx.getStorageSync('MyHabits')
+      let myHabits = storageService.getMyHabits()
       if (myHabits && Array.isArray(myHabits)) {
         // 数据修复：确保每个习惯都有 freq_type 和 freq_rules
         myHabits = myHabits.map(habit => {
@@ -126,7 +132,7 @@ App({
         this.saveMyHabits(myHabits)
       } else {
         // 兼容旧式数据：尝试从 userStrategies 迁移
-        const oldStrategies = wx.getStorageSync('userStrategies')
+        const oldStrategies = storageService.getItem('userStrategies')
         if (oldStrategies && Array.isArray(oldStrategies)) {
           this.globalData.MyHabits = oldStrategies.map(s => this.migrateOldStrategy(s))
           this.saveMyHabits(this.globalData.MyHabits)
@@ -134,12 +140,12 @@ App({
       }
 
       // 加载 CheckinLogs（打卡流水表）
-      const checkinLogs = wx.getStorageSync('CheckinLogs')
+      const checkinLogs = storageService.getCheckinLogs()
       if (checkinLogs && Array.isArray(checkinLogs)) {
         this.globalData.CheckinLogs = checkinLogs
       } else {
         // 兼容旧式数据：尝试从 checkin_records 迁移
-        const oldRecords = wx.getStorageSync('checkin_records')
+        const oldRecords = storageService.getItem('checkin_records')
         if (oldRecords && typeof oldRecords === 'object') {
           this.globalData.CheckinLogs = this.migrateOldRecords(oldRecords)
           this.saveCheckinLogs(this.globalData.CheckinLogs)
@@ -182,16 +188,16 @@ App({
   // 迁移旧式打卡记录格式
   migrateOldRecords(oldRecords) {
     const logs = []
-    const today = new Date()
     for (const habitId in oldRecords) {
       const dates = oldRecords[habitId]
       if (Array.isArray(dates)) {
         dates.forEach(dateStr => {
+          const parsedDate = timeService.parseDate(dateStr)
           logs.push({
             logId: `L_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
             habitId: String(habitId),
             date: dateStr,
-            timestamp: new Date(dateStr).getTime()
+            timestamp: parsedDate ? parsedDate.getTime() : 0
           })
         })
       }
@@ -227,7 +233,7 @@ App({
   saveMyHabits(habits) {
     this.globalData.MyHabits = habits
     try {
-      wx.setStorageSync('MyHabits', habits)
+      storageService.setMyHabits(habits)
       console.log('MyHabits 已保存', habits.length)
     } catch (e) {
       console.error('保存 MyHabits 失败:', e)
@@ -251,7 +257,7 @@ App({
           ...habit,
           isDeleted: false,
           deletedAt: null,
-          restoredAt: new Date().toISOString()
+          restoredAt: timeService.getNow().toISOString()
         }
         this.logOperation('restoreHabitOnAdd', { habitId: habitIdStr, name: habit.name })
       } else {
@@ -298,7 +304,7 @@ App({
     habits[habitIndex] = {
       ...habitToRemove,
       isDeleted: true,
-      deletedAt: new Date().toISOString()
+      deletedAt: timeService.getNow().toISOString()
     }
 
     this.saveMyHabits(habits)
@@ -317,7 +323,7 @@ App({
   // 保存已删除习惯的信息（用于历史数据显示和恢复）
   saveDeletedHabitInfo(habit) {
     try {
-      const allHabitsInfo = wx.getStorageSync('AllHabitsInfo') || {}
+      const allHabitsInfo = storageService.getAllHabitsInfo()
       // 使用 habitId 或 _id 作为键（兼容不同数据源）
       const habitId = this.getEntityHabitId(habit)
 
@@ -354,9 +360,9 @@ App({
         freq_category: habit.freq_category,
         createdAt: habit.createdAt,
         plan_start_date: habit.plan_start_date,
-        deletedAt: new Date().toISOString()
+        deletedAt: timeService.getNow().toISOString()
       }
-      wx.setStorageSync('AllHabitsInfo', allHabitsInfo)
+      storageService.setAllHabitsInfo(allHabitsInfo)
       console.log('已保存已删除习惯信息', habitId, habit.name)
     } catch (e) {
       console.error('保存已删除习惯信息失败:', e)
@@ -397,7 +403,7 @@ App({
       ...habits[habitIndex],
       isDeleted: false,
       deletedAt: null,
-      restoredAt: new Date().toISOString()
+      restoredAt: timeService.getNow().toISOString()
     }
 
     this.saveMyHabits(habits)
@@ -431,7 +437,7 @@ App({
   saveCheckinLogs(logs) {
     this.globalData.CheckinLogs = logs
     try {
-      wx.setStorageSync('CheckinLogs', logs)
+      storageService.setCheckinLogs(logs)
       console.log('CheckinLogs 已保存', logs.length)
     } catch (e) {
       console.error('保存 CheckinLogs 失败:', e)
@@ -442,7 +448,7 @@ App({
   addCheckinLog(habitId, dateStr, syncStatus = 0) {
     const logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
-    const date = dateStr || this.formatDateKey(new Date())
+    const date = dateStr || timeService.getSimulatedDateStr(this)
 
     // 检查是否已有今日记录
     const existingIndex = logs.findIndex(log =>
@@ -455,9 +461,9 @@ App({
         logId: `L_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         habitId: habitIdStr,
         date: date,
-        timestamp: new Date(date).getTime(),
+        timestamp: timeService.parseDate(date) ? timeService.parseDate(date).getTime() : 0,
         sync_status: syncStatus, // 0=待同步 1=已同步
-        created_at: new Date().toISOString()
+        created_at: timeService.getNow().toISOString()
       })
       this.saveCheckinLogs(logs)
       this.logOperation('addCheckinLog', { habitId: habitIdStr, date, syncStatus })
@@ -470,7 +476,7 @@ App({
   removeCheckinLog(habitId, dateStr) {
     let logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
-    const date = dateStr || this.formatDateKey(new Date())
+    const date = dateStr || timeService.getSimulatedDateStr(this)
 
     const logIndex = logs.findIndex(log => this.getEntityHabitId(log) === habitIdStr && this.getLogDate(log) === date)
 
@@ -478,7 +484,7 @@ App({
       if (logs[logIndex].sync_status === 1) {
         // 已同步的记录，标记为待删除
         logs[logIndex].sync_status = 2
-        logs[logIndex].deleted_at = new Date().toISOString()
+        logs[logIndex].deleted_at = timeService.getNow().toISOString()
         console.log('标记为待删除:', habitIdStr, date)
       } else {
         // 未同步的记录，直接删除
@@ -614,196 +620,121 @@ App({
 
   /**
    * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
-   * 本方法保留仅用于紧急回滚，不在任何启动路径或网络恢复路径中被调用
+   * 本方法仅保留兼容旧调用方；不得再直接读取旧 checkin_logs 云函数。
    */
   async syncFromCloud() {
+    try {
+      return await syncService.recoverFromCloud()
+    } catch (e) {
+      console.error('从云端同步异常:', getErrorMessage(e))
+      return { success: false, error: getErrorMessage(e) }
+    }
+  },
+
+  /**
+   * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
+   * 本方法仅保留兼容旧调用方；旧 CheckinLogs 待同步项会迁入 pending 队列，
+   * 云端最终由 syncService 调用 syncCheckin 完成。
+   */
+  async syncToCloud() {
     if (!this.globalData.isOnline) {
-      console.log('offline, skip cloud sync')
-      return
+      console.log('offline, cannot sync to cloud')
+      return { success: false, skipped: true, reason: 'OFFLINE' }
     }
 
     if (this.globalData.isSyncing) {
       console.log('同步进行中，跳过')
-      return
+      return { success: false, skipped: true, reason: 'SYNCING' }
+    }
+
+    const logs = this.globalData.CheckinLogs || []
+    const legacySyncItems = logs.filter(log =>
+      log.sync_status === 0 || log.sync_status === undefined || log.sync_status === 2
+    )
+
+    if (legacySyncItems.length === 0) {
+      console.log('没有需要同步的数据')
+      return syncService.recoverOrSync()
     }
 
     this.globalData.isSyncing = true
-    console.log('开始从云端同步数据...')
-
     try {
-      // 获取云端打卡记录
-      const { result } = await wx.cloud.callFunction({
-        name: 'getCheckinLogsByRange',
-        data: {
-          startDate: '2020-01-01',
-          endDate: '2099-12-31'
-        }
-      })
-
-      if (result.success && result.logs) {
-        // 合并云端数据和本地数据，以云端为准
-        const cloudLogs = result.logs.map(log => ({
-          logId: `cloud_${log._id}`,
-          habitId: String(log.habit_id),
-          date: log.checkin_date,
-          timestamp: new Date(log.checkin_date).getTime(),
-          sync_status: 1,
-          cloud_id: log._id,
-          updated_at: log.created_at || new Date().toISOString()
-        }))
-
-        // 获取本地待同步的记录（sync_status=0）
-        const localLogs = this.globalData.CheckinLogs || []
-        const pendingLogs = localLogs.filter(log => log.sync_status === 0 || log.sync_status === undefined)
-
-        // 合并策略：云端数据覆盖本地已同步数据，保留本地待同步数据
-        const cloudHabitDateMap = new Map()
-        cloudLogs.forEach(log => {
-          const key = `${log.habitId}_${log.date}`
-          cloudHabitDateMap.set(key, log)
-        })
-
-        // 保留本地待同步记录，但检查是否与云端冲突
-        const mergedLogs = [...cloudLogs]
-        let conflictCount = 0
-
-        pendingLogs.forEach(localLog => {
-          const key = `${localLog.habitId}_${localLog.date}`
-          if (!cloudHabitDateMap.has(key)) {
-            // 云端没有这条记录，保留本地待同步
-            mergedLogs.push({
-              ...localLog,
-              sync_status: 0
-            })
-          } else {
-            // 冲突：以云端为准，丢弃本地记录
-            conflictCount++
-            console.log('数据冲突，以云端为准:', key)
-          }
-        })
-
-        // 保存合并后的数据
-        this.saveCheckinLogs(mergedLogs)
-        console.log(`从云端同步完成 ${cloudLogs.length} 条云端记录, 保留 ${pendingLogs.length - conflictCount} 条本地待同步记录`)
-
-        // 触发待同步数据上传
-        if (pendingLogs.length > conflictCount) {
-          this.syncToCloud()
-        }
-      }
+      const syncKeys = this.enqueueLegacyCheckinLogs(legacySyncItems)
+      await syncService.processQueue()
+      this.reconcileLegacyCheckinLogsAfterSync(syncKeys)
+      this.saveCheckinLogs(this.globalData.CheckinLogs || [])
+      this.notifyPagesToRefresh()
+      return { success: true, migratedCount: syncKeys.length }
     } catch (e) {
-      console.error('从云端同步失败', e)
+      console.error('同步异常:', getErrorMessage(e))
+      return { success: false, error: getErrorMessage(e) }
     } finally {
       this.globalData.isSyncing = false
     }
   },
 
-  // 同步本地数据到云端
-  /**
-   * @deprecated Phase 4+ - 已废弃，同步统一走 syncService
-   * 本方法保留仅用于紧急回滚，不在任何启动路径或网络恢复路径中被调用
-   */
-  async syncToCloud() {
-    if (!this.globalData.isOnline) {
-      console.log('offline, cannot sync to cloud')
-      return
-    }
+  buildLegacyCheckinSyncPayload(log) {
+    const date = this.getLogDate(log)
+    const userHabitId = String(log.userHabitId || this.getEntityHabitId(log))
+    const habitId = String(log.habitId || log.habit_id || userHabitId)
+    const queueAction = log.sync_status === 2 ? 'undoCheckin' : 'checkin'
+    const action = queueAction === 'undoCheckin' ? 'undo' : 'checkin'
+    const operationId = log.operationId || log.logId || `legacy_${action}_${userHabitId}_${date}`
+    const idempotencyKey = log.idempotencyKey || `legacy:${userHabitId}:${date}:${action}`
 
-    if (this.globalData.isSyncing) {
-      console.log('同步进行中，跳过')
-      return
+    return {
+      syncKey: idempotencyKey,
+      queueAction,
+      payload: {
+        userHabitId,
+        habitId,
+        date,
+        policyVersionId: log.policyVersionId || log.policy_version_id || '',
+        operationId,
+        idempotencyKey,
+        action,
+        clientCreatedAt: log.created_at || log.createdAt || timeService.getNow().toISOString(),
+        clientSequence: log.clientSequence || 0
+      }
     }
+  },
+
+  enqueueLegacyCheckinLogs(logs) {
+    const syncKeys = []
+    logs.forEach(log => {
+      const syncItem = this.buildLegacyCheckinSyncPayload(log)
+      syncService.pushWithDedup('checkin', syncItem.queueAction, syncItem.payload)
+      syncKeys.push(syncItem.syncKey)
+    })
+    return syncKeys
+  },
+
+  reconcileLegacyCheckinLogsAfterSync(syncKeys) {
+    const syncedKeys = new Set(
+      syncService.getPendingOperations()
+        .filter(item => syncKeys.includes(item.idempotencyKey) && item.status === 'synced')
+        .map(item => item.idempotencyKey)
+    )
 
     const logs = this.globalData.CheckinLogs || []
-    const pendingLogs = logs.filter(log => log.sync_status === 0 || log.sync_status === undefined)
-    const toDeleteLogs = logs.filter(log => log.sync_status === 2)
-
-    if (pendingLogs.length === 0 && toDeleteLogs.length === 0) {
-      console.log('没有需要同步的数据')
-      return
-    }
-
-    this.globalData.isSyncing = true
-    console.log(`开始同步到云端: ${pendingLogs.length} 条待同步, ${toDeleteLogs.length} 条待删除`)
-
-    let successCount = 0
-    let failCount = 0
-
-    // 同步新增记录
-    for (const log of pendingLogs) {
-      try {
-        const { result } = await wx.cloud.callFunction({
-          name: 'doCheckin',
-          data: { habit_id: log.habitId, checkin_date: log.date }
-        })
-
-        if (result.success) {
-          // 更新本地记录状态为已同步
-          const logIndex = logs.findIndex(l => l.logId === log.logId)
-          if (logIndex > -1) {
-            logs[logIndex].sync_status = 1
-            logs[logIndex].sync_time = new Date().toISOString()
-          }
-          successCount++
-          console.log('同步成功:', log.habitId, log.date)
-        } else if (
-          result.code === 'ALREADY_CHECKED' ||
-          result.message === 'already checked' ||
-          (result.message && result.message.includes('已打卡'))
-        ) {
-          // 云端已存在，标记为已同步
-          const logIndex = logs.findIndex(l => l.logId === log.logId)
-          if (logIndex > -1) {
-            logs[logIndex].sync_status = 1
-          }
-          successCount++
-          console.log('云端已存在，标记为已同步:', log.habitId, log.date)
-        } else {
-          failCount++
-          console.error('同步失败:', result.message)
-        }
-      } catch (e) {
-        failCount++
-        console.error('同步异常:', e)
+    this.globalData.CheckinLogs = logs.reduce((nextLogs, log) => {
+      const syncItem = this.buildLegacyCheckinSyncPayload(log)
+      if (!syncedKeys.has(syncItem.syncKey)) {
+        nextLogs.push(log)
+        return nextLogs
       }
-    }
 
-    // 同步删除记录
-    for (const log of toDeleteLogs) {
-      try {
-        const { result } = await wx.cloud.callFunction({
-          name: 'undoCheckin',
-          data: { habit_id: log.habitId, checkin_date: log.date }
-        })
-
-        if (result.success || result.code === 'CHECKIN_NOT_FOUND' || (result.message && result.message.includes('未打卡'))) {
-          // 从本地彻底删除
-          const logIndex = logs.findIndex(l => l.logId === log.logId)
-          if (logIndex > -1) {
-            logs.splice(logIndex, 1)
-          }
-          successCount++
-          console.log('删除同步成功:', log.habitId, log.date)
-        } else {
-          failCount++
-          console.error('删除同步失败:', result.message)
-        }
-      } catch (e) {
-        failCount++
-        console.error('删除同步异常:', e)
+      if (log.sync_status === 2) {
+        return nextLogs
       }
-    }
 
-    // 保存更新后的记录
-    this.saveCheckinLogs(logs)
-    this.globalData.isSyncing = false
-
-    console.log(`同步完成: 成功 ${successCount}, 失败 ${failCount}`)
-
-    // 通知页面刷新数据
-    if (successCount > 0) {
-      this.notifyPagesToRefresh()
-    }
+      nextLogs.push({
+        ...log,
+        sync_status: 1,
+        sync_time: timeService.getNow().toISOString()
+      })
+      return nextLogs
+    }, [])
   },
 
   // 通知所有页面刷新数据
@@ -821,14 +752,14 @@ App({
   // 记录操作日志
   logOperation(action, data) {
     const logEntry = {
-      timestamp: new Date().toISOString(),
+      timestamp: timeService.getNow().toISOString(),
       action: action,
       data: data,
       networkStatus: this.globalData.isOnline ? 'online' : 'offline'
     }
 
     // 获取现有日志
-    let operationLogs = wx.getStorageSync('operationLogs') || []
+    let operationLogs = storageService.getItem('operationLogs') || []
     operationLogs.push(logEntry)
 
     // 只保留最近100条日志
@@ -836,18 +767,18 @@ App({
       operationLogs = operationLogs.slice(-100)
     }
 
-    wx.setStorageSync('operationLogs', operationLogs)
+    storageService.setItem('operationLogs', operationLogs)
     console.log('操作日志:', action, data)
   },
 
   // 获取操作日志
   getOperationLogs() {
-    return wx.getStorageSync('operationLogs') || []
+    return storageService.getItem('operationLogs') || []
   },
 
   // 清空操作日志
   clearOperationLogs() {
-    wx.removeStorageSync('operationLogs')
+    storageService.removeItem('operationLogs')
   }
 
 })

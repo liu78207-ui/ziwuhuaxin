@@ -51,6 +51,7 @@ exports.main = async (event, context) => {
     // 以下字段用于 close 旧版本
     previousPolicyVersionId,
     previousEffectiveEndDate,
+    strategyChangedDailyState,
     // 用于 deleteHabit 的本地业务日期
     deletedAt,
     // 用于 idempotent retry
@@ -220,6 +221,50 @@ exports.main = async (event, context) => {
             updatedAt: serverTime
           }
         });
+      }
+
+      if (action === 'updatePolicy' && strategyChangedDailyState) {
+        const dailyStateDate = strategyChangedDailyState.date || toDateStr(new Date());
+        const dailyStateStatus = strategyChangedDailyState.status || 'unchecked';
+        const stateData = {
+          userHabitId,
+          habitId: String(habitId),
+          policyVersionId,
+          date: dailyStateDate,
+          status: dailyStateStatus,
+          checkedAt: strategyChangedDailyState.checkedAt || null,
+          canceledAt: strategyChangedDailyState.canceledAt || null,
+          lastOperationId: strategyChangedDailyState.lastOperationId || null,
+          hasPolicyChangedToday: true,
+          lockedReason: dailyStateStatus === 'checked'
+            ? 'strategy_changed_after_checkin'
+            : 'strategy_changed_without_checkin',
+          lockReason: dailyStateStatus === 'checked'
+            ? 'strategy_changed_after_checkin'
+            : 'strategy_changed_without_checkin',
+          syncStatus: 'synced',
+          updatedAt: serverTime
+        };
+
+        const existingState = await db.collection('daily_checkin_states').where({
+          _openid: openid,
+          userHabitId,
+          date: dailyStateDate
+        }).get();
+
+        if (existingState.data && existingState.data.length > 0) {
+          await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
+            data: stateData
+          });
+        } else {
+          await db.collection('daily_checkin_states').add({
+            data: {
+              _openid: openid,
+              stateId: strategyChangedDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,
+              ...stateData
+            }
+          });
+        }
       }
     }
 

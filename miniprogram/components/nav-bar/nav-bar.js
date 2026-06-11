@@ -19,12 +19,23 @@ Component({
 
   lifetimes: {
     attached() {
-      const systemInfo = wx.getSystemInfoSync();
-      const menuButtonInfo = wx.getMenuButtonBoundingClientRect();
+      let windowInfo = {};
+      let menuButtonInfo = { top: 48, height: 32, width: 88 };
+      try {
+        windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : {};
+      } catch (e) {
+        console.warn('nav-bar getWindowInfo failed:', e && e.message ? e.message : String(e || 'unknown error'));
+      }
+      try {
+        menuButtonInfo = wx.getMenuButtonBoundingClientRect();
+      } catch (e) {
+        console.warn('nav-bar getMenuButtonBoundingClientRect failed:', e && e.message ? e.message : String(e || 'unknown error'));
+      }
+      const statusBarHeight = windowInfo.statusBarHeight || 44;
       
       this.setData({
-        statusBarHeight: systemInfo.statusBarHeight,
-        navBarHeight: (menuButtonInfo.top - systemInfo.statusBarHeight) * 2 + menuButtonInfo.height,
+        statusBarHeight,
+        navBarHeight: (menuButtonInfo.top - statusBarHeight) * 2 + menuButtonInfo.height,
         capsuleWidth: menuButtonInfo.width + 16
       });
     }

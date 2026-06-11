@@ -704,4 +704,274 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(day.countsAsDone).toBe(true)
     expect(result.habitReports[0].instances).toHaveLength(2)
   })
+
+  test('策略修改当天 daily 改时长后取消打卡：观心仍展示 canceled 行但不计分', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_duration_changed_canceled',
+        habitId: 'h_baguan',
+        name: '拔罐',
+        status: 'active',
+        createdAt: '2026-06-02',
+        deletedAt: null,
+        themeClass: 't-red'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_15',
+        userHabitId: 'uh_duration_changed_canceled',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: '2026-06-02',
+        frequencyType: 'daily',
+        duration: 15
+      },
+      {
+        policyVersionId: 'pv_30',
+        userHabitId: 'uh_duration_changed_canceled',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: null,
+        frequencyType: 'daily',
+        duration: 30
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_duration_changed_canceled',
+        date: '2026-06-02',
+        status: 'canceled',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-01')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_baguan')
+
+    expect(habitReport).toBeDefined()
+    expect(habitReport.doneCount).toBe(0)
+    expect(habitReport.hasVisibleState).toBe(true)
+    const day = habitReport.days.find(d => d.date === '2026-06-02')
+    expect(day.status).toBe('canceled')
+    expect(day.shouldShow).toBe(true)
+    expect(day.countsInDenominator).toBe(false)
+    expect(day.countsAsDone).toBe(false)
+  })
+
+  test('策略修改当天 daily 改 weekly 且今天命中新策略后取消打卡：观心仍展示 canceled 行', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_daily_to_tuesday_canceled',
+        habitId: 'h_running',
+        name: '跑步',
+        status: 'active',
+        createdAt: '2026-06-02',
+        deletedAt: null,
+        themeClass: 't-green'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_daily',
+        userHabitId: 'uh_daily_to_tuesday_canceled',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: '2026-06-02',
+        frequencyType: 'daily'
+      },
+      {
+        policyVersionId: 'pv_tuesday',
+        userHabitId: 'uh_daily_to_tuesday_canceled',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: null,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [2] }
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_daily_to_tuesday_canceled',
+        date: '2026-06-02',
+        status: 'canceled',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-01')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_running')
+
+    expect(habitReport).toBeDefined()
+    expect(habitReport.hasVisibleState).toBe(true)
+    const day = habitReport.days.find(d => d.date === '2026-06-02')
+    expect(day.status).toBe('canceled')
+    expect(day.shouldShow).toBe(true)
+  })
+
+  test('今天新增 weekly 三四后改成 weekly 二：首页应显示时观心也展示 unchecked 行', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_weekly_changed_to_tuesday',
+        habitId: 'h_new_weekly',
+        name: '新习惯',
+        status: 'active',
+        createdAt: '2026-06-02',
+        deletedAt: null,
+        themeClass: 't-blue'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_wed_thu',
+        userHabitId: 'uh_weekly_changed_to_tuesday',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: '2026-06-02',
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [3, 4] }
+      },
+      {
+        policyVersionId: 'pv_tuesday',
+        userHabitId: 'uh_weekly_changed_to_tuesday',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: null,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [2] }
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_weekly_changed_to_tuesday',
+        date: '2026-06-02',
+        status: 'unchecked',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-01')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_new_weekly')
+
+    expect(habitReport).toBeDefined()
+    expect(habitReport.hasVisibleState).toBe(true)
+    const day = habitReport.days.find(d => d.date === '2026-06-02')
+    expect(day.status).toBe('unchecked')
+    expect(day.shouldShow).toBe(true)
+    expect(day.countsInDenominator).toBe(false)
+  })
+
+  test('今天新增 weekly 三四后改成 daily：首页应显示时观心也展示 unchecked 行', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_weekly_changed_to_daily',
+        habitId: 'h_new_daily',
+        name: '新习惯',
+        status: 'active',
+        createdAt: '2026-06-02',
+        deletedAt: null,
+        themeClass: 't-blue'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_wed_thu',
+        userHabitId: 'uh_weekly_changed_to_daily',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: '2026-06-02',
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [3, 4] }
+      },
+      {
+        policyVersionId: 'pv_daily',
+        userHabitId: 'uh_weekly_changed_to_daily',
+        effectiveStartDate: '2026-06-02',
+        effectiveEndDate: null,
+        frequencyType: 'daily'
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_weekly_changed_to_daily',
+        date: '2026-06-02',
+        status: 'unchecked',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-01')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_new_daily')
+
+    expect(habitReport).toBeDefined()
+    expect(habitReport.hasVisibleState).toBe(true)
+    const day = habitReport.days.find(d => d.date === '2026-06-02')
+    expect(day.status).toBe('unchecked')
+    expect(day.shouldShow).toBe(true)
+    expect(day.countsInDenominator).toBe(false)
+  })
+
+  test('daily 打卡后改 weekly 二五并取消，今天周四：观心周四不显示未完成描边', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_daily_to_tue_fri_canceled_thu',
+        habitId: 'h_fast_walk',
+        name: '快走',
+        status: 'active',
+        createdAt: '2026-06-11',
+        deletedAt: null,
+        themeClass: 't-green'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_daily',
+        userHabitId: 'uh_daily_to_tue_fri_canceled_thu',
+        effectiveStartDate: '2026-06-11',
+        effectiveEndDate: '2026-06-11',
+        frequencyType: 'daily'
+      },
+      {
+        policyVersionId: 'pv_tue_fri',
+        userHabitId: 'uh_daily_to_tue_fri_canceled_thu',
+        effectiveStartDate: '2026-06-11',
+        effectiveEndDate: null,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [2, 5] }
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_daily_to_tue_fri_canceled_thu',
+        date: '2026-06-11',
+        status: 'canceled',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-08')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_fast_walk')
+
+    // 周五仍在本周应修，行可以存在；但周四不是新策略应修日，不应显示未完成/取消描边。
+    expect(habitReport).toBeDefined()
+    const thursday = habitReport.days.find(d => d.date === '2026-06-11')
+    expect(thursday.status).toBe('canceled')
+    expect(thursday.shouldShow).toBe(false)
+    expect(thursday.isDue).toBe(false)
+    expect(thursday.countsInDenominator).toBe(false)
+    expect(thursday.countsAsDone).toBe(false)
+  })
 })

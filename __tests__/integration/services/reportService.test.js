@@ -128,54 +128,9 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(deletedDayVerdict.contributesNumerator).toBe(false)
     })
 
-    test('策略修改当天 checked 通过 buildDayVerdicts：正确计入分母和分子', () => {
-      // 2026-05-10 策略修改
-      const userHabit = {
-        userHabitId: 'uh1',
-        habitId: 'h1',
-        status: 'active',
-        createdAt: '2026-05-01',
-        deletedAt: null
-      }
-      const policyVersions = [
-        {
-          policyVersionId: 'pv1',
-          userHabitId: 'uh1',
-          effectiveStartDate: '2026-05-01',
-          effectiveEndDate: '2026-05-10', // 修改当天旧版本结束
-          frequencyType: 'daily'
-        },
-        {
-          policyVersionId: 'pv2',
-          userHabitId: 'uh1',
-          effectiveStartDate: '2026-05-11', // 新版本次日开始
-          effectiveEndDate: null,
-          frequencyType: 'daily'
-        }
-      ]
-      const dailyStates = [
-        { userHabitId: 'uh1', date: '2026-05-10', status: DAY_STATUS.checked }
-      ]
-
-      const verdicts = reportAggregator.buildDayVerdicts(
-        userHabit,
-        policyVersions,
-        dailyStates,
-        '2026-05-04',
-        '2026-05-10',
-        '2026-05-15',
-        'high',
-        []
-      )
-
-      const changeDayVerdict = verdicts.find(v => v.date === '2026-05-10')
-      expect(changeDayVerdict).toBeTruthy()
-      expect(changeDayVerdict.status).toBe(DAY_STATUS.checked)
-      expect(changeDayVerdict.contributesDenominator).toBe(true)
-      expect(changeDayVerdict.contributesNumerator).toBe(true)
-    })
-
-    test('策略修改当天 unchecked：不计入分母和分子', () => {
+    test('策略修改当天 checked：即使新策略不含当天，也按低压力锁定计入分母和分子', () => {
+      // 场景：daily 改成「从明天开始」，编辑当天已打卡
+      // V1 低压力口径：最终状态 checked => 分母 1，分子 1
       const userHabit = {
         userHabitId: 'uh1',
         habitId: 'h1',
@@ -194,12 +149,73 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
         {
           policyVersionId: 'pv2',
           userHabitId: 'uh1',
-          effectiveStartDate: '2026-05-11',
+          effectiveStartDate: '2026-05-11', // 从明天开始
           effectiveEndDate: null,
           frequencyType: 'daily'
         }
       ]
-      const dailyStates = [] // 未打卡
+      const dailyStates = [
+        {
+          userHabitId: 'uh1',
+          date: '2026-05-10',
+          status: DAY_STATUS.checked,
+          hasPolicyChangedToday: true,
+          lockedReason: 'strategy_changed_after_checkin'
+        }
+      ]
+
+      const verdicts = reportAggregator.buildDayVerdicts(
+        userHabit,
+        policyVersions,
+        dailyStates,
+        '2026-05-04',
+        '2026-05-15',
+        '2026-05-15',
+        'high',
+        []
+      )
+
+      const changeDayVerdict = verdicts.find(v => v.date === '2026-05-10')
+      expect(changeDayVerdict).toBeTruthy()
+      expect(changeDayVerdict.status).toBe(DAY_STATUS.checked)
+      expect(changeDayVerdict.contributesDenominator).toBe(true)
+      expect(changeDayVerdict.contributesNumerator).toBe(true)
+      expect(changeDayVerdict.reason).toBe('strategy_changed_after_checkin')
+    })
+
+    test('策略修改当天 unchecked：即使新策略包含当天，也不计入分母和分子', () => {
+      const userHabit = {
+        userHabitId: 'uh1',
+        habitId: 'h1',
+        status: 'active',
+        createdAt: '2026-05-01',
+        deletedAt: null
+      }
+      const policyVersions = [
+        {
+          policyVersionId: 'pv1',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-05-01',
+          effectiveEndDate: '2026-05-10',
+          frequencyType: 'daily'
+        },
+        {
+          policyVersionId: 'pv2',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-05-10', // 同日开始（修改当天）
+          effectiveEndDate: null,
+          frequencyType: 'daily'
+        }
+      ]
+      const dailyStates = [
+        {
+          userHabitId: 'uh1',
+          date: '2026-05-10',
+          status: DAY_STATUS.unchecked,
+          hasPolicyChangedToday: true,
+          lockedReason: 'strategy_changed_without_checkin'
+        }
+      ]
 
       const verdicts = reportAggregator.buildDayVerdicts(
         userHabit,
@@ -217,9 +233,10 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(changeDayVerdict.status).toBe(DAY_STATUS.unchecked)
       expect(changeDayVerdict.contributesDenominator).toBe(false)
       expect(changeDayVerdict.contributesNumerator).toBe(false)
+      expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
     })
 
-    test('策略修改当天 canceled：不计入分母和分子', () => {
+    test('策略修改当天 canceled：先打卡再修改最后取消，不计入分母和分子', () => {
       const userHabit = {
         userHabitId: 'uh1',
         habitId: 'h1',
@@ -238,13 +255,20 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
         {
           policyVersionId: 'pv2',
           userHabitId: 'uh1',
-          effectiveStartDate: '2026-05-11',
+          effectiveStartDate: '2026-05-10',
           effectiveEndDate: null,
           frequencyType: 'daily'
         }
       ]
       const dailyStates = [
-        { userHabitId: 'uh1', date: '2026-05-10', status: DAY_STATUS.canceled }
+        {
+          userHabitId: 'uh1',
+          date: '2026-05-10',
+          status: DAY_STATUS.canceled,
+          hasPolicyChangedToday: true,
+          lockedReason: 'strategy_changed_without_checkin',
+          lastOperationId: 'op_cancel_after_policy_change'
+        }
       ]
 
       const verdicts = reportAggregator.buildDayVerdicts(
@@ -263,6 +287,116 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(changeDayVerdict.status).toBe(DAY_STATUS.canceled)
       expect(changeDayVerdict.contributesDenominator).toBe(false)
       expect(changeDayVerdict.contributesNumerator).toBe(false)
+      expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
+    })
+
+    test('策略修改当天 not_required：没有最终打卡，不计入分母和分子', () => {
+      const userHabit = {
+        userHabitId: 'uh1',
+        habitId: 'h1',
+        status: 'active',
+        createdAt: '2026-01-01',
+        deletedAt: null
+      }
+      const policyVersions = [
+        {
+          policyVersionId: 'pv1',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-01-01',
+          effectiveEndDate: '2026-05-12', // 周二
+          frequencyType: 'daily'
+        },
+        {
+          policyVersionId: 'pv2',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-05-12', // 同日（周二）
+          effectiveEndDate: null,
+          frequencyType: 'weekly',
+          frequencyConfig: { weekdays: [3] } // 周三
+        }
+      ]
+      const dailyStates = [
+        {
+          userHabitId: 'uh1',
+          date: '2026-05-12',
+          status: DAY_STATUS.not_required,
+          hasPolicyChangedToday: true,
+          lockedReason: 'strategy_changed_without_checkin'
+        }
+      ]
+
+      const verdicts = reportAggregator.buildDayVerdicts(
+        userHabit,
+        policyVersions,
+        dailyStates,
+        '2026-05-12',
+        '2026-05-12',
+        '2026-05-12',
+        'high',
+        []
+      )
+
+      const changeDayVerdict = verdicts.find(v => v.date === '2026-05-12')
+      expect(changeDayVerdict).toBeTruthy()
+      expect(changeDayVerdict.status).toBe(DAY_STATUS.not_required)
+      expect(changeDayVerdict.contributesDenominator).toBe(false)
+      expect(changeDayVerdict.contributesNumerator).toBe(false)
+      expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
+    })
+
+    test('策略修改当天先修改后打卡：最终 checked 计入分母和分子', () => {
+      const userHabit = {
+        userHabitId: 'uh1',
+        habitId: 'h1',
+        status: 'active',
+        createdAt: '2026-05-01',
+        deletedAt: null
+      }
+      const policyVersions = [
+        {
+          policyVersionId: 'pv1',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-05-01',
+          effectiveEndDate: '2026-05-10',
+          frequencyType: 'daily'
+        },
+        {
+          policyVersionId: 'pv2',
+          userHabitId: 'uh1',
+          effectiveStartDate: '2026-05-10',
+          effectiveEndDate: null,
+          frequencyType: 'weekly',
+          frequencyConfig: { weekdays: [1] }
+        }
+      ]
+      const dailyStates = [
+        {
+          userHabitId: 'uh1',
+          date: '2026-05-10',
+          status: DAY_STATUS.checked,
+          hasPolicyChangedToday: true,
+          lockedReason: 'strategy_changed_after_checkin',
+          lastOperationId: 'op_checkin_after_policy_change'
+        }
+      ]
+
+      const verdicts = reportAggregator.buildDayVerdicts(
+        userHabit,
+        policyVersions,
+        dailyStates,
+        '2026-05-10',
+        '2026-05-10',
+        '2026-05-15',
+        'high',
+        []
+      )
+
+      const changeDayVerdict = verdicts.find(v => v.date === '2026-05-10')
+      expect(changeDayVerdict).toBeTruthy()
+      expect(changeDayVerdict.status).toBe(DAY_STATUS.checked)
+      expect(changeDayVerdict.contributesDenominator).toBe(true)
+      expect(changeDayVerdict.contributesNumerator).toBe(true)
+      expect(changeDayVerdict.reason).toBe('strategy_changed_after_checkin')
     })
   })
 
