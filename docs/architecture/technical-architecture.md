@@ -412,7 +412,7 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 从 `builtInHabit` 选择 -> 生成 `userHabitId` -> 创建首个 `policyVersion` -> 本地保存 pending -> `syncHabit` -> 刷新首页和修习页。
 
 编辑策略：
-生成新 `policyVersion` -> 关闭旧版本 -> 标记当天 `hasPolicyChangedToday` -> 根据 `dailyCheckinState` 最终状态写入锁定口径 -> 刷新首页 -> 报表按版本计算。当天最终为 `checked` 时锁定 `strategy_changed_after_checkin`，分母 1、分子 1；当天最终为 `canceled`、`unchecked` 或 `not_required` 时锁定 `strategy_changed_without_checkin`，分母 0、分子 0。同一天多次编辑以后续最后一次保存成功的策略作为未来策略。
+生成新 `policyVersion` -> 关闭旧版本 -> 标记当天 `hasPolicyChangedToday` -> 根据 `dailyCheckinState` 最终状态写入锁定口径 -> 刷新首页 -> 报表按版本计算。当天最终为 `checked` 时锁定 `strategy_changed_after_checkin`，分母 1、分子 1；当天最终为 `canceled`、`unchecked` 或 `not_required` 时锁定 `strategy_changed_without_checkin`，并按最后一次保存成功的新策略判断当天是否仍应修：仍应修则分母 1、分子 0，不应修则分母 0、分子 0。同一天多次编辑以后续最后一次保存成功的策略作为未来策略。
 
 删除习惯：
 二次确认 -> 软删除 `userHabit` -> 关闭当前策略版本 -> 保留历史状态和流水 -> 今日已打卡则首页保留取消入口 -> 未打卡则移除今日任务 -> 报表保留历史。
@@ -420,7 +420,7 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 打卡/取消：
 前端防抖 -> 本地乐观更新 `dailyCheckinState` -> 生成 `checkinOperation` -> pending 入缓存 -> `syncCheckin` 幂等写云端 -> 成功更新 `syncStatus`，失败保留 pending 并提示稍后同步。
 
-同一天多次打卡和取消都保留操作流水，`dailyCheckinState.status` 以最后一次有效操作归并结果为准。若当天发生过策略修改，取消后的最终状态不得再按完成计入报表，且当天按低压力口径不计分母。
+同一天多次打卡和取消都保留操作流水，`dailyCheckinState.status` 以最后一次有效操作归并结果为准。若当天发生过策略修改，取消后的最终状态不得再按完成计入报表；当天是否计入分母由最后一次保存成功的新策略是否命中当天决定。
 
 周/月/年报表：
 `reportService` 读取 `userHabit`、策略版本、`dailyCheckinState`，按自然周/月/年计算。农历只展示，不参与计算。同 `habitId` 多个 `userHabitId` 默认聚合展示，但生命周期不混算。未来日期不计分母。输出周报 7 天状态、月历、年热力图。

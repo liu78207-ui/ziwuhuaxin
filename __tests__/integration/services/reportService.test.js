@@ -183,7 +183,7 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(changeDayVerdict.reason).toBe('strategy_changed_after_checkin')
     })
 
-    test('策略修改当天 unchecked：即使新策略包含当天，也不计入分母和分子', () => {
+    test('策略修改当天 unchecked：PRD 低压力口径不计分母和分子', () => {
       const userHabit = {
         userHabitId: 'uh1',
         habitId: 'h1',
@@ -236,7 +236,7 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
     })
 
-    test('策略修改当天 canceled：先打卡再修改最后取消，不计入分母和分子', () => {
+    test('策略修改当天 canceled 且最新策略命中当天：计分母不计分子', () => {
       const userHabit = {
         userHabitId: 'uh1',
         habitId: 'h1',
@@ -285,9 +285,9 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       const changeDayVerdict = verdicts.find(v => v.date === '2026-05-10')
       expect(changeDayVerdict).toBeTruthy()
       expect(changeDayVerdict.status).toBe(DAY_STATUS.canceled)
-      expect(changeDayVerdict.contributesDenominator).toBe(false)
+      expect(changeDayVerdict.contributesDenominator).toBe(true)
       expect(changeDayVerdict.contributesNumerator).toBe(false)
-      expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
+      expect(changeDayVerdict.reason).toBe('strategy_changed_canceled')
     })
 
     test('策略修改当天 not_required：没有最终打卡，不计入分母和分子', () => {

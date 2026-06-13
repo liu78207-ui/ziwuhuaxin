@@ -367,4 +367,69 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
     const tomorrowList = await habitService.getTodayHabits('2026-06-03')
     expect(tomorrowList.find(h => h.habitId === '20')).toBeDefined()
   })
+
+  test('删除当天已打卡：写入 deleted_after_checkin 锁定状态并保留首页取消入口', async () => {
+    const uh1 = await habitService.addHabit('20', {
+      duration: 10,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-02'
+    })
+
+    mockStorage.dailyStates.push({
+      stateId: 'state_checked',
+      userHabitId: uh1.userHabitId,
+      habitId: '20',
+      date: '2026-06-02',
+      status: 'checked',
+      lastOperationId: 'op_checkin'
+    })
+
+    await habitService.softDeleteHabit(uh1.userHabitId)
+
+    const state = mockStorage.dailyStates.find(s =>
+      s.userHabitId === uh1.userHabitId && s.date === '2026-06-02'
+    )
+    expect(state.status).toBe('checked')
+    expect(state.hasDeletionToday).toBe(true)
+    expect(state.isLocked).toBe(true)
+    expect(state.lockReason).toBe('deleted_after_checkin')
+
+    const todayHabits = await habitService.getTodayHabits('2026-06-02')
+    expect(todayHabits).toHaveLength(1)
+    expect(todayHabits[0].userHabitId).toBe(uh1.userHabitId)
+    expect(todayHabits[0].isChecked).toBe(true)
+    expect(syncService.pushWithDedup).toHaveBeenLastCalledWith(
+      'habit',
+      'deleteHabit',
+      expect.objectContaining({
+        userHabitId: uh1.userHabitId,
+        deletionDailyState: expect.objectContaining({
+          status: 'checked',
+          lockReason: 'deleted_after_checkin'
+        })
+      })
+    )
+  })
+
+  test('删除当天未打卡：写入 deleted_without_checkin 且首页移除', async () => {
+    const uh1 = await habitService.addHabit('20', {
+      duration: 10,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-02'
+    })
+
+    await habitService.softDeleteHabit(uh1.userHabitId)
+
+    const state = mockStorage.dailyStates.find(s =>
+      s.userHabitId === uh1.userHabitId && s.date === '2026-06-02'
+    )
+    expect(state.status).toBe('not_required')
+    expect(state.hasDeletionToday).toBe(true)
+    expect(state.lockReason).toBe('deleted_without_checkin')
+
+    const todayHabits = await habitService.getTodayHabits('2026-06-02')
+    expect(todayHabits).toHaveLength(0)
+  })
 })

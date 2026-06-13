@@ -5,6 +5,37 @@ const storageService = require('./storageService');
 const cloudService = require('./cloudService');
 
 const DEFAULT_AVATAR_URL = '/assets/icons/profile.png';
+const MAX_NICKNAME_LENGTH = 24;
+
+function getNowIsoString() {
+  return new Date().toISOString();
+}
+
+function normalizeNickName(nickName) {
+  return String(nickName || '').trim().slice(0, MAX_NICKNAME_LENGTH);
+}
+
+function normalizeProfilePatch(data) {
+  const patch = {};
+  if (Object.prototype.hasOwnProperty.call(data || {}, 'nickName')) {
+    const nickName = normalizeNickName(data.nickName);
+    if (nickName) {
+      patch.nickName = nickName;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(data || {}, 'avatarUrl')) {
+    const avatarUrl = String(data.avatarUrl || '').trim();
+    if (avatarUrl) {
+      patch.avatarUrl = avatarUrl;
+    }
+  }
+  return patch;
+}
+
+function buildAvatarCloudPath(userId) {
+  const safeUserId = String(userId || 'guest').replace(/[^a-zA-Z0-9_-]/g, '_');
+  return `avatars/${safeUserId}_${Date.now()}.jpg`;
+}
 
 function wxLogin() {
   return new Promise((resolve, reject) => {
@@ -82,7 +113,7 @@ async function login(options = {}) {
     if (!userId) {
       throw new Error('login 云函数未返回 userId');
     }
-    const createdAt = res.data?.createdAt || new Date().toISOString();
+    const createdAt = res.data?.createdAt || getNowIsoString();
     const userInfo = {
       _userId: userId,
       createdAt: createdAt,
@@ -126,7 +157,7 @@ function getUserInfo() {
  */
 function setUserInfo(info) {
   const existing = storageService.getUserInfo() || {};
-  storageService.setUserInfo({ ...existing, ...info, updatedAt: new Date().toISOString() });
+  storageService.setUserInfo({ ...existing, ...info, updatedAt: getNowIsoString() });
 }
 
 /**
@@ -184,12 +215,17 @@ async function saveUserInfo(data) {
     throw new Error('未登录，无法保存用户资料');
   }
 
+  const patch = normalizeProfilePatch(data);
+  if (Object.keys(patch).length === 0) {
+    throw new Error('没有可保存的用户资料');
+  }
+
   // 先更新本地缓存（乐观更新）
-  setUserInfo(data);
+  setUserInfo(patch);
 
   try {
     // cloudService.callFunction 返回结构：{ success, data, error }
-    const res = await cloudService.callFunction('saveUserProfile', data);
+    const res = await cloudService.callFunction('saveUserProfile', patch);
     if (!res.success) {
       throw new Error(res.error?.message || 'saveUserProfile 云函数返回失败');
     }
@@ -269,7 +305,9 @@ module.exports = {
   refreshUserInfo,
   saveUserInfo,
   uploadAvatar,
+  buildAvatarCloudPath,
   logout,
   resolveDisplayAvatarUrl,
+  normalizeNickName,
   getProfileViewModel
 };

@@ -43,7 +43,7 @@
               <text class="wt-name">{{item.name}}</text>
             </view>
             <view class="wt-days {{item.themeClass}}">
-              <view class="wt-dot {{day.status}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
+              <view class="wt-dot {{day.displayStatus || day.status}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
             </view>
           </view>
         </view>
@@ -83,7 +83,7 @@
             </view>
           </view>
           <view class="mc-cal">
-            <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.status}} {{day.done ? 'done' : ''}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
+            <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.displayStatus || day.status}} {{day.done ? 'done' : ''}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
               {{day.date}}
             </view>
           </view>

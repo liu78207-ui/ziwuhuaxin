@@ -225,6 +225,14 @@ function ensureMigrationCompleted() {
   // 7. 持久化写回 CheckinLogs
   setItem(STORAGE_KEYS.logs, migratedLogs)
 
+  // 7.1 从旧 CheckinLogs 生成 dailyCheckinStates，报表和首页只读取最终状态
+  const existingDailyStates = asArray(getItem(STORAGE_KEYS.dailyStates))
+  const migratedDailyStates = mergeDailyStates(
+    existingDailyStates,
+    buildDailyStatesFromLegacyLogs(migratedLogs, migratedHabits, getPolicyVersions())
+  )
+  setItem(STORAGE_KEYS.dailyStates, migratedDailyStates)
+
   // 8. 更新 meta 并标记完成
   setMigrationMeta({
     migrationVersion: 1,
@@ -257,7 +265,7 @@ function safeMapUserHabitId(log, meta) {
   const candidates = []
 
   for (const [uhId, instance] of Object.entries(userHabitInstances)) {
-    if (instance.habitId === log.habitId) {
+    if (String(instance.habitId) === String(log.habitId || log.habit_id)) {
       candidates.push({ uhId, instance })
     }
   }
@@ -276,7 +284,7 @@ function safeMapUserHabitId(log, meta) {
     const deletedAt = instance.deletedAt
 
     return compareDateStr(logDate, createdAt) >= 0 &&
-      (deletedAt === null || compareDateStr(logDate, deletedAt) < 0)
+      (deletedAt === null || compareDateStr(logDate, deletedAt) <= 0)
   })
 
   if (validCandidates.length === 1) {
@@ -284,6 +292,93 @@ function safeMapUserHabitId(log, meta) {
   } else {
     return { ...log, needRepair: true }
   }
+}
+
+function getLegacyLogDate(log) {
+  return normalizeToDateStr(log.date || log.checkin_date || log.checkinDate)
+}
+
+function getLegacyLogOrderTime(log) {
+  return log.deleted_at ||
+    log.deletedAt ||
+    log.updatedAt ||
+    log.updated_at ||
+    log.createdAt ||
+    log.created_at ||
+    log.timestamp ||
+    ''
+}
+
+function resolvePolicyVersionIdForDate(policyVersions, userHabitId, date) {
+  const policies = asArray(policyVersions)
+    .filter(pv => pv.userHabitId === userHabitId)
+    .sort((a, b) => compareDateStr(a.effectiveStartDate || a.startDate, b.effectiveStartDate || b.startDate))
+
+  const matched = policies.find(pv => {
+    const start = pv.effectiveStartDate || pv.startDate
+    const end = pv.effectiveEndDate
+    if (!start || compareDateStr(date, start) < 0) return false
+    return !end || compareDateStr(date, end) <= 0
+  })
+
+  return matched ? matched.policyVersionId : ''
+}
+
+function buildDailyStatesFromLegacyLogs(logs, habits, policyVersions) {
+  const habitByUserHabitId = {}
+  asArray(habits).forEach(habit => {
+    if (habit.userHabitId) {
+      habitByUserHabitId[habit.userHabitId] = habit
+    }
+  })
+
+  const sortedLogs = asArray(logs)
+    .filter(log => log && log.userHabitId && !log.needRepair && getLegacyLogDate(log))
+    .slice()
+    .sort((a, b) => String(getLegacyLogOrderTime(a)).localeCompare(String(getLegacyLogOrderTime(b))))
+
+  const statesByKey = {}
+  sortedLogs.forEach(log => {
+    const date = getLegacyLogDate(log)
+    const userHabitId = log.userHabitId
+    const habit = habitByUserHabitId[userHabitId]
+    const habitId = String(log.habitId || log.habit_id || habit?.habitId || '')
+    if (!habitId) return
+
+    const status = Number(log.sync_status) === 2 ? 'canceled' : 'checked'
+    const now = new Date().toISOString()
+    statesByKey[`${userHabitId}_${date}`] = {
+      stateId: log.stateId || `state_legacy_${userHabitId}_${date}`,
+      userHabitId,
+      habitId,
+      policyVersionId: log.policyVersionId || log.policy_version_id || resolvePolicyVersionIdForDate(policyVersions, userHabitId, date),
+      date,
+      status,
+      checkedAt: status === 'checked' ? (log.created_at || log.createdAt || now) : null,
+      canceledAt: status === 'canceled' ? (log.deleted_at || log.deletedAt || log.updatedAt || now) : null,
+      lastOperationId: log.operationId || log.logId || `legacy_${userHabitId}_${date}_${status}`,
+      syncStatus: Number(log.sync_status) === 0 ? 0 : 1,
+      migratedFrom: 'CheckinLogs',
+      updatedAt: now
+    }
+  })
+
+  return Object.values(statesByKey)
+}
+
+function mergeDailyStates(existingStates, generatedStates) {
+  const merged = {}
+  asArray(generatedStates).forEach(state => {
+    if (state.userHabitId && state.date) {
+      merged[`${state.userHabitId}_${state.date}`] = state
+    }
+  })
+  asArray(existingStates).forEach(state => {
+    if (state.userHabitId && state.date) {
+      merged[`${state.userHabitId}_${state.date}`] = state
+    }
+  })
+  return Object.values(merged)
 }
 
 // ==================== Phase 3: PolicyVersions ====================

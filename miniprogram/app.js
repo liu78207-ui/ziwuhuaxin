@@ -8,6 +8,16 @@ function getErrorMessage(err) {
   return err && err.message ? err.message : String(err || 'unknown error')
 }
 
+function isNonReleaseEnv() {
+  try {
+    if (!wx.getAccountInfoSync) return false
+    const info = wx.getAccountInfoSync()
+    return info && info.miniProgram && info.miniProgram.envVersion !== 'release'
+  } catch (e) {
+    return false
+  }
+}
+
 App({
   globalData: {
     fontsLoaded: false,
@@ -493,16 +503,10 @@ App({
     const logIndex = logs.findIndex(log => this.getEntityHabitId(log) === habitIdStr && this.getLogDate(log) === date)
 
     if (logIndex > -1) {
-      if (logs[logIndex].sync_status === 1) {
-        // 已同步的记录，标记为待删除
-        logs[logIndex].sync_status = 2
-        logs[logIndex].deleted_at = timeService.getNow().toISOString()
-        console.log('标记为待删除:', habitIdStr, date)
-      } else {
-        // 未同步的记录，直接删除
-        logs.splice(logIndex, 1)
-        console.log('直接删除未同步记录', habitIdStr, date)
-      }
+      // 兼容旧 CheckinLogs：取消也必须保留历史依据，不再物理删除未同步日志。
+      logs[logIndex].sync_status = 2
+      logs[logIndex].deleted_at = timeService.getNow().toISOString()
+      console.log('旧打卡记录已标记为取消:', habitIdStr, date)
       this.saveCheckinLogs(logs)
       this.logOperation('removeCheckinLog', { habitId: habitIdStr, date })
     }
@@ -546,10 +550,10 @@ App({
 
   // 删除某个习惯的所有打卡记录
   removeHabitLogs(habitId) {
-    let logs = this.globalData.CheckinLogs || []
     const habitIdStr = String(habitId)
-    logs = logs.filter(log => this.getEntityHabitId(log) !== habitIdStr)
-    this.saveCheckinLogs(logs)
+    console.warn('removeHabitLogs 已禁用：删除习惯不得物理删除历史打卡记录', habitIdStr)
+    this.logOperation('removeHabitLogsNoop', { habitId: habitIdStr })
+    return false
   },
 
   // 获取日期范围内所有打卡记录
@@ -758,6 +762,30 @@ App({
       }
     })
   },
+
+  ...(isNonReleaseEnv() ? {
+    loadDynamicThreeDayScenario(options = {}) {
+      const { createDynamicThreeDayLocalData } = require('./devtools/dynamicThreeDayLocalData.js')
+      const data = createDynamicThreeDayLocalData(options)
+
+      storageService.setMyHabits(data.MyHabits)
+      storageService.setCheckinLogs(data.CheckinLogs)
+      storageService.setPolicyVersions(data.policyVersions)
+      storageService.setCheckinOperations(data.checkinOperations)
+      storageService.setDailyCheckinStates(data.dailyCheckinStates)
+      storageService.setAllHabitsInfo(data.AllHabitsInfo)
+      storageService.setItem('allHabitIds', data.allHabitIds)
+      storageService.setItem('DynamicThreeDayScenarioSummary', data.summary)
+
+      this.globalData.MyHabits = data.MyHabits
+      this.globalData.CheckinLogs = data.CheckinLogs
+      this.globalData.DEBUG_DAY_OFFSET = data.debugOffset
+
+      this.notifyPagesToRefresh()
+      console.log('三天动态打卡本地测试数据已写入:', data.summary)
+      return data.summary
+    }
+  } : {}),
 
   // ========== 日志记录==========
 

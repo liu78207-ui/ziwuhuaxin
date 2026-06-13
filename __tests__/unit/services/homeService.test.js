@@ -113,6 +113,86 @@ describe('homeService.getHomeViewModel', () => {
     expect(vm.taskList[0].streak).toBe(3)
   })
 
+  test('新用户首次添加并打卡时首页坚持天数为 1', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_new',
+        habitId: '8',
+        name: '快走',
+        category: '运动类',
+        duration: 30,
+        status: 'active',
+        isChecked: true
+      }
+    ]
+    mockData.myHabits = [
+      { userHabitId: 'uh_new', habitId: '8', status: 'active' }
+    ]
+    mockData.dailyStates = [
+      { userHabitId: 'uh_new', habitId: '8', date: '2026-05-12', status: 'checked' }
+    ]
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList).toHaveLength(1)
+    expect(vm.taskList[0].isChecked).toBe(true)
+    expect(vm.taskList[0].streak).toBe(1)
+  })
+
+  test('首页坚持天数只读取每日最终状态，取消、未打卡、非应修和低可信日期不计入', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_active',
+        habitId: '3',
+        name: '八段锦',
+        category: '运动类',
+        duration: 15,
+        status: 'active',
+        isChecked: false
+      }
+    ]
+    mockData.myHabits = [
+      { userHabitId: 'uh_old', habitId: '3', status: 'deleted' },
+      { userHabitId: 'uh_active', habitId: '3', status: 'active' }
+    ]
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_old',
+        habitId: '3',
+        date: '2026-05-09',
+        status: 'checked',
+        updatedAt: '2026-05-09T08:00:00.000Z'
+      },
+      {
+        userHabitId: 'uh_old',
+        habitId: '3',
+        date: '2026-05-09',
+        status: 'canceled',
+        updatedAt: '2026-05-09T09:00:00.000Z'
+      },
+      {
+        userHabitId: 'uh_old',
+        habitId: '3',
+        date: '2026-05-10',
+        status: 'checked',
+        dateConfidence: 'low'
+      },
+      { userHabitId: 'uh_active', habitId: '3', date: '2026-05-11', status: 'checked' },
+      { userHabitId: 'uh_active', habitId: '3', date: '2026-05-11', status: 'checked' },
+      { userHabitId: 'uh_active', habitId: '3', date: '2026-05-12', status: 'canceled' },
+      { userHabitId: 'uh_active', habitId: '3', date: '2026-05-13', status: 'unchecked' },
+      { userHabitId: 'uh_active', habitId: '3', date: '2026-05-14', status: 'not_required' }
+    ]
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList).toHaveLength(1)
+    expect(vm.taskList[0].isChecked).toBe(false)
+    expect(vm.taskList[0].streak).toBe(1)
+  })
+
   test('已打卡习惯仅修改时长后首页卡片保持生命周期顺序', async () => {
     mockData.todayHabits = [
       {

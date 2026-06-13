@@ -18,6 +18,8 @@ Page({
     },
     displayAvatarUrl: '',
     isAvatarSaving: false,
+    isAvatarChoosing: false,
+    isProfileSaving: false,
     isLoggingIn: false
   },
 
@@ -34,7 +36,12 @@ Page({
       });
     }
 
+    this.clearAvatarChoosingLock();
     this.refreshViewModel();
+  },
+
+  onUnload() {
+    this.clearAvatarChoosingLock();
   },
 
   refreshViewModel() {
@@ -57,6 +64,11 @@ Page({
     this.setData({ isLoggingIn: true });
     try {
       await userService.login({ force: true });
+      try {
+        await userService.refreshUserInfo();
+      } catch (refreshErr) {
+        console.warn('刷新用户资料失败:', getErrorMessage(refreshErr));
+      }
       this.refreshViewModel();
       wx.showToast({ title: '登录成功', icon: 'success' });
     } catch (err) {
@@ -67,13 +79,41 @@ Page({
     }
   },
 
+  setAvatarChoosingLock() {
+    if (this._avatarChoosingTimer) {
+      clearTimeout(this._avatarChoosingTimer);
+    }
+    this.setData({ isAvatarChoosing: true });
+    this._avatarChoosingTimer = setTimeout(() => {
+      this.clearAvatarChoosingLock();
+    }, 1500);
+  },
+
+  clearAvatarChoosingLock() {
+    if (this._avatarChoosingTimer) {
+      clearTimeout(this._avatarChoosingTimer);
+      this._avatarChoosingTimer = null;
+    }
+    if (this.data && this.data.isAvatarChoosing) {
+      this.setData({ isAvatarChoosing: false });
+    }
+  },
+
+  onAvatarOpen() {
+    if (this.data.isAvatarSaving || this.data.isAvatarChoosing) {
+      return;
+    }
+    this.setAvatarChoosingLock();
+  },
+
   // 选择头像（Phase 7D – 选图 + 上传云端 + 保存）
   async onChooseAvatar(e) {
     if (this.data.isAvatarSaving) {
       return;
     }
+    this.clearAvatarChoosingLock();
 
-    const { avatarUrl } = e.detail;
+    const { avatarUrl } = e.detail || {};
     if (!avatarUrl) {
       console.error('获取头像临时路径失败');
       return;
@@ -96,8 +136,7 @@ Page({
 
     // 构造云存储路径：avatars/{userId}_{timestamp}.jpg
     const userId = userInfo._userId || 'guest';
-    const timestamp = Date.now();
-    const cloudPath = `avatars/${userId}_${timestamp}.jpg`;
+    const cloudPath = userService.buildAvatarCloudPath(userId);
 
     let cloudUrl = '';
     try {
@@ -128,23 +167,38 @@ Page({
     }
   },
 
-  // 输入昵称（Phase 7B — 云端同步保存）
-  async onInputNickname(e) {
-    const nickName = e.detail.value;
-    if (!nickName || nickName.trim() === '') {
+  // 输入昵称（微信 nickname 能力确认后保存）
+  async onNicknameSubmit(e) {
+    if (this.data.isProfileSaving) {
       return;
     }
 
-    const trimmed = nickName.trim();
+    const nickName = e && e.detail ? e.detail.value : '';
+    const trimmed = userService.normalizeNickName(nickName);
+    if (!trimmed) {
+      return;
+    }
+    if (!userService.isLoggedIn()) {
+      wx.showToast({ title: '请先登录', icon: 'none' });
+      this.refreshViewModel();
+      return;
+    }
+    if (trimmed === this.data.userInfo.nickName) {
+      return;
+    }
+
     const previousNickName = this.data.userInfo.nickName;
     // 乐观更新本地 UI
     this.setData({
-      'userInfo.nickName': trimmed
+      'userInfo.nickName': trimmed,
+      isProfileSaving: true
     });
 
     try {
       await userService.saveUserInfo({ nickName: trimmed });
+      wx.showToast({ title: '昵称已更新', icon: 'none' });
     } catch (err) {
+      console.error('昵称保存失败:', getErrorMessage(err));
       // 失败时回滚本地缓存再刷新 UI
       userService.setUserInfo({ nickName: previousNickName });
       this.refreshViewModel();
@@ -152,7 +206,13 @@ Page({
         title: '保存失败',
         icon: 'none'
       });
+    } finally {
+      this.setData({ isProfileSaving: false });
     }
+  },
+
+  onInputNickname(e) {
+    return this.onNicknameSubmit(e);
   },
 
   // 退出登录

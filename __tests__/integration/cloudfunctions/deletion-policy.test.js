@@ -132,4 +132,68 @@ describe('cloud deletion policy', () => {
       }
     }));
   });
+
+  test('syncHabit deleteHabit upserts deletion-day daily state', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [{
+        _id: 'uh_doc_1',
+        _openid: 'test_openid',
+        userHabitId: 'uh_8',
+        habitId: '8',
+        status: 'active'
+      }],
+      habit_policy_versions: [{
+        _id: 'pv_doc_1',
+        _openid: 'test_openid',
+        policyVersionId: 'pv_8',
+        userHabitId: 'uh_8',
+        habitId: '8',
+        effectiveEndDate: null
+      }],
+      daily_checkin_states: []
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'deleteHabit',
+      userHabitId: 'uh_8',
+      habitId: '8',
+      deletedAt: '2026-06-13',
+      deletionDailyState: {
+        stateId: 'state_uh_8_2026-06-13',
+        userHabitId: 'uh_8',
+        habitId: '8',
+        date: '2026-06-13',
+        status: 'checked',
+        policyVersionId: 'pv_8',
+        lockReason: 'deleted_after_checkin'
+      }
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(calls.updates).toContainEqual(expect.objectContaining({
+      collection: 'user_habits',
+      id: 'uh_doc_1',
+      payload: {
+        data: expect.objectContaining({
+          status: 'deleted',
+          deletedAt: '2026-06-13'
+        })
+      }
+    }));
+    expect(calls.adds).toContainEqual(expect.objectContaining({
+      collection: 'daily_checkin_states',
+      payload: {
+        data: expect.objectContaining({
+          stateId: 'state_uh_8_2026-06-13',
+          userHabitId: 'uh_8',
+          date: '2026-06-13',
+          status: 'checked',
+          hasDeletionToday: true,
+          lockReason: 'deleted_after_checkin'
+        })
+      }
+    }));
+  });
 });

@@ -70,6 +70,7 @@ function slimDailyState(state) {
     'lockReason',
     'lockedReason',
     'hasPolicyChangedToday',
+    'hasDeletionToday',
     'syncStatus',
     'updatedAt'
   ]);

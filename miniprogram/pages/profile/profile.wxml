@@ -11,7 +11,16 @@
   <view class="profile-content">
     <!-- 头像选择按钮 -->
     <view class="avatar-wrapper">
-      <button wx:if="{{isLoggedIn}}" class="avatar-btn" open-type="chooseAvatar" bindchooseavatar="onChooseAvatar" disabled="{{isAvatarSaving}}">
+      <button
+        wx:if="{{isLoggedIn && !isAvatarSaving && !isAvatarChoosing}}"
+        class="avatar-btn"
+        open-type="chooseAvatar"
+        bindtap="onAvatarOpen"
+        bindchooseavatar="onChooseAvatar"
+      >
+        <image class="avatar-img" src="{{displayAvatarUrl || userInfo.avatarUrl || '/assets/icons/profile.png'}}" mode="aspectFill" lazy-load></image>
+      </button>
+      <button wx:elif="{{isLoggedIn}}" class="avatar-btn" disabled>
         <image class="avatar-img" src="{{displayAvatarUrl || userInfo.avatarUrl || '/assets/icons/profile.png'}}" mode="aspectFill" lazy-load></image>
       </button>
       <button wx:else class="avatar-btn" bindtap="onLogin" disabled="{{isLoggingIn}}">
@@ -25,8 +34,14 @@
       type="nickname"
       class="pv-name"
       value="{{userInfo.nickName}}"
-      bindblur="onInputNickname"
+      bindblur="onNicknameSubmit"
+      bindconfirm="onNicknameSubmit"
       placeholder="点击设置昵称"
+      confirm-type="done"
+      maxlength="24"
+      cursor-spacing="160"
+      adjust-position="{{true}}"
+      disabled="{{isProfileSaving || isLoggingIn}}"
     />
     <view wx:else class="pv-name pv-login-name" bindtap="onLogin">{{userInfo.nickName}}</view>
     

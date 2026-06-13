@@ -218,7 +218,8 @@ V1 采用“当天最终状态 + 低压力锁定”口径：
 | 锁定原因 | 触发条件 | 分母 | 分子 |
 |---|---|---:|---:|
 | `strategy_changed_after_checkin` | 当天发生过策略修改，且最终状态为 `checked` | 1 | 1 |
-| `strategy_changed_without_checkin` | 当天发生过策略修改，且最终状态为 `canceled`、`unchecked` 或 `not_required` | 0 | 0 |
+| `strategy_changed_without_checkin` | 当天发生过策略修改，最终状态为 `canceled`、`unchecked` 或 `not_required`，且最新策略当天不应修 | 0 | 0 |
+| `strategy_changed_without_checkin` | 当天发生过策略修改，最终状态为 `canceled`、`unchecked` 或 `not_required`，且最新策略当天仍应修 | 1 | 0 |
 
 如果当天发生过策略修改但缺少锁定原因，`reportService` 必须根据 `dailyCheckinState.hasPolicyChangedToday` 和最终 `status` 稳定推导同一口径，并写入 `reportDebugLogs` 说明推导原因。
 
@@ -227,7 +228,7 @@ V1 采用“当天最终状态 + 低压力锁定”口径：
 - 未打卡，直接修改策略：分母 0，分子 0。
 - 先打卡，再修改策略：最终状态为 `checked` 时，分母 1，分子 1。
 - 先修改策略，再打卡：最终状态为 `checked` 时，分母 1，分子 1。
-- 先打卡，再修改策略，最后取消打卡：最终状态为 `canceled`，分母 0，分子 0。
+- 先打卡，再修改策略，最后取消打卡：最终状态为 `canceled`；若最后一次保存成功的新策略当天仍应修，分母 1，分子 0；若新策略当天不应修，分母 0，分子 0。
 - 没有修改策略，只是打卡后取消：不使用策略修改锁定口径，按原本今日是否应修判断分母，最终状态为取消时分子为 0。
 
 同一天多次修改策略：
@@ -243,6 +244,15 @@ V1 采用“当天最终状态 + 低压力锁定”口径：
 - 操作流水用于同步、审计和问题排查。
 - 首页和报表只读取 `dailyCheckinState` 的最终状态。
 - 最后是打卡则今天算完成；最后是取消则今天不算完成。
+
+首页“已坚持 X 天”：
+
+- 按当前卡片对应的 `habitId` 长期累计所有生命周期内的有效完成自然日。
+- 删除后重新添加同一习惯时，旧 `userHabitId` 的有效完成自然日继续计入。
+- 同一自然日内，同一 `habitId` 下多个 `userHabitId` 同时完成时，只计 1 天。
+- 同一 `userHabitId + date` 必须先归并为最终 `dailyCheckinState`，只有最终 `status=checked` 才计入。
+- `canceled`、`unchecked`、`not_required`、`dateConfidence=low` 不计入。
+- 页面层不得自行计算该指标，只能渲染 service 返回的视图模型。
 
 策略修改日之后：
 

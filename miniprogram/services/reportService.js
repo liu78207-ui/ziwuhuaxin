@@ -315,6 +315,19 @@ function isVisibleReportState(item, latestPolicy, date) {
   return false
 }
 
+function resolveDisplayStatus(status, countsInDenominator, countsAsDone) {
+  if (countsAsDone || status === 'checked') {
+    return 'checked'
+  }
+  if ((status === 'canceled' || status === 'unchecked') && !countsInDenominator) {
+    return 'not_required'
+  }
+  if (status === 'not_required' && countsInDenominator) {
+    return 'unchecked'
+  }
+  return status || 'not_required'
+}
+
 /**
  * 将 reportAggregator 的输出适配为 stats.js 期望的格式
  * 这是 Phase 5C 迁移的兼容层
@@ -386,6 +399,8 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
         status = 'future'
       }
 
+      const displayStatus = resolveDisplayStatus(status, countsInDenominator, countsAsDone)
+
       return {
         date,
         checked: status === 'checked',
@@ -393,6 +408,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
         isDue,
         shouldShow: isDue || dayItems.some(day => day.shouldShow),
         status,
+        displayStatus,
         countsInDueDenominator: countsInDenominator,
         countsInDenominator,
         countsAsDone,

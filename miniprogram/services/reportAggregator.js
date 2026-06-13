@@ -188,7 +188,9 @@ function resolveReportDayStatus(context) {
   }
 
   // 3.1 策略修改当天：优先使用 dailyCheckinState 的锁定事实源。
-  // 新口径不再按“新策略是否命中当天”决定分母，而只看当天最终状态。
+  // 最终 canceled 时仍需参考最新策略是否命中当天：
+  // - 命中：应修未完成，显示主题描边并计入分母
+  // - 不命中：低压力口径，不计入分母
   if (isStrategyChangeDayState(dailyState)) {
     return resolveStrategyChangeDayStatus(context)
   }
@@ -269,9 +271,15 @@ function resolveReportDayStatus(context) {
   // (a) policyVersion 是旧策略（effectiveEndDate = today）：原有逻辑
   // (b) policyVersion 是新策略（effectiveEndDate = null）但存在策略同一天交接：新策略立即生效
   const newPolicy = (context.policyVersions || []).find(pv => pv.effectiveEndDate === null)
+  const hasPolicyClosedToday = newPolicy && (context.policyVersions || []).some(pv =>
+    pv.policyVersionId !== newPolicy.policyVersionId &&
+    pv.effectiveEndDate &&
+    compareDate(date, pv.effectiveEndDate) === 0
+  )
   const isPolicyHandoverToday = newPolicy &&
     policyVersion.effectiveEndDate === null &&
-    newPolicy.effectiveStartDate === date
+    newPolicy.effectiveStartDate === date &&
+    hasPolicyClosedToday
 
   if ((policyVersion.effectiveEndDate && compareDate(date, policyVersion.effectiveEndDate) === 0) ||
       isPolicyHandoverToday) {
@@ -281,12 +289,18 @@ function resolveReportDayStatus(context) {
     // 此时 isDueOnDateByFrequency 会因 date < anchorDate 返回 false
     if (newPolicy && !isDueOnDateByFrequency(newPolicy, date)) {
       // 新策略的频率不包含当天
-      // 关键修复：同时检查 checked 和 canceled 状态
-      // 因为取消打卡后状态变成 canceled，但用户仍然希望看到自己的打卡行为
-      const isCheckedOrCanceled = dailyState?.status === DAY_STATUS.checked ||
-                                  dailyState?.status === DAY_STATUS.canceled
-      if (isCheckedOrCanceled) {
-        // 已打卡或已取消打卡：保留打卡记录，但不计入分母
+      if (dailyState?.status === DAY_STATUS.checked) {
+        return {
+          status: DAY_STATUS.checked,
+          isDue: true,
+          contributesDenominator: true,
+          contributesNumerator: true,
+          reason: 'strategy_changed_after_checkin',
+          effectivePolicyVersionId: newPolicy.policyVersionId
+        }
+      }
+      if (dailyState?.status === DAY_STATUS.canceled) {
+        // 最新策略不含当天：取消后按低压力口径不计入分母
         return {
           status: DAY_STATUS.canceled,
           isDue: false,
@@ -306,43 +320,35 @@ function resolveReportDayStatus(context) {
         effectivePolicyVersionId: newPolicy.policyVersionId
       }
     }
-    // 新策略包含当天（或没有新策略）：保留旧版最终态，
-    // 但 isDue 与 isDueOnDateByFrequency 保持一致（案台观心统一）
+    // 新策略包含当天（或没有新策略）：按 PRD 低压力口径处理策略修改当天。
     const finalStatus = dailyState?.status || DAY_STATUS.unchecked
-    const isNewPolicyDue = newPolicy ? isDueOnDateByFrequency(newPolicy, date) : true
     if (finalStatus === DAY_STATUS.checked) {
       return {
         status: DAY_STATUS.checked,
-        isDue: isNewPolicyDue,
-        contributesDenominator: isNewPolicyDue,
-        contributesNumerator: isNewPolicyDue,
-        reason: isNewPolicyDue
-          ? 'strategy_changed_after_checkin'
-          : 'strategy_changed_after_checkin_to_not_due',
+        isDue: true,
+        contributesDenominator: true,
+        contributesNumerator: true,
+        reason: 'strategy_changed_after_checkin',
         effectivePolicyVersionId: policyVersion.policyVersionId
       }
     }
     if (finalStatus === DAY_STATUS.canceled) {
       return {
         status: DAY_STATUS.canceled,
-        isDue: isNewPolicyDue,
-        contributesDenominator: isNewPolicyDue,
+        isDue: true,
+        contributesDenominator: true,
         contributesNumerator: false,
-        reason: isNewPolicyDue
-          ? 'strategy_changed_canceled'
-          : 'strategy_changed_canceled_to_not_due',
+        reason: 'strategy_changed_canceled',
         effectivePolicyVersionId: policyVersion.policyVersionId
       }
     }
     // unchecked
     return {
       status: DAY_STATUS.unchecked,
-      isDue: isNewPolicyDue,
-      contributesDenominator: isNewPolicyDue,
+      isDue: false,
+      contributesDenominator: false,
       contributesNumerator: false,
-      reason: isNewPolicyDue
-        ? 'strategy_changed_without_checkin'
-        : 'strategy_changed_to_not_due_unchecked',
+      reason: 'strategy_changed_without_checkin',
       effectivePolicyVersionId: policyVersion.policyVersionId
     }
   }
@@ -440,14 +446,15 @@ function isStrategyChangeDayState(dailyState) {
 /**
  * 策略修改当天特殊裁决
  * - 已打卡且最终 checked：分母+1，分子+1
- * - 已打卡后取消（最终 canceled）：分母+0，分子+0
- * - 未打卡（unchecked）：分母+0，分子+0
- * - 新策略从次日开始参与应修
+ * - 最终 canceled 且最新策略命中当天：分母+1，分子+0
+ * - 最终 canceled 但最新策略不命中当天：分母+0，分子+0
+ * - 最终 unchecked/not_required：分母+0，分子+0
  */
 function resolveStrategyChangeDayStatus(context) {
-  const { dailyState, policyVersion } = context
+  const { dailyState, policyVersion, policyVersions = [], date } = context
   const finalStatus = dailyState?.status || DAY_STATUS.unchecked
-  const effectivePolicyVersionId = dailyState?.policyVersionId || policyVersion?.policyVersionId || null
+  const latestPolicy = (policyVersions || []).find(pv => pv.effectiveEndDate === null) || policyVersion || null
+  const effectivePolicyVersionId = latestPolicy?.policyVersionId || dailyState?.policyVersionId || policyVersion?.policyVersionId || null
 
   if (finalStatus === DAY_STATUS.checked) {
     return {
@@ -460,12 +467,15 @@ function resolveStrategyChangeDayStatus(context) {
     }
   }
 
+  const isCanceled = finalStatus === DAY_STATUS.canceled
+  const latestPolicyDueToday = isCanceled && latestPolicy && isDueOnDateByFrequency(latestPolicy, date)
+
   return {
     status: finalStatus,
-    isDue: false,
-    contributesDenominator: false,
+    isDue: latestPolicyDueToday,
+    contributesDenominator: latestPolicyDueToday,
     contributesNumerator: false,
-    reason: 'strategy_changed_without_checkin',
+    reason: isCanceled ? 'strategy_changed_canceled' : 'strategy_changed_without_checkin',
     effectivePolicyVersionId
   }
 }

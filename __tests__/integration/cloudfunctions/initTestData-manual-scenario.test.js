@@ -116,4 +116,62 @@ describe('initTestData manual strategy scenario', () => {
     expect(collections.user_strategies.add).not.toHaveBeenCalled();
     expect(collections.checkin_logs.add).not.toHaveBeenCalled();
   });
+
+  test('scenario 7 seeds dynamic three-day V1 checkin state data', async () => {
+    const collections = {
+      user_habits: makeCollection({ existing: [{ _id: 'old_user_habit' }] }),
+      habit_policy_versions: makeCollection({ existing: [{ _id: 'old_policy' }] }),
+      checkin_operations: makeCollection({ existing: [{ _id: 'old_operation' }] }),
+      daily_checkin_states: makeCollection({ existing: [{ _id: 'old_state' }] }),
+      habits: makeCollection({ existing: [{ _id: 'old_habit' }] })
+    };
+    const { main } = loadInitTestData({ collections });
+
+    const result = await main({
+      scenario: 7,
+      force: true,
+      confirmTestDataWrite: 'ALLOW_TEST_DATA_WRITE'
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(result.summary).toMatchObject({
+      scenario: '三天动态打卡人工测试场景',
+      totalUserHabits: 6,
+      totalPolicyVersions: 8,
+      totalOperations: 14,
+      totalDailyStates: 13,
+      totalHabits: 5,
+      startDate: '2026-06-11',
+      endDate: '2026-06-13'
+    });
+    expect(collections.user_habits.remove).toHaveBeenCalled();
+    expect(collections.habit_policy_versions.remove).toHaveBeenCalled();
+    expect(collections.checkin_operations.remove).toHaveBeenCalled();
+    expect(collections.daily_checkin_states.remove).toHaveBeenCalled();
+    expect(collections.user_habits.add).toHaveBeenCalledTimes(6);
+    expect(collections.habit_policy_versions.add).toHaveBeenCalledTimes(8);
+    expect(collections.checkin_operations.add).toHaveBeenCalledTimes(14);
+    expect(collections.daily_checkin_states.add).toHaveBeenCalledTimes(13);
+    expect(collections.habits.add).toHaveBeenCalledTimes(5);
+
+    expect(collections.daily_checkin_states.add).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        stateId: 'state_dyn_pilates_13',
+        userHabitId: 'uh_dyn_pilates_1',
+        date: '2026-06-13',
+        status: 'not_required',
+        hasPolicyChangedToday: true,
+        hasDeletionToday: true,
+        lockedReason: 'deleted_without_checkin'
+      })
+    });
+    expect(collections.user_habits.add).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        habitId: '2',
+        userHabitId: 'uh_dyn_standing_2',
+        status: 'active',
+        createdAt: '2026-06-13'
+      })
+    });
+  });
 });

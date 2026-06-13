@@ -6,7 +6,7 @@
     "urlCheck": true,
     "coverView": false,
     "lazyloadPlaceholderEnable": false,
-    "skylineRenderEnable": true,
+    "skylineRenderEnable": false,
     "preloadBackgroundData": false,
     "autoAudits": false,
     "useApiHook": true,
@@ -18,7 +18,7 @@
     "checkInvalidKey": true,
     "ignoreDevUnusedFiles": true
   },
-  "libVersion": "2.29.2",
+  "libVersion": "3.15.1",
   "condition": {
     "miniprogram": {
       "list": [

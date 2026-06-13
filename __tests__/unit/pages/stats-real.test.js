@@ -137,6 +137,7 @@ function buildV1WeeklyReport({ userHabits, policyVersions, dailyStates, weekStar
         isDue,
         shouldShow: isDue,
         status,
+        displayStatus: status,
         countsInDueDenominator: isDue,
         countsInDenominator: isDue,
         countsAsDone: checked && isDue,
@@ -212,6 +213,7 @@ function buildV1MonthlyReport({ userHabits, policyVersions, dailyStates, year, m
       days.push({
         date: dateStr,
         status,
+        displayStatus: status,
         done: checked,
         themeClass: theme,
         checked,
@@ -445,8 +447,8 @@ describe('stats page V1 report links', () => {
       path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxml'),
       'utf8'
     );
-    expect(wxml).toContain('wt-dot {{day.status}} {{day.themeClass}}');
-    expect(wxml).toContain('mc-cell {{day.empty ? \'empty\' : \'\'}} {{day.status}} {{day.done ? \'done\' : \'\'}} {{day.themeClass}}');
+    expect(wxml).toContain('wt-dot {{day.displayStatus || day.status}} {{day.themeClass}}');
+    expect(wxml).toContain('mc-cell {{day.empty ? \'empty\' : \'\'}} {{day.displayStatus || day.status}} {{day.done ? \'done\' : \'\'}} {{day.themeClass}}');
     expect(wxml).toContain('yh-dot {{dot.level}} {{dot.themeClass}}');
   });
 
@@ -486,6 +488,163 @@ describe('stats page V1 report links', () => {
     expect(wxss).toMatch(/\.mc-cell\.future\s*\{/s);
     expect(wxss).toMatch(/\.mc-cell\.low_confidence\s*\{/s);
     expect(wxss).toMatch(/\.mc-cell\.partial\s*\{/s);
+  });
+
+  test('周报映射保留业务 status，并使用 displayStatus 控制特殊取消浅灰视觉', async () => {
+    const mockReportService = {
+      getWeeklyReport: jest.fn(async () => ({
+        habitReports: [
+          {
+            habitId: 'h_special_cancel',
+            habit: {
+              habitId: 'h_special_cancel',
+              name: '特殊取消',
+              category: 'sports',
+              themeClass: 't-green'
+            },
+            days: [
+              {
+                date: '2026-06-12',
+                status: 'canceled',
+                displayStatus: 'not_required',
+                checked: false,
+                isChecked: false,
+                isDue: false,
+                shouldShow: false,
+                countsInDueDenominator: false,
+                countsInDenominator: false,
+                countsAsDone: false,
+                isAfterDeletion: false
+              }
+            ],
+            dueCount: 0,
+            doneCount: 0,
+            hasVisibleState: true
+          },
+          {
+            habitId: 'h_strategy_cancel_due',
+            habit: {
+              habitId: 'h_strategy_cancel_due',
+              name: '策略取消仍应修',
+              category: 'sports',
+              themeClass: 't-red'
+            },
+            days: [
+              {
+                date: '2026-06-12',
+                status: 'canceled',
+                displayStatus: 'canceled',
+                checked: false,
+                isChecked: false,
+                isDue: true,
+                shouldShow: true,
+                countsInDueDenominator: true,
+                countsInDenominator: true,
+                countsAsDone: false,
+                isAfterDeletion: false
+              }
+            ],
+            dueCount: 1,
+            doneCount: 0,
+            hasVisibleState: true
+          },
+          {
+            habitId: 'h_regular_cancel',
+            habit: {
+              habitId: 'h_regular_cancel',
+              name: '普通取消',
+              category: 'sports',
+              themeClass: 't-blue'
+            },
+            days: [
+              {
+                date: '2026-06-12',
+                status: 'canceled',
+                displayStatus: 'canceled',
+                checked: false,
+                isChecked: false,
+                isDue: true,
+                shouldShow: true,
+                countsInDueDenominator: true,
+                countsInDenominator: true,
+                countsAsDone: false,
+                isAfterDeletion: false
+              }
+            ],
+            dueCount: 1,
+            doneCount: 0,
+            hasVisibleState: true
+          }
+        ],
+        stats: { checkinRate: 0, totalCount: 0, checkinDays: 0, maxStreak: 0 }
+      })),
+      getMonthlyReport: jest.fn(),
+      getYearlyReport: jest.fn()
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentWeekStart = '2026-06-08';
+
+    await page.loadWeekData();
+
+    const special = page.data.habitMatrix.find(item => item.habitId === 'h_special_cancel');
+    const strategyDue = page.data.habitMatrix.find(item => item.habitId === 'h_strategy_cancel_due');
+    const regular = page.data.habitMatrix.find(item => item.habitId === 'h_regular_cancel');
+
+    expect(special.days[0].status).toBe('canceled');
+    expect(special.days[0].displayStatus).toBe('not_required');
+    expect(strategyDue.days[0].status).toBe('canceled');
+    expect(strategyDue.days[0].displayStatus).toBe('canceled');
+    expect(regular.days[0].status).toBe('canceled');
+    expect(regular.days[0].displayStatus).toBe('canceled');
+  });
+
+  test('月报映射保留 displayStatus，特殊取消日可绑定 not_required 样式', async () => {
+    const mockReportService = {
+      getWeeklyReport: jest.fn(),
+      getMonthlyReport: jest.fn(async () => ({
+        habitReports: [
+          {
+            habitId: 'h_month_special_cancel',
+            habit: {
+              habitId: 'h_month_special_cancel',
+              name: '月报特殊取消',
+              category: 'sports',
+              themeClass: 't-green'
+            },
+            days: [
+              {
+                date: '2026-06-12',
+                status: 'canceled',
+                displayStatus: 'not_required',
+                isChecked: false,
+                isDue: false,
+                shouldShow: false,
+                countsInDueDenominator: false,
+                countsAsDone: false
+              }
+            ],
+            dueCount: 0,
+            doneCount: 0,
+            hasVisibleState: true
+          }
+        ],
+        stats: { checkinRate: 0, totalCount: 0, checkinDays: 0, maxStreak: 0 }
+      })),
+      getYearlyReport: jest.fn()
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 5;
+
+    await page.loadMonthData();
+
+    const report = page.data.monthHabits.find(item => item.habitId === 'h_month_special_cancel');
+    const day12 = report.days.find(day => day.date === 12);
+
+    expect(day12.status).toBe('canceled');
+    expect(day12.displayStatus).toBe('not_required');
   });
 
   // ----- V1 数据测试 -----

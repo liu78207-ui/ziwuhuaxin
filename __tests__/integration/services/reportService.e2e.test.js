@@ -147,6 +147,7 @@ describe('reportService E2E - getWeeklyReport', () => {
 
     // 关键：策略修改当天取消打卡后，status='canceled' 保留（不计入分母和分子）
     expect(day.status).toBe('canceled')
+    expect(day.displayStatus).toBe('not_required')
     expect(day.countsAsDone).toBe(false)
     expect(day.countsInDenominator).toBe(false)
     expect(day.isChecked).toBe(false)
@@ -705,7 +706,7 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(result.habitReports[0].instances).toHaveLength(2)
   })
 
-  test('策略修改当天 daily 改时长后取消打卡：观心仍展示 canceled 行但不计分', async () => {
+  test('策略修改当天 daily 改时长后取消打卡：今天仍应修则显示应修未完成', async () => {
     mockData.myHabits = [
       {
         userHabitId: 'uh_duration_changed_canceled',
@@ -756,12 +757,13 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(habitReport.hasVisibleState).toBe(true)
     const day = habitReport.days.find(d => d.date === '2026-06-02')
     expect(day.status).toBe('canceled')
+    expect(day.displayStatus).toBe('canceled')
     expect(day.shouldShow).toBe(true)
-    expect(day.countsInDenominator).toBe(false)
+    expect(day.countsInDenominator).toBe(true)
     expect(day.countsAsDone).toBe(false)
   })
 
-  test('策略修改当天 daily 改 weekly 且今天命中新策略后取消打卡：观心仍展示 canceled 行', async () => {
+  test('策略修改当天 daily 改 weekly 且今天命中新策略后取消打卡：显示应修未完成', async () => {
     mockData.myHabits = [
       {
         userHabitId: 'uh_daily_to_tuesday_canceled',
@@ -810,10 +812,13 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(habitReport.hasVisibleState).toBe(true)
     const day = habitReport.days.find(d => d.date === '2026-06-02')
     expect(day.status).toBe('canceled')
+    expect(day.displayStatus).toBe('canceled')
     expect(day.shouldShow).toBe(true)
+    expect(day.countsInDenominator).toBe(true)
+    expect(day.countsAsDone).toBe(false)
   })
 
-  test('今天新增 weekly 三四后改成 weekly 二：首页应显示时观心也展示 unchecked 行', async () => {
+  test('今天新增 weekly 三四后改成 weekly 二：未打卡按 PRD 不计分母', async () => {
     mockData.myHabits = [
       {
         userHabitId: 'uh_weekly_changed_to_tuesday',
@@ -867,7 +872,7 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(day.countsInDenominator).toBe(false)
   })
 
-  test('今天新增 weekly 三四后改成 daily：首页应显示时观心也展示 unchecked 行', async () => {
+  test('今天新增 weekly 三四后改成 daily：未打卡按 PRD 不计分母', async () => {
     mockData.myHabits = [
       {
         userHabitId: 'uh_weekly_changed_to_daily',
@@ -969,9 +974,208 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(habitReport).toBeDefined()
     const thursday = habitReport.days.find(d => d.date === '2026-06-11')
     expect(thursday.status).toBe('canceled')
+    expect(thursday.displayStatus).toBe('not_required')
     expect(thursday.shouldShow).toBe(false)
     expect(thursday.isDue).toBe(false)
     expect(thursday.countsInDenominator).toBe(false)
     expect(thursday.countsAsDone).toBe(false)
+  })
+
+  test('打卡后删除再取消：业务状态保留 canceled，但观心视觉为 not_required', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_deleted_after_cancel',
+        habitId: 'h_deleted_cancel',
+        name: '删除后取消',
+        status: 'deleted',
+        createdAt: '2026-06-01',
+        deletedAt: '2026-06-12',
+        themeClass: 't-red'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_deleted_cancel',
+        userHabitId: 'uh_deleted_after_cancel',
+        effectiveStartDate: '2026-06-01',
+        effectiveEndDate: '2026-06-12',
+        frequencyType: 'daily'
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_deleted_after_cancel',
+        date: '2026-06-10',
+        status: 'checked'
+      },
+      {
+        userHabitId: 'uh_deleted_after_cancel',
+        date: '2026-06-12',
+        status: 'canceled'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-08')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_deleted_cancel')
+
+    expect(habitReport).toBeDefined()
+    const friday = habitReport.days.find(d => d.date === '2026-06-12')
+    expect(friday.status).toBe('canceled')
+    expect(friday.displayStatus).toBe('not_required')
+    expect(friday.countsInDenominator).toBe(false)
+    expect(friday.countsAsDone).toBe(false)
+  })
+
+  test('普通应修日取消：业务状态和观心视觉都保留 canceled 描边语义', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_regular_cancel',
+        habitId: 'h_regular_cancel',
+        name: '普通取消',
+        status: 'active',
+        createdAt: '2026-06-01',
+        deletedAt: null,
+        themeClass: 't-green'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_regular_cancel',
+        userHabitId: 'uh_regular_cancel',
+        effectiveStartDate: '2026-06-01',
+        effectiveEndDate: null,
+        frequencyType: 'daily'
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_regular_cancel',
+        date: '2026-06-12',
+        status: 'canceled'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-08')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_regular_cancel')
+
+    expect(habitReport).toBeDefined()
+    const friday = habitReport.days.find(d => d.date === '2026-06-12')
+    expect(friday.status).toBe('canceled')
+    expect(friday.displayStatus).toBe('canceled')
+    expect(friday.countsInDenominator).toBe(true)
+    expect(friday.countsAsDone).toBe(false)
+  })
+
+  test('2026-06-12 周五打卡后改为每周二再取消：月报周五视觉为 not_required', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_friday_to_tuesday_canceled',
+        habitId: 'h_friday_to_tuesday',
+        name: '周五改周二',
+        status: 'active',
+        createdAt: '2026-06-01',
+        deletedAt: null,
+        themeClass: 't-blue'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_daily_before_friday',
+        userHabitId: 'uh_friday_to_tuesday_canceled',
+        effectiveStartDate: '2026-06-01',
+        effectiveEndDate: '2026-06-12',
+        frequencyType: 'daily'
+      },
+      {
+        policyVersionId: 'pv_tuesday_after_friday',
+        userHabitId: 'uh_friday_to_tuesday_canceled',
+        effectiveStartDate: '2026-06-12',
+        effectiveEndDate: null,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [2] }
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_friday_to_tuesday_canceled',
+        date: '2026-06-12',
+        status: 'canceled',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getMonthlyReport('2026-06')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_friday_to_tuesday')
+
+    expect(habitReport).toBeDefined()
+    const friday = habitReport.days.find(d => d.date === '2026-06-12')
+    expect(friday.status).toBe('canceled')
+    expect(friday.displayStatus).toBe('not_required')
+    expect(friday.countsInDenominator).toBe(false)
+    expect(friday.countsAsDone).toBe(false)
+  })
+
+  test('2026-06-12 周五八段锦打卡后改为周五周六再取消：显示应修未完成', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_baduanjin_fri_sat_canceled',
+        habitId: 'h_baduanjin',
+        name: '八段锦',
+        status: 'active',
+        createdAt: '2026-06-01',
+        deletedAt: null,
+        themeClass: 't-green'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_baduanjin_daily',
+        userHabitId: 'uh_baduanjin_fri_sat_canceled',
+        effectiveStartDate: '2026-06-01',
+        effectiveEndDate: '2026-06-12',
+        frequencyType: 'daily'
+      },
+      {
+        policyVersionId: 'pv_baduanjin_fri_sat',
+        userHabitId: 'uh_baduanjin_fri_sat_canceled',
+        effectiveStartDate: '2026-06-12',
+        effectiveEndDate: null,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [5, 6] }
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_baduanjin_fri_sat_canceled',
+        date: '2026-06-12',
+        status: 'canceled',
+        hasPolicyChangedToday: true,
+        lockedReason: 'strategy_changed_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-08')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_baduanjin')
+
+    expect(habitReport).toBeDefined()
+    const friday = habitReport.days.find(d => d.date === '2026-06-12')
+    expect(friday.status).toBe('canceled')
+    expect(friday.displayStatus).toBe('canceled')
+    expect(friday.shouldShow).toBe(true)
+    expect(friday.countsInDenominator).toBe(true)
+    expect(friday.countsAsDone).toBe(false)
   })
 })

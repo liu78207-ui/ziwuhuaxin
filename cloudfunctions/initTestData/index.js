@@ -10,10 +10,11 @@
  *   success: res => releaseLog(res)
  * })
  * 
- * scenario: 0=全部场景, 1-5=单个场景
+ * scenario: 0=全部旧场景, 1-5=单个旧场景, 6=连续策略旧集合场景, 7=三天动态打卡新集合场景
  */
 const cloud = require('wx-server-sdk');
 const { createManualStrategyScenario } = require('./manualStrategyScenario.js');
+const { createDynamicThreeDayScenario } = require('./dynamicThreeDayScenario.js');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const releaseLog = () => {};
 
@@ -94,7 +95,16 @@ function generateUUID() {
 }
 
 async function clearCollectionsForUser(openid) {
-  const collections = ['user_strategies', 'checkin_logs', 'user_strategy_versions', 'habits'];
+  const collections = [
+    'user_strategies',
+    'checkin_logs',
+    'user_strategy_versions',
+    'habits',
+    'user_habits',
+    'habit_policy_versions',
+    'checkin_operations',
+    'daily_checkin_states'
+  ];
   const details = {};
 
   for (const collectionName of collections) {
@@ -141,6 +151,40 @@ async function seedManualStrategyScenario(openid) {
 
   for (const log of scenario.logs) {
     await db.collection('checkin_logs').add({ data: log });
+  }
+
+  for (const habit of scenario.habits) {
+    await db.collection('habits').add({ data: habit });
+  }
+
+  return scenario;
+}
+
+async function seedDynamicThreeDayScenario(openid) {
+  await ensureCollectionsExist(openid, [
+    'user_habits',
+    'habit_policy_versions',
+    'checkin_operations',
+    'daily_checkin_states',
+    'habits'
+  ]);
+
+  const scenario = createDynamicThreeDayScenario(openid);
+
+  for (const habit of scenario.userHabits) {
+    await db.collection('user_habits').add({ data: habit });
+  }
+
+  for (const policy of scenario.policyVersions) {
+    await db.collection('habit_policy_versions').add({ data: policy });
+  }
+
+  for (const operation of scenario.operations) {
+    await db.collection('checkin_operations').add({ data: operation });
+  }
+
+  for (const state of scenario.dailyStates) {
+    await db.collection('daily_checkin_states').add({ data: state });
   }
 
   for (const habit of scenario.habits) {
@@ -579,6 +623,44 @@ exports.main = async (event, context) => {
       };
     }
 
+    if (scenario === 7 || scenario === 'dynamicThreeDay') {
+      if (force) {
+        releaseLog('force=true，先清空当前用户测试数据...');
+        await clearCollectionsForUser(openid);
+      }
+
+      const existingHabits = await db.collection('user_habits').where({
+        _openid: openid
+      }).get();
+
+      if (!force && existingHabits.data && existingHabits.data.length > 0) {
+        releaseLog('发现已有新版习惯数据:', existingHabits.data.length, '条');
+        return {
+          success: false,
+          message: '已有新版测试数据，请传入 { scenario: 7, force: true } 后覆盖当前用户测试数据',
+          existingCount: existingHabits.data.length
+        };
+      }
+
+      const dynamicScenario = await seedDynamicThreeDayScenario(openid);
+
+      return {
+        success: true,
+        message: '三天动态打卡人工测试数据构造完成',
+        summary: {
+          scenario: dynamicScenario.name,
+          totalUserHabits: dynamicScenario.userHabits.length,
+          totalPolicyVersions: dynamicScenario.policyVersions.length,
+          totalOperations: dynamicScenario.operations.length,
+          totalDailyStates: dynamicScenario.dailyStates.length,
+          totalHabits: dynamicScenario.habits.length,
+          startDate: dynamicScenario.startDate,
+          endDate: dynamicScenario.endDate
+        },
+        expected: dynamicScenario.expected
+      };
+    }
+
     // 先检查是否已有数据
     releaseLog('检查现有数据...');
     
@@ -666,6 +748,19 @@ exports.main = async (event, context) => {
       return {
         success: false,
         message: '缺少云数据库集合 user_strategy_versions，请先在云开发控制台创建该集合后重新执行 { scenario: 6, force: true }。',
+        originalMessage: err.message
+      };
+    }
+    const missingV1Collection = [
+      'user_habits',
+      'habit_policy_versions',
+      'checkin_operations',
+      'daily_checkin_states'
+    ].find(collectionName => isCollectionMissingError(err, collectionName));
+    if (missingV1Collection) {
+      return {
+        success: false,
+        message: `缺少云数据库集合 ${missingV1Collection}，请先在云开发控制台创建该集合后重新执行 { scenario: 7, force: true }。`,
         originalMessage: err.message
       };
     }

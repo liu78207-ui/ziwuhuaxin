@@ -55,6 +55,20 @@ function getEmojiByCategory(category) {
   return emojiMap[category] || '🧘'
 }
 
+function getStateOrderTime(state) {
+  return state.updatedAt || state.checkedAt || state.canceledAt || state.createdAt || ''
+}
+
+function isLaterDailyState(next, current) {
+  if (!current) return true
+  const nextTime = getStateOrderTime(next)
+  const currentTime = getStateOrderTime(current)
+  if (nextTime && currentTime && nextTime !== currentTime) {
+    return nextTime > currentTime
+  }
+  return true
+}
+
 function calculateHabitPracticeDays(habitId) {
   const habits = storageService.getMyHabitsWithMigration()
   const userHabitIds = new Set(
@@ -63,11 +77,27 @@ function calculateHabitPracticeDays(habitId) {
       .map(habit => habit.userHabitId)
   )
 
-  const checkedDates = new Set(
-    storageService.getDailyCheckinStates()
-      .filter(state => userHabitIds.has(state.userHabitId) && state.status === 'checked')
-      .map(state => state.date)
-  )
+  const finalStatesByUserHabitDate = new Map()
+  storageService.getDailyCheckinStates()
+    .filter(state =>
+      (userHabitIds.has(state.userHabitId) || String(state.habitId) === String(habitId)) &&
+      state.date &&
+      state.dateConfidence !== 'low'
+    )
+    .forEach(state => {
+      const key = `${state.userHabitId}_${state.date}`
+      const current = finalStatesByUserHabitDate.get(key)
+      if (isLaterDailyState(state, current)) {
+        finalStatesByUserHabitDate.set(key, state)
+      }
+    })
+
+  const checkedDates = new Set()
+  finalStatesByUserHabitDate.forEach(state => {
+    if (state.status === 'checked') {
+      checkedDates.add(state.date)
+    }
+  })
 
   return checkedDates.size
 }

@@ -2,6 +2,15 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const MAX_NICKNAME_LENGTH = 24;
+
+function normalizeNickName(nickName) {
+  return String(nickName || '').trim().slice(0, MAX_NICKNAME_LENGTH);
+}
+
+function normalizeAvatarUrl(avatarUrl) {
+  return String(avatarUrl || '').trim();
+}
 
 /**
  * 保存用户资料（昵称/头像）
@@ -17,8 +26,24 @@ exports.main = async (event, context) => {
     return { success: false, code: 'NO_OPENID', message: '无法获取用户身份' };
   }
 
-  const { nickName, avatarUrl } = event || {};
-  if (!nickName && !avatarUrl) {
+  const updateData = {
+    updatedAt: new Date().toISOString()
+  };
+
+  if (Object.prototype.hasOwnProperty.call(event || {}, 'nickName')) {
+    const normalizedNickName = normalizeNickName(event.nickName);
+    if (normalizedNickName) {
+      updateData.nickName = normalizedNickName;
+    }
+  }
+  if (Object.prototype.hasOwnProperty.call(event || {}, 'avatarUrl')) {
+    const normalizedAvatarUrl = normalizeAvatarUrl(event.avatarUrl);
+    if (normalizedAvatarUrl) {
+      updateData.avatarUrl = normalizedAvatarUrl;
+    }
+  }
+
+  if (Object.keys(updateData).length === 1) {
     return { success: false, code: 'PARAM_ERROR', message: '至少需要提供 nickName 或 avatarUrl' };
   }
 
@@ -34,16 +59,6 @@ exports.main = async (event, context) => {
     }
 
     const userId = userResult.data[0]._id;
-    const updateData = {
-      updatedAt: new Date().toISOString()
-    };
-
-    if (nickName !== undefined) {
-      updateData.nickName = nickName;
-    }
-    if (avatarUrl !== undefined) {
-      updateData.avatarUrl = avatarUrl;
-    }
 
     await db.collection('users').doc(userId).update({
       data: updateData

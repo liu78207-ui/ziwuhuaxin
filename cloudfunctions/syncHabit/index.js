@@ -52,6 +52,7 @@ exports.main = async (event, context) => {
     previousPolicyVersionId,
     previousEffectiveEndDate,
     strategyChangedDailyState,
+    deletionDailyState,
     // 用于 deleteHabit 的本地业务日期
     deletedAt,
     // 用于 idempotent retry
@@ -150,6 +151,50 @@ exports.main = async (event, context) => {
             updatedAt: serverTime
           }
         });
+      }
+
+      if (deletionDailyState) {
+        const dailyStateDate = deletionDailyState.date || endDate;
+        const dailyStateStatus = deletionDailyState.status || 'not_required';
+        const lockedReason = dailyStateStatus === 'checked'
+          ? 'deleted_after_checkin'
+          : 'deleted_without_checkin';
+        const stateData = {
+          userHabitId,
+          habitId: String(habitId),
+          policyVersionId: deletionDailyState.policyVersionId || policyVersionId || '',
+          date: dailyStateDate,
+          status: dailyStateStatus,
+          checkedAt: deletionDailyState.checkedAt || null,
+          canceledAt: deletionDailyState.canceledAt || null,
+          lastOperationId: deletionDailyState.lastOperationId || null,
+          hasDeletionToday: true,
+          isLocked: true,
+          lockedReason,
+          lockReason: lockedReason,
+          syncStatus: 'synced',
+          updatedAt: serverTime
+        };
+
+        const existingState = await db.collection('daily_checkin_states').where({
+          _openid: openid,
+          userHabitId,
+          date: dailyStateDate
+        }).get();
+
+        if (existingState.data && existingState.data.length > 0) {
+          await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
+            data: stateData
+          });
+        } else {
+          await db.collection('daily_checkin_states').add({
+            data: {
+              _openid: openid,
+              stateId: deletionDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,
+              ...stateData
+            }
+          });
+        }
       }
     }
 

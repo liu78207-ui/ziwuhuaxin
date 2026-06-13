@@ -16,8 +16,7 @@ const DAILY_STATE_STATUS = {
   unchecked: 'unchecked',       // 未打卡（默认）
   checked: 'checked',            // 已打卡
   canceled: 'canceled',          // 已取消
-  // 以下为预留状态，Phase 3 不实现
-  // not_required: 'not_required', // 不应修
+  not_required: 'not_required', // 不应修
   // locked: 'locked'              // 锁定
 }
 

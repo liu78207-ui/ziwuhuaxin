@@ -163,6 +163,7 @@ async function softDeleteHabit(userHabitId) {
   }
 
   const businessDate = timeService.getBusinessDate()
+  const deletionDailyState = markDeletionToday(userHabitId, businessDate)
 
   // 更新为 deleted 状态
   habit.status = 'deleted'
@@ -189,7 +190,8 @@ async function softDeleteHabit(userHabitId) {
   syncService.pushWithDedup('habit', 'deleteHabit', {
     userHabitId,
     habitId: habit.habitId,
-    deletedAt: habit.deletedAt
+    deletedAt: habit.deletedAt,
+    deletionDailyState
   })
 
   return true
@@ -367,6 +369,43 @@ function markStrategyChangedToday(userHabitId, date, policyVersionId) {
     hasPolicyChangedToday: true,
     lockedReason: resolveStrategyChangeLockedReason(status),
     lockReason: resolveStrategyChangeLockedReason(status),
+    updatedAt: new Date().toISOString()
+  }
+
+  storageService.setDailyState(state)
+  return state
+}
+
+function resolveDeletionLockedReason(status) {
+  return status === DAILY_STATE_STATUS.checked
+    ? 'deleted_after_checkin'
+    : 'deleted_without_checkin'
+}
+
+function markDeletionToday(userHabitId, date) {
+  const habit = getHabitByUserHabitId(userHabitId)
+  if (!habit || !date) return null
+
+  const existingState = storageService.getDailyState(userHabitId, date)
+  const finalStatus = existingState?.status === DAILY_STATE_STATUS.checked
+    ? DAILY_STATE_STATUS.checked
+    : DAILY_STATE_STATUS.not_required
+  const lockedReason = resolveDeletionLockedReason(finalStatus)
+  const baseState = existingState || createDailyCheckinState({
+    userHabitId,
+    habitId: habit.habitId,
+    date,
+    status: finalStatus
+  })
+
+  const state = {
+    ...baseState,
+    status: finalStatus,
+    policyVersionId: habit.latestPolicyVersionId || baseState.policyVersionId || '',
+    hasDeletionToday: true,
+    isLocked: true,
+    lockedReason,
+    lockReason: lockedReason,
     updatedAt: new Date().toISOString()
   }
 
@@ -689,6 +728,7 @@ module.exports = {
   closePolicyVersion,
   updateHabitPolicy,
   markStrategyChangedToday,
+  markDeletionToday,
 
   // 今日习惯
   getTodayHabits,
