@@ -402,6 +402,7 @@ Page({
         isDue: Boolean(item.isDue),
         shouldShow: Boolean(item.shouldShow),
         countsInDueDenominator: Boolean(item.countsInDueDenominator),
+        countsInDenominator: Boolean(item.countsInDenominator),
         countsAsDone: Boolean(item.countsAsDone)
       });
     }

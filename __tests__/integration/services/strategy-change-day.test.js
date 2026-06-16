@@ -114,7 +114,7 @@ describe('策略修改当天：最终状态 + 最新策略命中', () => {
     expect(tuesdayVerdict.reason).toBe('strategy_changed_without_checkin')
   })
 
-  test('daily → weekly 周三，编辑当天是周三：最终 unchecked 不计分母和分子', () => {
+  test('daily → weekly 周三，编辑当天是周三：最终 unchecked 计入分母不计分子', () => {
     // 周三 2026-05-13
     const userHabit = {
       userHabitId: 'uh1',
@@ -159,7 +159,7 @@ describe('策略修改当天：最终状态 + 最新策略命中', () => {
     const wednesdayVerdict = verdicts[0]
 
     expect(wednesdayVerdict.status).toBe(DAY_STATUS.unchecked)
-    expect(wednesdayVerdict.contributesDenominator).toBe(false)
+    expect(wednesdayVerdict.contributesDenominator).toBe(true)
     expect(wednesdayVerdict.contributesNumerator).toBe(false)
     expect(wednesdayVerdict.reason).toBe('strategy_changed_without_checkin')
   })

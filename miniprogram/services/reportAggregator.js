@@ -342,11 +342,11 @@ function resolveReportDayStatus(context) {
         effectivePolicyVersionId: policyVersion.policyVersionId
       }
     }
-    // unchecked
+    // unchecked: 新策略命中当天时，策略修改当天也应计入分母
     return {
       status: DAY_STATUS.unchecked,
-      isDue: false,
-      contributesDenominator: false,
+      isDue: true,
+      contributesDenominator: true,
       contributesNumerator: false,
       reason: 'strategy_changed_without_checkin',
       effectivePolicyVersionId: policyVersion.policyVersionId
@@ -448,7 +448,8 @@ function isStrategyChangeDayState(dailyState) {
  * - 已打卡且最终 checked：分母+1，分子+1
  * - 最终 canceled 且最新策略命中当天：分母+1，分子+0
  * - 最终 canceled 但最新策略不命中当天：分母+0，分子+0
- * - 最终 unchecked/not_required：分母+0，分子+0
+ * - 最终 unchecked 且最新策略命中当天：分母+1，分子+0
+ * - 最终 unchecked/not_required 且最新策略不命中当天：分母+0，分子+0
  */
 function resolveStrategyChangeDayStatus(context) {
   const { dailyState, policyVersion, policyVersions = [], date } = context
@@ -468,7 +469,8 @@ function resolveStrategyChangeDayStatus(context) {
   }
 
   const isCanceled = finalStatus === DAY_STATUS.canceled
-  const latestPolicyDueToday = isCanceled && latestPolicy && isDueOnDateByFrequency(latestPolicy, date)
+  const countsAsUnfinished = isCanceled || finalStatus === DAY_STATUS.unchecked
+  const latestPolicyDueToday = countsAsUnfinished && latestPolicy && isDueOnDateByFrequency(latestPolicy, date)
 
   return {
     status: finalStatus,

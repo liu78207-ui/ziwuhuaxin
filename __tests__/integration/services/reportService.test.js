@@ -183,7 +183,7 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       expect(changeDayVerdict.reason).toBe('strategy_changed_after_checkin')
     })
 
-    test('策略修改当天 unchecked：PRD 低压力口径不计分母和分子', () => {
+    test('策略修改当天 unchecked 且最新策略命中当天：计入分母不计分子', () => {
       const userHabit = {
         userHabitId: 'uh1',
         habitId: 'h1',
@@ -231,7 +231,8 @@ describe('reportService 集成测试 - 特殊日裁决', () => {
       const changeDayVerdict = verdicts.find(v => v.date === '2026-05-10')
       expect(changeDayVerdict).toBeTruthy()
       expect(changeDayVerdict.status).toBe(DAY_STATUS.unchecked)
-      expect(changeDayVerdict.contributesDenominator).toBe(false)
+      expect(changeDayVerdict.isDue).toBe(true)
+      expect(changeDayVerdict.contributesDenominator).toBe(true)
       expect(changeDayVerdict.contributesNumerator).toBe(false)
       expect(changeDayVerdict.reason).toBe('strategy_changed_without_checkin')
     })

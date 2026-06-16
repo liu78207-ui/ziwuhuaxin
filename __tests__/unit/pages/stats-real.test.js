@@ -647,6 +647,103 @@ describe('stats page V1 report links', () => {
     expect(day12.displayStatus).toBe('not_required');
   });
 
+  test('周报映射保留策略修改命中当天的 unchecked 描边状态', async () => {
+    const mockReportService = {
+      getWeeklyReport: jest.fn(async () => ({
+        habitReports: [
+          {
+            habitId: 'h_baduanjin',
+            habit: {
+              habitId: 'h_baduanjin',
+              name: '八段锦',
+              category: 'sports',
+              themeClass: 't-yellow'
+            },
+            days: [
+              {
+                date: '2026-06-14',
+                status: 'unchecked',
+                displayStatus: 'unchecked',
+                checked: false,
+                isChecked: false,
+                isDue: true,
+                shouldShow: true,
+                countsInDueDenominator: true,
+                countsInDenominator: true,
+                countsAsDone: false
+              }
+            ],
+            dueCount: 1,
+            doneCount: 0,
+            hasVisibleState: true
+          }
+        ],
+        stats: { checkinRate: 0, totalCount: 0, checkinDays: 0, maxStreak: 0 }
+      })),
+      getMonthlyReport: jest.fn(),
+      getYearlyReport: jest.fn()
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentWeekStart = '2026-06-08';
+
+    await page.loadWeekData();
+
+    const report = page.data.habitMatrix.find(item => item.habitId === 'h_baduanjin');
+    expect(report.days[0].status).toBe('unchecked');
+    expect(report.days[0].displayStatus).toBe('unchecked');
+    expect(report.days[0].countsInDenominator).toBe(true);
+  });
+
+  test('月报映射保留策略修改命中当天的 unchecked 描边状态', async () => {
+    const mockReportService = {
+      getWeeklyReport: jest.fn(),
+      getMonthlyReport: jest.fn(async () => ({
+        habitReports: [
+          {
+            habitId: 'h_month_strategy_due',
+            habit: {
+              habitId: 'h_month_strategy_due',
+              name: '月报命中应修',
+              category: 'sports',
+              themeClass: 't-green'
+            },
+            days: [
+              {
+                date: '2026-06-14',
+                status: 'unchecked',
+                displayStatus: 'unchecked',
+                isChecked: false,
+                isDue: true,
+                shouldShow: true,
+                countsInDueDenominator: true,
+                countsInDenominator: true,
+                countsAsDone: false
+              }
+            ],
+            dueCount: 1,
+            doneCount: 0,
+            hasVisibleState: true
+          }
+        ],
+        stats: { checkinRate: 0, totalCount: 0, checkinDays: 0, maxStreak: 0 }
+      })),
+      getYearlyReport: jest.fn()
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 5;
+
+    await page.loadMonthData();
+
+    const report = page.data.monthHabits.find(item => item.habitId === 'h_month_strategy_due');
+    const day14 = report.days.find(day => day.date === 14);
+    expect(day14.status).toBe('unchecked');
+    expect(day14.displayStatus).toBe('unchecked');
+    expect(day14.countsInDenominator).toBe(true);
+  });
+
   // ----- V1 数据测试 -----
 
   test('deleted userHabit shows checked status in week report', async () => {
