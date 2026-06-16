@@ -153,7 +153,7 @@
 
   <!-- 保存按钮 -->
   <view class="modal-footer">
-    <button class="btn-save" bindtap="saveStrategy">保存策略</button>
+    <button class="btn-save {{planStartNeedsReselect ? 'disabled' : ''}}" bindtap="saveStrategy">保存策略</button>
   </view>
 </view>
 

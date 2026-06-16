@@ -647,6 +647,74 @@ describe('stats page V1 report links', () => {
     expect(day12.displayStatus).toBe('not_required');
   });
 
+  test('月报和年报卡片天数字段使用 checkinDays 而不是 doneCount', async () => {
+    const habitReport = {
+      habitId: 'h_days_semantics',
+      habit: {
+        habitId: 'h_days_semantics',
+        name: '天数口径',
+        category: 'sports',
+        themeClass: 't-green'
+      },
+      days: [
+        {
+          date: '2026-06-10',
+          status: 'checked',
+          displayStatus: 'checked',
+          checked: true,
+          isChecked: true,
+          isDue: true,
+          shouldShow: true,
+          countsInDueDenominator: true,
+          countsInDenominator: true,
+          countsAsDone: true
+        },
+        {
+          date: '2026-06-11',
+          status: 'checked',
+          displayStatus: 'checked',
+          checked: true,
+          isChecked: true,
+          isDue: true,
+          shouldShow: true,
+          countsInDueDenominator: true,
+          countsInDenominator: true,
+          countsAsDone: true
+        }
+      ],
+      dueCount: 3,
+      doneCount: 3,
+      practiceCount: 3,
+      checkinDays: 2,
+      hasVisibleState: true
+    };
+    const mockReportService = {
+      getWeeklyReport: jest.fn(),
+      getMonthlyReport: jest.fn(async () => ({
+        habitReports: [habitReport],
+        stats: { checkinRate: 100, totalCount: 3, checkinDays: 2, maxStreak: 2 }
+      })),
+      getYearlyReport: jest.fn(async () => ({
+        habitReports: [habitReport],
+        stats: { checkinRate: 100, totalCount: 3, checkinDays: 2, maxStreak: 2 }
+      }))
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 5;
+
+    await page.loadMonthData();
+    const monthReport = page.data.monthHabits.find(item => item.habitId === 'h_days_semantics');
+    expect(monthReport.daysCount).toBe(2);
+    expect(monthReport.practiceCount).toBe(3);
+
+    await page.loadYearData();
+    const yearReport = page.data.yearHabits.find(item => item.habitId === 'h_days_semantics');
+    expect(yearReport.totalDays).toBe(2);
+    expect(yearReport.practiceCount).toBe(3);
+  });
+
   test('周报映射保留策略修改命中当天的 unchecked 描边状态', async () => {
     const mockReportService = {
       getWeeklyReport: jest.fn(async () => ({

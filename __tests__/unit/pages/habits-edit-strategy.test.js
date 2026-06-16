@@ -105,6 +105,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     page.data.selectedWeekdays = []
     page.data.planStartDate = 'tomorrow'
     page.data.planStartDateCustom = ''
+    page.data.planStartNeedsReselect = false
     page.data.habits = [habit]
     page.data.currentTab = 0
 
@@ -143,8 +144,9 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     page.data.freqCategory = 'everyday'
     page.data.dailyInterval = 2
     page.data.selectedWeekdays = []
-    page.data.planStartDate = 'tomorrow'
+    page.data.planStartDate = 'today'
     page.data.planStartDateCustom = ''
+    page.data.planStartNeedsReselect = false
     page.data.habits = [habit]
     page.data.currentTab = 0
 
@@ -158,7 +160,86 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     expect(mockUpdateHabitPolicy).toHaveBeenCalledWith(
       'uh_existing_20',
       expect.objectContaining({
-        startDate: '2026-06-03',
+        startDate: '2026-06-02',
+        frequencyType: 'daily'
+      })
+    )
+  })
+
+  test('修改未开始策略且未重新选择开始时间 → 只提示不保存', async () => {
+    const { page } = loadHabitsPage()
+
+    mockGetHabitByUserHabitId.mockReturnValue({
+      userHabitId: 'uh_future_20',
+      habitId: '20',
+      status: 'active'
+    })
+    const habit = {
+      _id: 'catalog-20',
+      title: '揉腹',
+      category: '起居类',
+      default_duration: 10,
+      hasStrategy: true,
+      strategy: {
+        habit_id: 'uh_future_20',
+        habit_title: '揉腹',
+        freq_type: 'daily',
+        freq_rules: 1,
+        freq_category: 'everyday',
+        plan_start_date: '2026-06-10'
+      }
+    }
+
+    page.openEditStrategyModal(habit)
+    page.data.habits = [habit]
+    page.data.currentTab = 0
+
+    await page.saveStrategy()
+
+    expect(global.wx.showToast).toHaveBeenCalledWith({
+      title: '请重新选择开始时间',
+      icon: 'none'
+    })
+    expect(mockAddHabit).not.toHaveBeenCalled()
+    expect(mockUpdateHabitPolicy).not.toHaveBeenCalled()
+  })
+
+  test('修改未开始策略重新选择开始时间后 → 调 updateHabitPolicy', async () => {
+    const { page } = loadHabitsPage()
+
+    mockGetHabitByUserHabitId.mockReturnValue({
+      userHabitId: 'uh_future_20',
+      habitId: '20',
+      status: 'active'
+    })
+    const habit = {
+      _id: 'catalog-20',
+      title: '揉腹',
+      category: '起居类',
+      default_duration: 10,
+      hasStrategy: true,
+      strategy: {
+        habit_id: 'uh_future_20',
+        habit_title: '揉腹',
+        freq_type: 'daily',
+        freq_rules: 1,
+        freq_category: 'everyday',
+        plan_start_date: '2026-06-10'
+      }
+    }
+
+    page.openEditStrategyModal(habit)
+    page.onPlanStartOptionClick({ currentTarget: { dataset: { value: 'today' } } })
+    page.data.habits = [habit]
+    page.data.currentTab = 0
+
+    await page.saveStrategy()
+
+    expect(mockAddHabit).not.toHaveBeenCalled()
+    expect(mockUpdateHabitPolicy).toHaveBeenCalledWith(
+      'uh_future_20',
+      expect.objectContaining({
+        startDate: '2026-06-02',
         frequencyType: 'daily'
       })
     )
@@ -196,6 +277,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     page.data.selectedWeekdays = []
     page.data.planStartDate = 'tomorrow'
     page.data.planStartDateCustom = ''
+    page.data.planStartNeedsReselect = false
     page.data.habits = [habit]
     page.data.currentTab = 0
 

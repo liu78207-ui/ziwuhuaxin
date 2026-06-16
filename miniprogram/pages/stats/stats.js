@@ -420,7 +420,8 @@ Page({
       themeClass: visual.themeClass,
       days,
       rate: report.dueCount > 0 ? Math.round((report.doneCount / report.dueCount) * 100) : 0,
-      daysCount: report.doneCount,
+      daysCount: report.checkinDays ?? report.doneCount,
+      practiceCount: report.practiceCount ?? report.doneCount,
       isDeleted: habit.isDeleted || false
     };
   },
@@ -465,7 +466,8 @@ Page({
       icon: visual.icon,
       themeClass: visual.themeClass,
       heatmap,
-      totalDays: report.doneCount,
+      totalDays: report.checkinDays ?? report.doneCount,
+      practiceCount: report.practiceCount ?? report.doneCount,
       isDeleted: habit.isDeleted || false
     };
   },

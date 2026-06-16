@@ -334,7 +334,8 @@ function resolveDisplayStatus(status, countsInDenominator, countsAsDone) {
  *
  * stats.js 期望的 habitReports 格式：
  * {
- *   habitId, habit: { ...习惯元数据 }, days: [ ... ], dueCount, doneCount
+ *   habitId, habit: { ...习惯元数据 }, days: [ ... ],
+ *   dueCount, doneCount, practiceCount, checkinDays
  * }
  *
  * @param {object} aggregated - reportAggregator.aggregateByHabitId 的输出
@@ -419,6 +420,12 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
 
     const dueCount = days.filter(day => day.countsInDenominator).length
     const doneCount = days.filter(day => day.countsAsDone).length
+    const practiceCount = group.summary?.doneCount ?? doneCount
+    const checkinDays = new Set(
+      days
+        .filter(day => day.countsAsDone)
+        .map(day => day.date)
+    ).size
 
     return {
       habitId: group.habitId,
@@ -426,6 +433,8 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
       days,
       dueCount,
       doneCount,
+      practiceCount,
+      checkinDays,
       hasVisibleState: days.some(day => day.shouldShow || day.countsInDenominator || day.countsAsDone),
       instances: group.instances
     }
@@ -434,6 +443,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
   // 计算全局 stats
   const dueCount = habitReports.reduce((sum, r) => sum + r.dueCount, 0)
   const doneCount = habitReports.reduce((sum, r) => sum + r.doneCount, 0)
+  const practiceCount = habitReports.reduce((sum, r) => sum + (r.practiceCount ?? r.doneCount), 0)
   const uniqueCheckinDates = [...new Set(
     habitReports.flatMap(r =>
       r.days
@@ -448,7 +458,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
 
  const stats = {
  checkinRate: dueCount >0 ? Math.round((doneCount / dueCount) *100) :0,
- totalCount: doneCount,
+ totalCount: practiceCount,
  checkinDays: uniqueCheckinDates.length,
  maxStreak: globalMaxStreak
  }

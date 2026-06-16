@@ -55,6 +55,8 @@ Page({
     ],
     planStartDateCustom: '', // 自定义日期选择器的值
     planStartHint: '', // 提示信息
+    isEditingStrategy: false,
+    planStartNeedsReselect: false,
 
     // 自定义操作菜单
     showActionMenu: false,
@@ -312,6 +314,8 @@ Page({
       planStartDate: 'today',
       planStartDateCustom: '',
       planStartHint: '',
+      isEditingStrategy: false,
+      planStartNeedsReselect: false,
       minPlanStartDate: today
     });
   },
@@ -349,19 +353,20 @@ Page({
     const savedPlanStartDate = strategy.plan_start_date || today;
     const habitCreatedAt = habit.createdAt || today;
     const minDate = habitCreatedAt < today ? habitCreatedAt : today;
+    const isNotStarted = savedPlanStartDate > today;
 
-    // 判断计划开始时间选项
+    // 已开始的习惯修改策略时从今天生效；未开始的习惯需用户重新确认开始时间。
     let planStartType = 'custom';
     let planStartDate = 'today';
     let planStartDateCustom = '';
 
-    if (savedPlanStartDate === today) {
-      planStartDate = 'today';
-    } else if (savedPlanStartDate === this.getOffsetDate(1)) {
-      planStartDate = 'tomorrow';
-    } else {
-      planStartDate = 'custom';
-      planStartDateCustom = savedPlanStartDate;
+    if (isNotStarted) {
+      if (savedPlanStartDate === this.getOffsetDate(1)) {
+        planStartDate = 'tomorrow';
+      } else {
+        planStartDate = 'custom';
+        planStartDateCustom = savedPlanStartDate;
+      }
     }
 
     this.setData({
@@ -383,7 +388,9 @@ Page({
       planStartType: planStartType,
       planStartDate: planStartDate,
       planStartDateCustom: planStartDateCustom,
-      planStartHint: '',
+      planStartHint: isNotStarted ? this.generatePlanStartHint(savedPlanStartDate) : '',
+      isEditingStrategy: true,
+      planStartNeedsReselect: isNotStarted,
       minPlanStartDate: minDate
     });
   },
@@ -462,7 +469,11 @@ Page({
   },
 
    closeModal() {
-    this.setData({ showModal: false });
+    this.setData({
+      showModal: false,
+      isEditingStrategy: false,
+      planStartNeedsReselect: false
+    });
   },
 
   onDurationChange(e) {
@@ -676,9 +687,16 @@ Page({
   },
 
   async saveStrategy() {
-    const app = getApp();
     const habit = this.data.selectedHabit;
     const { freqCategory, dailyInterval, selectedWeekdays } = this.data;
+
+    if (this.data.planStartNeedsReselect) {
+      wx.showToast({
+        title: '请重新选择开始时间',
+        icon: 'none'
+      });
+      return;
+    }
 
     // 根据频次分类构建策略数据
     let freq_type, freq_rules;
@@ -831,7 +849,8 @@ Page({
       this.setData({
         planStartDate: value,
         planStartDateCustom: '',
-        planStartHint: this.generatePlanStartHint(planStartDate)
+        planStartHint: this.generatePlanStartHint(planStartDate),
+        planStartNeedsReselect: false
       });
     }
   },
@@ -919,7 +938,8 @@ Page({
     this.setData({
       planStartDate: 'custom',
       planStartDateCustom: selectedDate,
-      planStartHint: this.generatePlanStartHint(selectedDate)
+      planStartHint: this.generatePlanStartHint(selectedDate),
+      planStartNeedsReselect: false
     });
 
     this.closePlanStartDatePicker();

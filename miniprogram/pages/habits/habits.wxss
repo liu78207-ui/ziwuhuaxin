@@ -505,6 +505,17 @@
   box-shadow: 0 4px 12px rgba(56, 163, 133, 0.2);
 }
 
+.btn-save.disabled {
+  background-color: #C8CDD2;
+  color: rgba(255, 255, 255, 0.86);
+  box-shadow: none;
+}
+
+.btn-save.disabled:active {
+  transform: none;
+  box-shadow: none;
+}
+
 /* ============================================
    选择器弹窗
    ============================================ */

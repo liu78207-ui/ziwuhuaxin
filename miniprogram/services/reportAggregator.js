@@ -660,7 +660,7 @@ function calculateCheckinDays(dayVerdicts) {
  */
 function aggregateByHabitId(instanceReports) {
   if (!instanceReports || !Array.isArray(instanceReports)) {
-    return { habitGroups: [], summary: { doneCount: 0, dueCount: 0, completionRate: 0 } }
+    return { habitGroups: [], summary: { doneCount: 0, dueCount: 0, checkinDays: 0, completionRate: 0 } }
   }
 
   // 按 habitId 分组
@@ -683,14 +683,24 @@ function aggregateByHabitId(instanceReports) {
   const habitGroups = Object.values(groups).map(group => {
     let totalDue = 0
     let totalDone = 0
-    let totalStreak = 0
     let maxStreak = 0
+    const checkedDates = new Set()
 
     group.instances.forEach(inst => {
       totalDue += inst.dueCount || 0
       totalDone += inst.doneCount || 0
-      totalStreak += inst.streak || 0
       maxStreak = Math.max(maxStreak, inst.streak || 0)
+      const verdicts = inst._verdicts || []
+      if (verdicts.length > 0) {
+        verdicts
+          .filter(v => v.status === DAY_STATUS.checked || v.contributesNumerator)
+          .forEach(v => checkedDates.add(v.date))
+      } else {
+        const legacyCheckinDays = inst.checkinDays ?? inst.doneCount ?? 0
+        for (let i = 0; i < legacyCheckinDays; i++) {
+          checkedDates.add(`__legacy_${inst.userHabitId || group.habitId}_${i}`)
+        }
+      }
     })
 
     return {
@@ -698,6 +708,7 @@ function aggregateByHabitId(instanceReports) {
       summary: {
         doneCount: totalDone,
         dueCount: totalDue,
+        checkinDays: checkedDates.size,
         completionRate: calculateCompletionRate(totalDone, totalDue),
         maxStreak
       }
@@ -707,12 +718,25 @@ function aggregateByHabitId(instanceReports) {
   // 全局汇总
   const totalDueCount = habitGroups.reduce((sum, g) => sum + g.summary.dueCount, 0)
   const totalDoneCount = habitGroups.reduce((sum, g) => sum + g.summary.doneCount, 0)
+  const checkedDates = new Set()
+  habitGroups.forEach(group => {
+    group.instances.forEach(inst => {
+      const verdicts = inst._verdicts || []
+      if (verdicts.length > 0) {
+        verdicts
+          .filter(v => v.status === DAY_STATUS.checked || v.contributesNumerator)
+          .forEach(v => checkedDates.add(v.date))
+      }
+    })
+  })
+  const totalCheckinDays = checkedDates.size || habitGroups.reduce((sum, g) => sum + (g.summary.checkinDays || 0), 0)
 
   return {
     habitGroups,
     summary: {
       doneCount: totalDoneCount,
       dueCount: totalDueCount,
+      checkinDays: totalCheckinDays,
       completionRate: calculateCompletionRate(totalDoneCount, totalDueCount)
     }
   }
@@ -746,6 +770,7 @@ function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, 
 
   const dueCount = calculateDueCount(dayVerdicts)
   const doneCount = calculateDoneCount(dayVerdicts)
+  const checkinDays = calculateCheckinDays(dayVerdicts)
   const streak = calculateStreak(dayVerdicts)
 
   const days = dayVerdicts.map(v => ({
@@ -762,6 +787,7 @@ function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, 
     deletedAt: userHabit.deletedAt,
     dueCount,
     doneCount,
+    checkinDays,
     streak,
     days,
     _verdicts: dayVerdicts
@@ -786,10 +812,7 @@ function buildWeekReport(instanceReports, weekStart) {
       completionRate: aggregated.summary.completionRate,
       doneCount: aggregated.summary.doneCount,
       dueCount: aggregated.summary.dueCount,
-      checkinDays: aggregated.habitGroups.reduce((sum, g) => {
-        const instanceCheckinDays = g.instances.reduce((s, i) => s + (i.checkinDays || 0), 0)
-        return sum + instanceCheckinDays
-      }, 0),
+      checkinDays: aggregated.summary.checkinDays,
       maxStreak: Math.max(...aggregated.habitGroups.map(g => g.summary.maxStreak), 0)
     },
     habitGroups: aggregated.habitGroups
@@ -819,10 +842,7 @@ function buildMonthReport(instanceReports, month) {
       completionRate: aggregated.summary.completionRate,
       doneCount: aggregated.summary.doneCount,
       dueCount: aggregated.summary.dueCount,
-      checkinDays: aggregated.habitGroups.reduce((sum, g) => {
-        const instanceCheckinDays = g.instances.reduce((s, i) => s + (i.checkinDays || 0), 0)
-        return sum + instanceCheckinDays
-      }, 0),
+      checkinDays: aggregated.summary.checkinDays,
       maxStreak: Math.max(...aggregated.habitGroups.map(g => g.summary.maxStreak), 0)
     },
     habitGroups: aggregated.habitGroups
@@ -849,10 +869,7 @@ function buildYearReport(instanceReports, year) {
       completionRate: aggregated.summary.completionRate,
       doneCount: aggregated.summary.doneCount,
       dueCount: aggregated.summary.dueCount,
-      checkinDays: aggregated.habitGroups.reduce((sum, g) => {
-        const instanceCheckinDays = g.instances.reduce((s, i) => s + (i.checkinDays || 0), 0)
-        return sum + instanceCheckinDays
-      }, 0),
+      checkinDays: aggregated.summary.checkinDays,
       maxStreak: Math.max(...aggregated.habitGroups.map(g => g.summary.maxStreak), 0)
     },
     habitGroups: aggregated.habitGroups
