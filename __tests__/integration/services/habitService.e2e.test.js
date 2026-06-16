@@ -74,7 +74,8 @@ jest.mock('../../../miniprogram/services/storageService', () => {
 
 // mock 同步服务
 jest.mock('../../../miniprogram/services/syncService', () => ({
-  pushWithDedup: jest.fn()
+  pushWithDedup: jest.fn(),
+  processQueue: jest.fn(() => Promise.resolve())
 }))
 
 // 锁定业务日期 = 2026-06-02（今天）

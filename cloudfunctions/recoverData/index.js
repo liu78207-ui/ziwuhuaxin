@@ -3,6 +3,34 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const PAGE_SIZE = 100;
+const DEFAULT_DAILY_STATE_DAYS = 90;
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+
+function formatDateKey(date) {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(date.getUTCDate())}`;
+}
+
+function getShanghaiDateKey(timestamp) {
+  const shanghaiTime = new Date(timestamp + 8 * 60 * 60 * 1000);
+  return formatDateKey(shanghaiTime);
+}
+
+function addDays(dateKey, delta) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + delta);
+  return formatDateKey(date);
+}
+
+function normalizePositiveInt(value, fallback, max) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+  const integer = Math.floor(number);
+  return max ? Math.min(integer, max) : integer;
+}
 
 function pickDefined(source, keys) {
   const result = {};
@@ -98,6 +126,42 @@ async function listAllByOpenid(collectionName, openid) {
   return items;
 }
 
+function resolveDailyStateRange(event, serverTime) {
+  if (event.startDate || event.endDate) {
+    return {
+      startDate: event.startDate || '',
+      endDate: event.endDate || ''
+    };
+  }
+
+  const dailyStateDays = normalizePositiveInt(event.dailyStateDays, DEFAULT_DAILY_STATE_DAYS, 3660);
+  const endDate = getShanghaiDateKey(serverTime);
+  return {
+    startDate: addDays(endDate, -(dailyStateDays - 1)),
+    endDate
+  };
+}
+
+function filterDailyStates(states, range) {
+  return states.filter(state => {
+    if (!state.date) return true;
+    if (range.startDate && state.date < range.startDate) return false;
+    if (range.endDate && state.date > range.endDate) return false;
+    return true;
+  });
+}
+
+function paginateDailyStates(states, event) {
+  const limit = normalizePositiveInt(event.limit, PAGE_SIZE, 500);
+  const offset = normalizePositiveInt(event.cursor, 0, null);
+  const page = states.slice(offset, offset + limit);
+  const nextOffset = offset + page.length;
+  return {
+    page,
+    nextCursor: nextOffset < states.length ? String(nextOffset) : null
+  };
+}
+
 /**
  * recoverData - V1 数据恢复云函数
  *
@@ -109,10 +173,13 @@ async function listAllByOpenid(collectionName, openid) {
  * 旧集合（user_strategies/checkin_logs）仅作为兼容迁移来源，
  * 不作为 V1 正式恢复输出。
  *
- * 入参: {}
- * 返回: { success, data: { userHabits, policyVersions, dailyStates } }
+ * 入参:
+ * - 默认 { dailyStateDays: 90 }
+ * - 可选 { startDate, endDate, cursor, limit } 分页恢复指定周期 daily states
+ * 返回: { success, data: { userHabits, policyVersions, dailyStates, nextCursor } }
  */
 exports.main = async (event, context) => {
+  event = event || {};
   const wxContext = cloud.getWXContext();
   const OPENID = wxContext.OPENID;
   const serverTime = Date.now();
@@ -124,14 +191,19 @@ exports.main = async (event, context) => {
   try {
     const userHabits = await listAllByOpenid('user_habits', OPENID);
     const policyVersions = await listAllByOpenid('habit_policy_versions', OPENID);
-    const dailyStates = await listAllByOpenid('daily_checkin_states', OPENID);
+    const allDailyStates = await listAllByOpenid('daily_checkin_states', OPENID);
+    const range = resolveDailyStateRange(event, serverTime);
+    const filteredDailyStates = filterDailyStates(allDailyStates, range)
+      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+    const { page: dailyStates, nextCursor } = paginateDailyStates(filteredDailyStates, event);
 
     return {
       success: true,
       data: {
         userHabits: userHabits.map(slimUserHabit),
         policyVersions: policyVersions.map(slimPolicyVersion),
-        dailyStates: dailyStates.map(slimDailyState)
+        dailyStates: dailyStates.map(slimDailyState),
+        nextCursor
       },
       serverTime
     };

@@ -1,6 +1,7 @@
 const iconMap = require('../../utils/iconMap.js');
 const shareService = require('../../services/shareService');
 const habitService = require('../../services/habitService');
+const eventBus = require('../../services/eventBus');
 
 Page({
   data: {
@@ -39,11 +40,17 @@ Page({
     showDailyIntervalPickerModal: false,
     showWeekdayPicker: false,
     showPlanStartDatePickerModal: false, // 计划开始日期选择弹窗
+    planStartDatePickerReady: false,
 
     // picker-view 选中值
     durationPickerValue: [3], // 默认选中 20 分钟（索引3）
     dailyIntervalPickerValue: [1], // 默认选中 2 天（索引1）
     weekdayPickerValue: [0], // 默认选中周一
+    planStartDatePickerValue: [0, 0, 0],
+    planStartDateYears: [],
+    planStartDateMonths: [],
+    planStartDateDays: [],
+    planStartDatePickerTempValue: '',
 
     // 计划开始时间配置
     planStartType: 'custom',
@@ -66,6 +73,9 @@ Page({
   },
 
   // 返回上一页
+  unsubscribeSyncRecovered: null,
+  unsubscribeSyncUpdated: null,
+
   goBack() {
     wx.navigateBack({
       fail: () => {
@@ -78,6 +88,7 @@ Page({
 
   onLoad() {
     console.log('habits页面 onLoad');
+    this.subscribeSyncEvents();
     // 完整的习惯数据（与数据库一致）
     const allHabits = [
       // 运动类
@@ -128,6 +139,31 @@ Page({
 
     // 加载用户已添加的习惯状态
     this.loadUserHabitsStatus();
+  },
+
+  onUnload() {
+    this.unsubscribeSyncEvents();
+  },
+
+  subscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+
+    const refresh = () => {
+      this.loadUserHabitsStatus();
+    };
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+  },
+
+  unsubscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered) {
+      this.unsubscribeSyncRecovered();
+      this.unsubscribeSyncRecovered = null;
+    }
+    if (this.unsubscribeSyncUpdated) {
+      this.unsubscribeSyncUpdated();
+      this.unsubscribeSyncUpdated = null;
+    }
   },
 
   onShow() {
@@ -858,11 +894,13 @@ Page({
   // 打开计划开始日期选择弹窗
   openPlanStartDatePicker() {
     const todayStr = this.getTodayDate();
-    const [currentYear, currentMonth, currentDay] = todayStr.split('-').map(Number);
+    const selectedDate = this.data.planStartDateCustom || todayStr;
+    const [currentYear, currentMonth, currentDay] = selectedDate.split('-').map(Number);
+    const todayYear = Number(todayStr.split('-')[0]);
 
     // 生成年份数组（当前年份前后10年）
     const years = [];
-    for (let i = currentYear - 10; i <= currentYear + 10; i++) {
+    for (let i = todayYear - 10; i <= todayYear + 10; i++) {
       years.push(i);
     }
 
@@ -878,24 +916,40 @@ Page({
       days.push(i);
     }
 
-    // 设置当前选中的日期为今天
+    // 设置当前选中的日期为已有自定义日期；没有时定位到今天
     const yearIndex = years.indexOf(currentYear);
     const monthIndex = currentMonth - 1;
     const dayIndex = currentDay - 1;
 
     this.setData({
-      showPlanStartDatePickerModal: true,
+      showPlanStartDatePickerModal: false,
+      planStartDatePickerReady: false,
       planStartDateYears: years,
       planStartDateMonths: months,
       planStartDateDays: days,
       planStartDatePickerValue: [yearIndex, monthIndex, dayIndex],
-      planStartDatePickerTempValue: todayStr
+      planStartDatePickerTempValue: selectedDate
     });
+
+    const showPicker = () => {
+      this.setData({
+        planStartDatePickerReady: true,
+        showPlanStartDatePickerModal: true
+      });
+    };
+    if (typeof wx !== 'undefined' && typeof wx.nextTick === 'function') {
+      wx.nextTick(showPicker);
+    } else {
+      setTimeout(showPicker, 0);
+    }
   },
 
   // 关闭计划开始日期选择弹窗
   closePlanStartDatePicker() {
-    this.setData({ showPlanStartDatePickerModal: false });
+    this.setData({
+      showPlanStartDatePickerModal: false,
+      planStartDatePickerReady: false
+    });
   },
 
   // 日期选择器变化
@@ -949,8 +1003,7 @@ Page({
   generatePlanStartHint(planStartDate) {
     const today = this.getTodayDate();
 
-    if (planStartDate > today) {
-      // 未来日期
+    if (planStartDate && planStartDate >= today) {
       return `计划将从${planStartDate}开始，首页打卡按钮将于${planStartDate}首次显示`;
     }
 

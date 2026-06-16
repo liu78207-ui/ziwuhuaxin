@@ -1,5 +1,6 @@
 describe('syncService recoverFromCloud', () => {
   let syncService
+  let eventBus
   let storage = {}
 
   beforeEach(() => {
@@ -12,6 +13,8 @@ describe('syncService recoverFromCloud', () => {
     })
     wx.cloud.callFunction.mockReset()
 
+    eventBus = require('../../../miniprogram/services/eventBus')
+    eventBus.clear()
     syncService = require('../../../miniprogram/services/syncService')
   })
 
@@ -31,12 +34,13 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).resolves.toEqual({
       success: true,
-      source: 'syncLocalData'
+      source: 'syncLocalData',
+      restored: true
     })
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
-      data: {}
+      data: { dailyStateDays: 90 }
     })
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
       name: 'syncLocalData',
@@ -62,12 +66,13 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).resolves.toEqual({
       success: true,
-      source: 'syncLocalData'
+      source: 'syncLocalData',
+      restored: true
     })
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
-      data: {}
+      data: { dailyStateDays: 90 }
     })
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
       name: 'syncLocalData',
@@ -98,12 +103,13 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).resolves.toEqual({
       success: true,
-      source: 'syncLocalData'
+      source: 'syncLocalData',
+      restored: true
     })
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
-      data: {}
+      data: { dailyStateDays: 90 }
     })
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
       name: 'syncLocalData',
@@ -129,7 +135,7 @@ describe('syncService recoverFromCloud', () => {
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
-      data: {}
+      data: { dailyStateDays: 90 }
     })
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
       name: 'syncLocalData',
@@ -159,7 +165,8 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).resolves.toEqual({
       success: true,
-      source: 'recoverData'
+      source: 'recoverData',
+      restored: true
     })
 
     expect(storage.MyHabits).toEqual([expect.objectContaining({
@@ -173,6 +180,66 @@ describe('syncService recoverFromCloud', () => {
     expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }])
   })
 
+  test('bootstrapCloudData recovers empty local cache and emits recovery event', async () => {
+    const recoveredHandler = jest.fn()
+    eventBus.on('sync:recovered', recoveredHandler)
+    storage.MyHabits = []
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: [{
+            userHabitId: 'uh_bootstrap',
+            habitId: '1',
+            title: '金刚功',
+            status: 'active',
+            latestPolicyVersionId: 'pv_bootstrap'
+          }],
+          policyVersions: [{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap' }],
+          dailyStates: [{ stateId: 'ds_bootstrap', userHabitId: 'uh_bootstrap', date: '2026-06-16' }]
+        }
+      }
+    })
+
+    await expect(syncService.bootstrapCloudData()).resolves.toEqual({
+      success: true,
+      source: 'recoverData',
+      restored: true,
+      skipped: false,
+      error: undefined
+    })
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
+      name: 'recoverData',
+      data: { dailyStateDays: 90 }
+    })
+    expect(storage.MyHabits).toEqual([expect.objectContaining({
+      userHabitId: 'uh_bootstrap',
+      habitId: '1',
+      name: '金刚功'
+    })])
+    expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap' }])
+    expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_bootstrap', userHabitId: 'uh_bootstrap', date: '2026-06-16' }])
+    expect(recoveredHandler).toHaveBeenCalledWith({
+      source: 'recoverData',
+      restored: true
+    })
+  })
+
+  test('bootstrapCloudData skips recovery when local habits exist', async () => {
+    storage.MyHabits = [{ userHabitId: 'uh_local' }]
+
+    await expect(syncService.bootstrapCloudData()).resolves.toEqual({
+      success: true,
+      source: 'localCache',
+      restored: false,
+      skipped: true
+    })
+
+    expect(wx.cloud.callFunction).not.toHaveBeenCalled()
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
+  })
+
   test('recoverOrSync skips network probing when pending queue is empty', async () => {
     storage.pendingOperations = []
     wx.getNetworkType = jest.fn()
@@ -181,6 +248,31 @@ describe('syncService recoverFromCloud', () => {
 
     expect(wx.getNetworkType).not.toHaveBeenCalled()
     expect(wx.cloud.callFunction).not.toHaveBeenCalled()
+  })
+
+  test('processQueue emits sync:updated after successful pending sync', async () => {
+    const updatedHandler = jest.fn()
+    eventBus.on('sync:updated', updatedHandler)
+    storage.pendingOperations = [{
+      queueId: 'q_emit',
+      entityType: 'checkin',
+      action: 'checkin',
+      payload: { userHabitId: 'uh_emit', date: '2026-06-01' },
+      idempotencyKey: 'idem_emit',
+      status: 'pending',
+      retryCount: 0,
+      createdAt: '2026-06-01T00:00:00.000Z'
+    }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: { success: true }
+    })
+
+    await syncService.processQueue()
+
+    expect(updatedHandler).toHaveBeenCalledWith({
+      syncedCount: 1,
+      source: 'processQueue'
+    })
   })
 
   test('recoverOrSync checks network when pending queue has work', async () => {
@@ -206,9 +298,48 @@ describe('syncService recoverFromCloud', () => {
       name: 'syncCheckin',
       data: expect.objectContaining({
         userHabitId: 'uh_001',
+        action: 'checkin',
         idempotencyKey: 'idem_001'
       })
     })
+  })
+
+  test('processQueue passes queue action to syncHabit payloads', async () => {
+    storage.pendingOperations = [{
+      queueId: 'q_habit_add',
+      entityType: 'habit',
+      action: 'addHabit',
+      payload: {
+        userHabitId: 'uh_habit_add',
+        habitId: '20',
+        policyVersionId: 'pv_habit_add',
+        duration: 10,
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-16'
+      },
+      idempotencyKey: 'idem_habit_add',
+      status: 'pending',
+      retryCount: 0,
+      createdAt: '2026-06-16T00:00:00.000Z'
+    }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: { success: true }
+    })
+
+    await syncService.processQueue()
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
+      name: 'syncHabit',
+      data: expect.objectContaining({
+        action: 'addHabit',
+        userHabitId: 'uh_habit_add',
+        habitId: '20',
+        policyVersionId: 'pv_habit_add',
+        idempotencyKey: 'idem_habit_add'
+      })
+    })
+    expect(storage.pendingOperations[0].status).toBe('synced')
   })
 
   test('pushWithDedup reuses existing active item with the same idempotencyKey', () => {

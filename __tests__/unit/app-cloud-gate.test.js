@@ -4,6 +4,7 @@ jest.mock('../../miniprogram/services/userService.js', () => ({
 
 jest.mock('../../miniprogram/services/syncService.js', () => ({
   needsLocalRecovery: jest.fn(() => true),
+  bootstrapCloudData: jest.fn(() => Promise.resolve({ success: true, restored: true })),
   recoverFromCloud: jest.fn(() => Promise.resolve({ success: true })),
   recoverOrSync: jest.fn(() => Promise.resolve())
 }))
@@ -16,6 +17,8 @@ jest.mock('../../miniprogram/utils/iconMap.js', () => ({
 describe('App cloud startup gate', () => {
   let userService
   let syncService
+
+  const flushPromises = () => new Promise(resolve => setImmediate(resolve))
 
   beforeEach(() => {
     jest.resetModules()
@@ -37,11 +40,22 @@ describe('App cloud startup gate', () => {
     userService.login.mockRejectedValue(new Error('timeout'))
 
     require('../../miniprogram/app.js')
-    await Promise.resolve()
-    await Promise.resolve()
+    await flushPromises()
 
     expect(userService.login).toHaveBeenCalledWith({ force: false })
+    expect(syncService.bootstrapCloudData).not.toHaveBeenCalled()
     expect(syncService.recoverFromCloud).not.toHaveBeenCalled()
     expect(syncService.recoverOrSync).not.toHaveBeenCalled()
+  })
+
+  test('runs cloud bootstrap after startup login succeeds', async () => {
+    userService.login.mockResolvedValue({ success: true })
+
+    require('../../miniprogram/app.js')
+    await flushPromises()
+
+    expect(userService.login).toHaveBeenCalledWith({ force: false })
+    expect(syncService.bootstrapCloudData).toHaveBeenCalled()
+    expect(syncService.recoverOrSync).toHaveBeenCalled()
   })
 })

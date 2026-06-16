@@ -96,11 +96,8 @@ App({
     userService.login({ force: false })
       .then(() => {
         console.info('app.onLaunch login 完成')
-        // 启动时：登录成功后再检查本地缓存是否需要从云端恢复
-        if (syncService.needsLocalRecovery()) {
-          return syncService.recoverFromCloud()
-        }
-        return { success: true, source: 'localCache' }
+        // 启动时：登录成功后先尝试云端恢复清缓存/换设备缺失的核心缓存
+        return syncService.bootstrapCloudData()
       })
       .then((recoverResult) => {
         console.info('app.onLaunch recover 完成:', recoverResult && recoverResult.source ? recoverResult.source : 'none')

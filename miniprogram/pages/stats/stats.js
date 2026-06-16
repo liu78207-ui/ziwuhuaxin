@@ -2,6 +2,7 @@ const iconMap = require('../../utils/iconMap.js');
 const lunarCalendar = require('../../utils/lunarCalendar.js');
 const shareService = require('../../services/shareService');
 const timeService = require('../../services/timeService.js');
+const eventBus = require('../../services/eventBus.js');
 
 // All report data must come from reportService / reportAggregator.
 let reportService = null
@@ -51,6 +52,9 @@ Page({
     currentYear: null // 褰撳墠鏄剧ず鐨勫勾浠?
   },
 
+  unsubscribeSyncRecovered: null,
+  unsubscribeSyncUpdated: null,
+
   // 杩斿洖涓婁竴椤?
   goBack() {
     wx.navigateBack({
@@ -63,6 +67,7 @@ Page({
   },
 
   onLoad() {
+    this.subscribeSyncEvents();
     // 鍒濆鍖栧綋鍓嶆椂闂达紙鑰冭檻璋冭瘯鍋忕Щ锛?
     const today = getSimulatedDate();
     const weekStart = this.getWeekStart(today);
@@ -83,6 +88,31 @@ Page({
     });
 
     this.updateDateDisplay();
+  },
+
+  onUnload() {
+    this.unsubscribeSyncEvents();
+  },
+
+  subscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+
+    const refresh = () => {
+      this.loadRealData();
+    };
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+  },
+
+  unsubscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered) {
+      this.unsubscribeSyncRecovered();
+      this.unsubscribeSyncRecovered = null;
+    }
+    if (this.unsubscribeSyncUpdated) {
+      this.unsubscribeSyncUpdated();
+      this.unsubscribeSyncUpdated = null;
+    }
   },
 
   onShow() {

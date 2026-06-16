@@ -226,7 +226,7 @@
     <text class="picker-close" bindtap="closePlanStartDatePicker">✕</text>
   </view>
   <view class="date-picker-container">
-    <picker-view class="date-picker-view" value="{{planStartDatePickerValue}}" bindchange="onPlanStartDatePickerChange">
+    <picker-view wx:if="{{planStartDatePickerReady}}" class="date-picker-view" value="{{planStartDatePickerValue}}" bindchange="onPlanStartDatePickerChange">
       <picker-view-column>
         <view wx:for="{{planStartDateYears}}" wx:key="index" class="date-picker-item">{{item}}年</view>
       </picker-view-column>

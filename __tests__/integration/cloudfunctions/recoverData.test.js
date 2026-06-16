@@ -40,6 +40,7 @@ describe('recoverData cloud function', () => {
   beforeEach(() => {
     jest.resetModules()
     jest.clearAllMocks()
+    jest.restoreAllMocks()
   })
 
   test('recovers V1 collections with pagination', async () => {
@@ -114,5 +115,63 @@ describe('recoverData cloud function', () => {
       success: false,
       code: 'NO_OPENID'
     }))
+  })
+
+  test('returns only current openid data and recent 90 days daily states by default', async () => {
+    jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-06-16T00:00:00.000Z').getTime())
+    createMockCloud({
+      user_habits: [
+        { _openid: 'openid_1', userHabitId: 'uh_1', habitId: '1' },
+        { _openid: 'openid_2', userHabitId: 'uh_other', habitId: '2' }
+      ],
+      habit_policy_versions: [
+        { _openid: 'openid_1', policyVersionId: 'pv_1', userHabitId: 'uh_1' },
+        { _openid: 'openid_2', policyVersionId: 'pv_other', userHabitId: 'uh_other' }
+      ],
+      daily_checkin_states: [
+        { _openid: 'openid_1', stateId: 'recent', userHabitId: 'uh_1', date: '2026-06-01' },
+        { _openid: 'openid_1', stateId: 'old', userHabitId: 'uh_1', date: '2026-01-01' },
+        { _openid: 'openid_2', stateId: 'other', userHabitId: 'uh_other', date: '2026-06-01' }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({}, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.userHabits).toEqual([{ userHabitId: 'uh_1', habitId: '1' }])
+    expect(result.data.policyVersions).toEqual([{ policyVersionId: 'pv_1', userHabitId: 'uh_1' }])
+    expect(result.data.dailyStates).toEqual([{ stateId: 'recent', userHabitId: 'uh_1', date: '2026-06-01' }])
+  })
+
+  test('supports historical daily state range and cursor pagination', async () => {
+    createMockCloud({
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: [
+        { _openid: 'openid_1', stateId: 'ds_1', userHabitId: 'uh_1', date: '2026-01-01' },
+        { _openid: 'openid_1', stateId: 'ds_2', userHabitId: 'uh_1', date: '2026-01-02' },
+        { _openid: 'openid_1', stateId: 'ds_3', userHabitId: 'uh_1', date: '2026-01-03' },
+        { _openid: 'openid_1', stateId: 'ds_4', userHabitId: 'uh_1', date: '2026-02-01' }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const firstPage = await main({
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+      limit: 2
+    }, {})
+    const secondPage = await main({
+      startDate: '2026-01-01',
+      endDate: '2026-01-31',
+      cursor: firstPage.data.nextCursor,
+      limit: 2
+    }, {})
+
+    expect(firstPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_1', 'ds_2'])
+    expect(firstPage.data.nextCursor).toBe('2')
+    expect(secondPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
+    expect(secondPage.data.nextCursor).toBeNull()
   })
 })

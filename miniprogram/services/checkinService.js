@@ -12,6 +12,15 @@ const storageService = require('./storageService')
 const habitService = require('./habitService')
 const syncService = require('./syncService')
 
+async function flushPendingAfterLocalWrite() {
+  if (typeof syncService.processQueue !== 'function') return
+  try {
+    await syncService.processQueue()
+  } catch (e) {
+    console.warn('checkinService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
+  }
+}
+
 /**
  * 打卡
  * @param {string} userHabitId
@@ -67,6 +76,7 @@ async function checkin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
+  await flushPendingAfterLocalWrite()
 
   return state
 }
@@ -135,6 +145,7 @@ async function undoCheckin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
+  await flushPendingAfterLocalWrite()
 
   return state
 }

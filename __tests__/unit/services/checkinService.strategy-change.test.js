@@ -27,7 +27,8 @@ jest.mock('../../../miniprogram/services/habitService', () => ({
 }))
 
 jest.mock('../../../miniprogram/services/syncService', () => ({
-  pushWithDedup: jest.fn()
+  pushWithDedup: jest.fn(),
+  processQueue: jest.fn(() => Promise.resolve())
 }))
 
 const checkinService = require('../../../miniprogram/services/checkinService')
@@ -76,6 +77,7 @@ describe('checkinService 策略修改当天锁定字段', () => {
         lockReason: 'strategy_changed_after_checkin'
       })
     )
+    expect(syncService.processQueue).toHaveBeenCalled()
   })
 
   test('编辑策略后取消打卡，重算为 strategy_changed_without_checkin', async () => {
@@ -105,5 +107,6 @@ describe('checkinService 策略修改当天锁定字段', () => {
         lockReason: 'strategy_changed_without_checkin'
       })
     )
+    expect(syncService.processQueue).toHaveBeenCalled()
   })
 })

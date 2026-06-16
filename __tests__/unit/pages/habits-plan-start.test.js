@@ -24,6 +24,7 @@ describe('修习策略弹窗计划开始时间', () => {
 
   beforeEach(() => {
     jest.useFakeTimers().setSystemTime(new Date('2026-05-30T16:00:00.000Z'));
+    wx.nextTick = jest.fn(callback => callback());
     page = loadHabitsPage();
   });
 
@@ -43,6 +44,7 @@ describe('修习策略弹窗计划开始时间', () => {
     expect(wxml).not.toContain('自定义开始时间');
     expect(wxml).toContain('wx:for="{{planStartDateOptions}}"');
     expect(wxml).toContain("{{planStartNeedsReselect ? 'disabled' : ''}}");
+    expect(wxml).toContain('wx:if="{{planStartDatePickerReady}}"');
   });
 
   test('新增策略默认使用开始时间并选中今天', () => {
@@ -59,6 +61,16 @@ describe('修习策略弹窗计划开始时间', () => {
     expect(page.data.isEditingStrategy).toBe(false);
     expect(page.data.planStartNeedsReselect).toBe(false);
     expect(page.getFinalPlanStartDate()).toBe('2026-05-09');
+  });
+
+  test('开始日期提示文案覆盖今天和未来日期', () => {
+    expect(page.generatePlanStartHint('2026-05-09')).toBe(
+      '计划将从2026-05-09开始，首页打卡按钮将于2026-05-09首次显示'
+    );
+    expect(page.generatePlanStartHint('2026-05-10')).toBe(
+      '计划将从2026-05-10开始，首页打卡按钮将于2026-05-10首次显示'
+    );
+    expect(page.generatePlanStartHint('2026-05-08')).toBe('');
   });
 
   test('修改已开始策略时开始时间默认今天', () => {
@@ -111,5 +123,75 @@ describe('修习策略弹窗计划开始时间', () => {
     expect(page.data.planStartDate).toBe('custom');
     expect(page.data.planStartDateCustom).toBe('2026-05-18');
     expect(page.data.planStartNeedsReselect).toBe(true);
+  });
+
+  test('首次打开选择日期时直接定位到今天', () => {
+    page.openAddStrategyModal({
+      _id: 'habit-1',
+      title: '八段锦',
+      category: '运动类',
+      default_duration: 15
+    });
+
+    page.openPlanStartDatePicker();
+
+    expect(page.data.planStartDatePickerTempValue).toBe('2026-05-09');
+    expect(page.data.planStartDatePickerValue).toEqual([10, 4, 8]);
+    expect(page.data.planStartDateYears[10]).toBe(2026);
+    expect(page.data.planStartDateMonths[4]).toBe(5);
+    expect(page.data.planStartDateDays[8]).toBe(9);
+    expect(wx.nextTick).toHaveBeenCalled();
+    expect(page.data.showPlanStartDatePickerModal).toBe(true);
+    expect(page.data.planStartDatePickerReady).toBe(true);
+  });
+
+  test('已有自定义开始日期时再次打开选择器定位到该日期', () => {
+    page.openAddStrategyModal({
+      _id: 'habit-1',
+      title: '八段锦',
+      category: '运动类',
+      default_duration: 15
+    });
+    page.data.planStartDate = 'custom';
+    page.data.planStartDateCustom = '2026-05-18';
+
+    page.openPlanStartDatePicker();
+
+    expect(page.data.planStartDatePickerTempValue).toBe('2026-05-18');
+    expect(page.data.planStartDatePickerValue).toEqual([10, 4, 17]);
+  });
+
+  test('关闭开始日期选择器时销毁 picker-view，下次重新按当前日期创建', () => {
+    page.openAddStrategyModal({
+      _id: 'habit-1',
+      title: '八段锦',
+      category: '运动类',
+      default_duration: 15
+    });
+
+    page.openPlanStartDatePicker();
+    page.closePlanStartDatePicker();
+
+    expect(page.data.showPlanStartDatePickerModal).toBe(false);
+    expect(page.data.planStartDatePickerReady).toBe(false);
+  });
+
+  test('选择日期确认今天后展示开始日期提示文案', () => {
+    page.openAddStrategyModal({
+      _id: 'habit-1',
+      title: '八段锦',
+      category: '运动类',
+      default_duration: 15,
+      createdAt: '2026-05-09'
+    });
+    page.openPlanStartDatePicker();
+    page.confirmPlanStartDatePicker();
+
+    expect(page.data.planStartDate).toBe('custom');
+    expect(page.data.planStartDateCustom).toBe('2026-05-09');
+    expect(page.data.planStartHint).toBe(
+      '计划将从2026-05-09开始，首页打卡按钮将于2026-05-09首次显示'
+    );
+    expect(page.data.planStartNeedsReselect).toBe(false);
   });
 });

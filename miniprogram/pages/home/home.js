@@ -8,6 +8,7 @@ const habitService = require('../../services/habitService');
 const checkinService = require('../../services/checkinService');
 const timeService = require('../../services/timeService');
 const shareService = require('../../services/shareService');
+const eventBus = require('../../services/eventBus');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -37,6 +38,8 @@ Page({
   // 防抖控制：记录正在处理的 habitId
   processingHabitId: null,
   processingTimer: null,
+  unsubscribeSyncRecovered: null,
+  unsubscribeSyncUpdated: null,
 
   // 触摸开始 - 添加按压状态
   onTouchStart(e) {
@@ -60,7 +63,33 @@ Page({
   },
 
   onLoad() {
+    this.subscribeSyncEvents();
     this.loadViewModel();
+  },
+
+  onUnload() {
+    this.unsubscribeSyncEvents();
+  },
+
+  subscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+
+    const refresh = () => {
+      this.loadViewModel();
+    };
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+  },
+
+  unsubscribeSyncEvents() {
+    if (this.unsubscribeSyncRecovered) {
+      this.unsubscribeSyncRecovered();
+      this.unsubscribeSyncRecovered = null;
+    }
+    if (this.unsubscribeSyncUpdated) {
+      this.unsubscribeSyncUpdated();
+      this.unsubscribeSyncUpdated = null;
+    }
   },
 
   onShow() {

@@ -16,10 +16,12 @@
 
 const storageService = require('./storageService')
 const cloudService = require('./cloudService')
+const eventBus = require('./eventBus')
 
 // ==================== 并发保护 ====================
 
 let isProcessing = false
+let processQueueTimer = null
 
 // ==================== ID 生成 ====================
 
@@ -157,6 +159,7 @@ function calculateNextRetry(retryCount) {
 async function processQueue() {
   if (isProcessing) return
   isProcessing = true
+  let syncedCount = 0
 
   try {
     const queue = getPendingOperations()
@@ -191,6 +194,7 @@ async function processQueue() {
         const cloudFnName = getCloudFunctionName(item.entityType, item.action)
         const result = await cloudService.callFunction(cloudFnName, {
           ...item.payload,
+          action: item.payload.action || item.action,
           // 优先使用业务层 operationId
           operationId: item.operationId || item.queueId,
           idempotencyKey: item.idempotencyKey
@@ -204,6 +208,7 @@ async function processQueue() {
             lastError: null,
             updatedAt: new Date().toISOString()
           })
+          syncedCount += 1
         } else {
           const newRetryCount = (currentItem?.retryCount || 0) + 1
           // 仍可重试的失败项标记为 retrying，超过上限才进入 failed。
@@ -235,9 +240,27 @@ async function processQueue() {
     if (retryingItems.length > 0) {
       setPendingOperations([...otherItems, ...retryingItems])
     }
+
+    if (syncedCount > 0) {
+      eventBus.emit('sync:updated', {
+        syncedCount,
+        source: 'processQueue'
+      })
+    }
   } finally {
     isProcessing = false
   }
+}
+
+function requestProcessQueue() {
+  if (processQueueTimer) return
+
+  processQueueTimer = setTimeout(() => {
+    processQueueTimer = null
+    processQueue().catch(e => {
+      console.warn('syncService.requestProcessQueue failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    })
+  }, 0)
 }
 
 /**
@@ -383,11 +406,24 @@ async function recoverFromLegacyCloud() {
 
   const payload = result.data?.data || result.data || {}
   persistLegacyRecoverPayload(payload)
-  return { success: true, source: 'syncLocalData' }
+  return { success: true, source: 'syncLocalData', restored: true }
 }
 
-async function recoverFromCloud() {
-  const result = await cloudService.callFunction('recoverData', {})
+function buildRecoverDataParams(options = {}) {
+  const params = {
+    dailyStateDays: options.dailyStateDays || 90
+  }
+  const optionalKeys = ['startDate', 'endDate', 'cursor', 'limit']
+  optionalKeys.forEach(key => {
+    if (options[key] !== undefined && options[key] !== null && options[key] !== '') {
+      params[key] = options[key]
+    }
+  })
+  return params
+}
+
+async function recoverFromCloud(options = {}) {
+  const result = await cloudService.callFunction('recoverData', buildRecoverDataParams(options))
   if (!result.success) {
     if (shouldFallbackToLegacyRecover(result.error)) {
       return recoverFromLegacyCloud()
@@ -430,7 +466,7 @@ async function recoverFromCloud() {
     storageService.setDailyCheckinStates(dailyStates)
   }
 
-  return { success: true, source: 'recoverData' }
+  return { success: true, source: 'recoverData', restored: true }
 }
 
 /**
@@ -438,9 +474,44 @@ async function recoverFromCloud() {
  */
 function needsLocalRecovery() {
   const habits = storageService.getMyHabits()
-  const policyVersions = storageService.getPolicyVersions()
   // 如果本地没有任何习惯实例，则需要从云端恢复
   return !habits || habits.length === 0
+}
+
+async function bootstrapCloudData(options = {}) {
+  try {
+    if (!needsLocalRecovery()) {
+      return {
+        success: true,
+        source: 'localCache',
+        restored: false,
+        skipped: true
+      }
+    }
+
+    const result = await recoverFromCloud(options)
+    if (result && result.success && result.restored) {
+      eventBus.emit('sync:recovered', {
+        source: result.source,
+        restored: true
+      })
+    }
+    return {
+      success: result.success,
+      source: result.source,
+      restored: Boolean(result.restored),
+      skipped: false,
+      error: result.error
+    }
+  } catch (e) {
+    return {
+      success: false,
+      source: 'none',
+      restored: false,
+      skipped: false,
+      error: e && e.message ? e.message : String(e || 'unknown error')
+    }
+  }
 }
 
 module.exports = {
@@ -452,8 +523,10 @@ module.exports = {
   setPendingOperations,
   hasDuplicatePending,
   processQueue,
+  requestProcessQueue,
   retry,
   recoverOrSync,
+  bootstrapCloudData,
   recoverFromCloud,
   needsLocalRecovery,
   calculateNextRetry,

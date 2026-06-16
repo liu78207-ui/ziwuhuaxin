@@ -14,6 +14,15 @@ const syncService = require('./syncService')
 const reportAggregator = require('./reportAggregator')
 const { DAILY_STATE_STATUS, createDailyCheckinState } = require('../models/dailyCheckinState')
 
+async function flushPendingAfterLocalWrite() {
+  if (typeof syncService.processQueue !== 'function') return
+  try {
+    await syncService.processQueue()
+  } catch (e) {
+    console.warn('habitService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
+  }
+}
+
 // ==================== 内置习惯 ====================
 
 /**
@@ -116,6 +125,7 @@ async function addHabit(habitId, policyInput) {
     frequencyConfig: policyVersion.frequencyConfig,
     startDate: policyVersion.startDate
   })
+  await flushPendingAfterLocalWrite()
 
   return userHabit
 }
@@ -193,6 +203,7 @@ async function softDeleteHabit(userHabitId) {
     deletedAt: habit.deletedAt,
     deletionDailyState
   })
+  await flushPendingAfterLocalWrite()
 
   return true
 }
@@ -272,6 +283,7 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
       previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
       previousEffectiveEndDate: previousPolicy ? startDate : null
     })
+    await flushPendingAfterLocalWrite()
   }
 
   return newPolicy
@@ -338,6 +350,7 @@ async function updateHabitPolicy(userHabitId, policyInput) {
     previousEffectiveEndDate: previousPolicy ? policyVersion.effectiveStartDate : null,
     strategyChangedDailyState
   })
+  await flushPendingAfterLocalWrite()
 
   // 重新读取 userHabit（latestPolicyVersionId 已被 createPolicyVersion 更新）
   return getHabitByUserHabitId(userHabitId)
