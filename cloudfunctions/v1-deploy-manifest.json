@@ -19,7 +19,8 @@
     "getTodayTasks",
     "getStatsReport",
     "getCheckinLogsByRange",
-    "getUserStrategies"
+    "getUserStrategies",
+    "clearTestData"
   ],
   "manualSmokeTests": [
     {

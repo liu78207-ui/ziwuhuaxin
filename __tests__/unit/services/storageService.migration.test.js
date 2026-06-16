@@ -74,4 +74,50 @@ describe('storageService legacy migration', () => {
       })
     ])
   })
+
+  test('clearUserDataCache removes user data keys and phase3 backups', () => {
+    storage = {
+      MyHabits: [{ userHabitId: 'uh_1' }],
+      CheckinLogs: [{ date: '2026-06-01' }],
+      AllHabitsInfo: { h1: {} },
+      userInfo: { nickname: 'test' },
+      operationLogs: [{ action: 'debug' }],
+      userStrategies: [{ habit_id: 'h1' }],
+      checkin_records: [{ habit_id: 'h1' }],
+      dailyCheckinStates: [{ stateId: 's1' }],
+      policyVersions: [{ policyVersionId: 'pv1' }],
+      checkinOperations: [{ operationId: 'op1' }],
+      migrationMeta: { status: 'completed' },
+      pendingOperations: [{ queueId: 'q1' }],
+      clientSequenceCounter: 12,
+      allHabitIds: ['1'],
+      DynamicThreeDayScenarioSummary: { total: 1 },
+      MyHabits_backup_phase3_123: [],
+      CheckinLogs_backup_phase3_456: [],
+      policyVersions_backup_phase3_789: [],
+      unrelatedKey: 'keep'
+    }
+    wx.getStorageSync.mockImplementation(key => storage[key])
+    wx.setStorageSync.mockImplementation((key, value) => {
+      storage[key] = value
+    })
+    wx.getStorageInfoSync = jest.fn(() => ({ keys: Object.keys(storage) }))
+    wx.removeStorageSync.mockImplementation(key => {
+      delete storage[key]
+    })
+    storageService = require('../../../miniprogram/services/storageService')
+
+    const result = storageService.clearUserDataCache()
+
+    expect(result.success).toBe(true)
+    expect(result.failedKeys).toEqual([])
+    expect(storage.unrelatedKey).toBe('keep')
+    expect(storage.MyHabits).toBeUndefined()
+    expect(storage.CheckinLogs).toBeUndefined()
+    expect(storage.dailyCheckinStates).toBeUndefined()
+    expect(storage.MyHabits_backup_phase3_123).toBeUndefined()
+    expect(storage.CheckinLogs_backup_phase3_456).toBeUndefined()
+    expect(storage.policyVersions_backup_phase3_789).toBeUndefined()
+    expect(wx.removeStorageSync).toHaveBeenCalledWith('DynamicThreeDayScenarioSummary')
+  })
 })

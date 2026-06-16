@@ -46,6 +46,7 @@ codebase:
 - `getStatsReport`
 - `getCheckinLogsByRange`
 - `getUserStrategies`
+- `clearTestData`
 
 The source of truth for this list is:
 

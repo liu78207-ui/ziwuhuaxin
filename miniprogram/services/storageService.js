@@ -97,6 +97,67 @@ function clear() {
   }
 }
 
+const USER_DATA_CACHE_KEYS = [
+  STORAGE_KEYS.habits,
+  STORAGE_KEYS.logs,
+  STORAGE_KEYS.allHabitsInfo,
+  STORAGE_KEYS.userInfo,
+  STORAGE_KEYS.operationLogs,
+  STORAGE_KEYS.userStrategies,
+  STORAGE_KEYS.checkinRecords,
+  STORAGE_KEYS.dailyStates,
+  STORAGE_KEYS.policyVersions,
+  STORAGE_KEYS.checkinOperations,
+  STORAGE_KEYS.migrationMeta,
+  STORAGE_KEYS.pendingOperations,
+  STORAGE_KEYS.clientSequenceCounter,
+  'allHabitIds',
+  'DynamicThreeDayScenarioSummary'
+]
+
+function isPhase3BackupKey(key) {
+  return /^MyHabits_backup_phase3_\d+$/.test(key) ||
+    /^CheckinLogs_backup_phase3_\d+$/.test(key) ||
+    /^policyVersions_backup_phase3_\d+$/.test(key)
+}
+
+function getStorageKeys() {
+  if (typeof wx.getStorageInfoSync !== 'function') {
+    return []
+  }
+  try {
+    const info = wx.getStorageInfoSync()
+    return Array.isArray(info.keys) ? info.keys : []
+  } catch (e) {
+    console.error('storageService.getStorageKeys failed:', e)
+    return []
+  }
+}
+
+function clearUserDataCache() {
+  const keys = new Set(USER_DATA_CACHE_KEYS)
+  getStorageKeys()
+    .filter(isPhase3BackupKey)
+    .forEach(key => keys.add(key))
+
+  const details = {}
+  keys.forEach(key => {
+    try {
+      wx.removeStorageSync(key)
+      details[key] = true
+    } catch (e) {
+      console.error(`storageService.clearUserDataCache ${key} failed:`, e)
+      details[key] = false
+    }
+  })
+
+  return {
+    success: Object.values(details).every(Boolean),
+    removedKeys: Object.keys(details).filter(key => details[key]),
+    failedKeys: Object.keys(details).filter(key => !details[key])
+  }
+}
+
 // ==================== Phase 3: Migration Meta ====================
 
 function getMigrationMeta() {
@@ -553,6 +614,7 @@ module.exports = {
   setUserInfo,
   removeItem,
   clear,
+  clearUserDataCache,
 
   // Phase 3: Migration
   getMigrationMeta,
