@@ -11,14 +11,39 @@ const { DAILY_STATE_STATUS, createCheckedState, createCanceledState } = require(
 const storageService = require('./storageService')
 const habitService = require('./habitService')
 const syncService = require('./syncService')
+const eventBus = require('./eventBus')
 
-async function flushPendingAfterLocalWrite() {
+function schedulePendingAfterLocalWrite() {
+  if (typeof syncService.requestProcessQueue === 'function') {
+    syncService.requestProcessQueue()
+    return
+  }
   if (typeof syncService.processQueue !== 'function') return
   try {
-    await syncService.processQueue()
+    syncService.processQueue().catch(e => {
+      console.warn('checkinService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    })
   } catch (e) {
     console.warn('checkinService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
   }
+}
+
+function emitCheckinUpdated(action, state, habit) {
+  eventBus.emit('checkin:updated', {
+    action,
+    userHabitId: state.userHabitId,
+    habitId: state.habitId || habit?.habitId || '',
+    date: state.date,
+    status: state.status,
+    policyVersionId: state.policyVersionId || habit?.latestPolicyVersionId || ''
+  })
+  eventBus.emit('report:updated', {
+    source: 'checkin',
+    action,
+    userHabitId: state.userHabitId,
+    habitId: state.habitId || habit?.habitId || '',
+    date: state.date
+  })
 }
 
 /**
@@ -76,7 +101,8 @@ async function checkin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
-  await flushPendingAfterLocalWrite()
+  schedulePendingAfterLocalWrite()
+  emitCheckinUpdated('checkin', state, habit)
 
   return state
 }
@@ -145,7 +171,8 @@ async function undoCheckin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
-  await flushPendingAfterLocalWrite()
+  schedulePendingAfterLocalWrite()
+  emitCheckinUpdated('undoCheckin', state, habit)
 
   return state
 }

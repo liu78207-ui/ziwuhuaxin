@@ -38,8 +38,12 @@ Page({
   // 防抖控制：记录正在处理的 habitId
   processingHabitId: null,
   processingTimer: null,
+  refreshTimer: null,
+  isPageVisible: false,
   unsubscribeSyncRecovered: null,
   unsubscribeSyncUpdated: null,
+  unsubscribeCheckinUpdated: null,
+  unsubscribeHabitUpdated: null,
 
   // 触摸开始 - 添加按压状态
   onTouchStart(e) {
@@ -69,16 +73,34 @@ Page({
 
   onUnload() {
     this.unsubscribeSyncEvents();
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  },
+
+  onHide() {
+    this.isPageVisible = false;
   },
 
   subscribeSyncEvents() {
-    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+    if (
+      this.unsubscribeSyncRecovered ||
+      this.unsubscribeSyncUpdated ||
+      this.unsubscribeCheckinUpdated ||
+      this.unsubscribeHabitUpdated
+    ) return;
 
-    const refresh = () => {
+    const refreshRecovered = () => {
       this.loadViewModel();
     };
-    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    const refresh = (payload = {}) => {
+      this.scheduleViewModelRefresh(payload.source || 'event');
+    };
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refreshRecovered);
     this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+    this.unsubscribeCheckinUpdated = eventBus.on('checkin:updated', refresh);
+    this.unsubscribeHabitUpdated = eventBus.on('habit:updated', refresh);
   },
 
   unsubscribeSyncEvents() {
@@ -90,13 +112,19 @@ Page({
       this.unsubscribeSyncUpdated();
       this.unsubscribeSyncUpdated = null;
     }
+    if (this.unsubscribeCheckinUpdated) {
+      this.unsubscribeCheckinUpdated();
+      this.unsubscribeCheckinUpdated = null;
+    }
+    if (this.unsubscribeHabitUpdated) {
+      this.unsubscribeHabitUpdated();
+      this.unsubscribeHabitUpdated = null;
+    }
   },
 
   onShow() {
+    this.isPageVisible = true;
     shareService.enableShareMenu();
-
-    // 先清空任务列表，强制视图刷新
-    this.setData({ taskList: [] });
 
     this.loadViewModel();
 
@@ -124,9 +152,23 @@ Page({
       opacity = Math.min(scrollTop / maxScroll, 1);
     }
 
-    this.setData({
-      navBgOpacity: opacity
-    });
+    const roundedOpacity = Math.round(opacity * 20) / 20;
+    if (Math.abs(roundedOpacity - this.data.navBgOpacity) >= 0.05) {
+      this.setData({
+        navBgOpacity: roundedOpacity
+      });
+    }
+  },
+
+  scheduleViewModelRefresh(source = 'event', delay = 160) {
+    if (!this.isPageVisible) return;
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+    }
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      this.loadViewModel();
+    }, source === 'sync:recovered' ? 0 : delay);
   },
 
   // 加载视图模型
@@ -174,10 +216,9 @@ Page({
     const todayKey = timeService.getTodayKey();
 
     try {
-      await checkinService.toggleCheckin(userHabitId, todayKey);
-
-      // 重新加载 ViewModel 保持数据一致性
-      await this.loadViewModel();
+      const state = await checkinService.toggleCheckin(userHabitId, todayKey);
+      this.applyCheckinStateToTask(userHabitId, state);
+      this.scheduleViewModelRefresh('checkin:local', 300);
 
       wx.showToast({
         title: isChecked ? '已取消打卡' : '打卡成功',
@@ -189,11 +230,39 @@ Page({
         title: '操作失败',
         icon: 'none'
       });
+    } finally {
+      // 清除防抖状态
+      this.processingHabitId = null;
+      clearTimeout(this.processingTimer);
     }
+  },
 
-    // 清除防抖状态
-    this.processingHabitId = null;
-    clearTimeout(this.processingTimer);
+  applyCheckinStateToTask(userHabitId, state) {
+    const nextChecked = state && state.status === 'checked';
+    let changed = false;
+    const taskList = this.data.taskList.map(item => {
+      if (item._id !== userHabitId) return item;
+      changed = item.isChecked !== nextChecked;
+      const streakDelta = changed ? (nextChecked ? 1 : -1) : 0;
+      return {
+        ...item,
+        isChecked: nextChecked,
+        streak: Math.max(0, (item.streak || 0) + streakDelta)
+      };
+    });
+
+    if (!changed) return;
+
+    const totalCount = taskList.length;
+    const checkedCount = taskList.filter(item => item.isChecked).length;
+    const progressPercent = totalCount > 0 ? Math.round((checkedCount / totalCount) * 100) : 0;
+
+    this.setData({
+      taskList,
+      checkedCount,
+      totalCount,
+      progressPercent
+    });
   },
 
   // 分享给好友

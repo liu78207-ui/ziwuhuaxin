@@ -64,6 +64,7 @@ Page({
     planStartHint: '', // 提示信息
     isEditingStrategy: false,
     planStartNeedsReselect: false,
+    isSavingStrategy: false,
 
     // 自定义操作菜单
     showActionMenu: false,
@@ -75,6 +76,9 @@ Page({
   // 返回上一页
   unsubscribeSyncRecovered: null,
   unsubscribeSyncUpdated: null,
+  unsubscribeHabitUpdated: null,
+  refreshTimer: null,
+  isPageVisible: false,
 
   goBack() {
     wx.navigateBack({
@@ -143,16 +147,28 @@ Page({
 
   onUnload() {
     this.unsubscribeSyncEvents();
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+    }
+  },
+
+  onHide() {
+    this.isPageVisible = false;
   },
 
   subscribeSyncEvents() {
-    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated || this.unsubscribeHabitUpdated) return;
 
-    const refresh = () => {
+    const refreshRecovered = () => {
       this.loadUserHabitsStatus();
     };
-    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    const refresh = () => {
+      this.scheduleUserHabitsStatusRefresh();
+    };
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refreshRecovered);
     this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+    this.unsubscribeHabitUpdated = eventBus.on('habit:updated', refresh);
   },
 
   unsubscribeSyncEvents() {
@@ -164,9 +180,14 @@ Page({
       this.unsubscribeSyncUpdated();
       this.unsubscribeSyncUpdated = null;
     }
+    if (this.unsubscribeHabitUpdated) {
+      this.unsubscribeHabitUpdated();
+      this.unsubscribeHabitUpdated = null;
+    }
   },
 
   onShow() {
+    this.isPageVisible = true;
     shareService.enableShareMenu();
 
     console.log('habits页面 onShow');
@@ -206,6 +227,17 @@ Page({
     });
 
     console.log('已更新习惯状态:', habits.filter(h => h.hasStrategy).length, '个已添加');
+  },
+
+  scheduleUserHabitsStatusRefresh(delay = 160) {
+    if (!this.isPageVisible) return;
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+    }
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      this.loadUserHabitsStatus();
+    }, delay);
   },
 
   switchTab(e) {
@@ -352,6 +384,7 @@ Page({
       planStartHint: '',
       isEditingStrategy: false,
       planStartNeedsReselect: false,
+      isSavingStrategy: false,
       minPlanStartDate: today
     });
   },
@@ -427,6 +460,7 @@ Page({
       planStartHint: isNotStarted ? this.generatePlanStartHint(savedPlanStartDate) : '',
       isEditingStrategy: true,
       planStartNeedsReselect: isNotStarted,
+      isSavingStrategy: false,
       minPlanStartDate: minDate
     });
   },
@@ -508,7 +542,8 @@ Page({
     this.setData({
       showModal: false,
       isEditingStrategy: false,
-      planStartNeedsReselect: false
+      planStartNeedsReselect: false,
+      isSavingStrategy: false
     });
   },
 
@@ -723,6 +758,10 @@ Page({
   },
 
   async saveStrategy() {
+    if (this.data.isSavingStrategy) {
+      return;
+    }
+
     const habit = this.data.selectedHabit;
     const { freqCategory, dailyInterval, selectedWeekdays } = this.data;
 
@@ -733,6 +772,8 @@ Page({
       });
       return;
     }
+
+    this.setData({ isSavingStrategy: true });
 
     // 根据频次分类构建策略数据
     let freq_type, freq_rules;
@@ -797,6 +838,11 @@ Page({
       };
     } catch (e) {
       console.error('保存策略失败:', e);
+      this.setData({ isSavingStrategy: false });
+      wx.showToast({
+        title: '保存失败',
+        icon: 'none'
+      });
       return;
     }
 
@@ -827,6 +873,7 @@ Page({
       icon: 'success'
     });
     this.closeModal();
+    this.scheduleUserHabitsStatusRefresh(300);
   },
 
   // 更新星期选择文本

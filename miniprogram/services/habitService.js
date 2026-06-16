@@ -11,16 +11,40 @@ const { generateUserHabitId, generatePolicyVersionId } = require('../constants/i
 const storageService = require('./storageService')
 const timeService = require('./timeService')
 const syncService = require('./syncService')
+const eventBus = require('./eventBus')
 const reportAggregator = require('./reportAggregator')
 const { DAILY_STATE_STATUS, createDailyCheckinState } = require('../models/dailyCheckinState')
 
-async function flushPendingAfterLocalWrite() {
+function schedulePendingAfterLocalWrite() {
+  if (typeof syncService.requestProcessQueue === 'function') {
+    syncService.requestProcessQueue()
+    return
+  }
   if (typeof syncService.processQueue !== 'function') return
   try {
-    await syncService.processQueue()
+    syncService.processQueue().catch(e => {
+      console.warn('habitService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    })
   } catch (e) {
     console.warn('habitService flush pending failed:', e && e.message ? e.message : String(e || 'unknown error'))
   }
+}
+
+function emitHabitUpdated(action, payload = {}) {
+  eventBus.emit('habit:updated', {
+    action,
+    userHabitId: payload.userHabitId || '',
+    habitId: payload.habitId || '',
+    policyVersionId: payload.policyVersionId || '',
+    date: payload.date || timeService.getBusinessDate()
+  })
+  eventBus.emit('report:updated', {
+    source: 'habit',
+    action,
+    userHabitId: payload.userHabitId || '',
+    habitId: payload.habitId || '',
+    date: payload.date || timeService.getBusinessDate()
+  })
 }
 
 // ==================== 内置习惯 ====================
@@ -125,7 +149,13 @@ async function addHabit(habitId, policyInput) {
     frequencyConfig: policyVersion.frequencyConfig,
     startDate: policyVersion.startDate
   })
-  await flushPendingAfterLocalWrite()
+  schedulePendingAfterLocalWrite()
+  emitHabitUpdated('addHabit', {
+    userHabitId,
+    habitId,
+    policyVersionId: policyVersion.policyVersionId,
+    date: startDate
+  })
 
   return userHabit
 }
@@ -203,7 +233,13 @@ async function softDeleteHabit(userHabitId) {
     deletedAt: habit.deletedAt,
     deletionDailyState
   })
-  await flushPendingAfterLocalWrite()
+  schedulePendingAfterLocalWrite()
+  emitHabitUpdated('deleteHabit', {
+    userHabitId,
+    habitId: habit.habitId,
+    policyVersionId: habit.latestPolicyVersionId,
+    date: habit.deletedAt
+  })
 
   return true
 }
@@ -283,7 +319,13 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
       previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
       previousEffectiveEndDate: previousPolicy ? startDate : null
     })
-    await flushPendingAfterLocalWrite()
+    schedulePendingAfterLocalWrite()
+    emitHabitUpdated('updatePolicy', {
+      userHabitId,
+      habitId: habit.habitId,
+      policyVersionId: newPolicy.policyVersionId,
+      date: newPolicy.effectiveStartDate
+    })
   }
 
   return newPolicy
@@ -350,7 +392,13 @@ async function updateHabitPolicy(userHabitId, policyInput) {
     previousEffectiveEndDate: previousPolicy ? policyVersion.effectiveStartDate : null,
     strategyChangedDailyState
   })
-  await flushPendingAfterLocalWrite()
+  schedulePendingAfterLocalWrite()
+  emitHabitUpdated('updatePolicy', {
+    userHabitId,
+    habitId: habit.habitId,
+    policyVersionId: policyVersion.policyVersionId,
+    date: policyVersion.effectiveStartDate
+  })
 
   // 重新读取 userHabit（latestPolicyVersionId 已被 createPolicyVersion 更新）
   return getHabitByUserHabitId(userHabitId)

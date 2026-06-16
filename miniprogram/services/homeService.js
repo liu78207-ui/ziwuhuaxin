@@ -69,37 +69,43 @@ function isLaterDailyState(next, current) {
   return true
 }
 
-function calculateHabitPracticeDays(habitId) {
-  const habits = storageService.getMyHabitsWithMigration()
-  const userHabitIds = new Set(
-    habits
-      .filter(habit => String(habit.habitId) === String(habitId))
-      .map(habit => habit.userHabitId)
-  )
-
+function buildPracticeDaysByHabitId(habits, dailyStates) {
+  const habitIdsByUserHabitId = new Map()
+  habits.forEach(habit => {
+    if (habit.userHabitId) {
+      habitIdsByUserHabitId.set(habit.userHabitId, String(habit.habitId))
+    }
+  })
   const finalStatesByUserHabitDate = new Map()
-  storageService.getDailyCheckinStates()
-    .filter(state =>
-      (userHabitIds.has(state.userHabitId) || String(state.habitId) === String(habitId)) &&
-      state.date &&
-      state.dateConfidence !== 'low'
-    )
+
+  dailyStates
+    .filter(state => state && state.date && state.dateConfidence !== 'low')
     .forEach(state => {
-      const key = `${state.userHabitId}_${state.date}`
+      const habitId = habitIdsByUserHabitId.get(state.userHabitId) || String(state.habitId || '')
+      if (!habitId) return
+      const key = `${state.userHabitId || habitId}_${state.date}`
       const current = finalStatesByUserHabitDate.get(key)
       if (isLaterDailyState(state, current)) {
-        finalStatesByUserHabitDate.set(key, state)
+        finalStatesByUserHabitDate.set(key, { ...state, habitId })
       }
     })
 
-  const checkedDates = new Set()
+  const checkedDatesByHabitId = new Map()
   finalStatesByUserHabitDate.forEach(state => {
     if (state.status === 'checked') {
-      checkedDates.add(state.date)
+      const habitId = String(state.habitId)
+      if (!checkedDatesByHabitId.has(habitId)) {
+        checkedDatesByHabitId.set(habitId, new Set())
+      }
+      checkedDatesByHabitId.get(habitId).add(state.date)
     }
   })
 
-  return checkedDates.size
+  const practiceDaysByHabitId = new Map()
+  checkedDatesByHabitId.forEach((dates, habitId) => {
+    practiceDaysByHabitId.set(habitId, dates.size)
+  })
+  return practiceDaysByHabitId
 }
 
 function chooseTodayHabit(current, next, todayStates) {
@@ -157,6 +163,13 @@ async function getHomeViewModel() {
 
   // 今日打卡状态
   const todayStates = checkinService.getDailyStatesByDate(todayKey)
+  const todayStatesByUserHabitId = new Map(
+    todayStates.map(state => [state.userHabitId, state])
+  )
+  const allHabits = storageService.getMyHabitsWithMigration()
+  const allDailyStates = storageService.getDailyCheckinStates()
+  const practiceDaysByHabitId = buildPracticeDaysByHabitId(allHabits, allDailyStates)
+  const builtInHabitById = new Map()
 
   const mergedTodayHabits = sortTodayHabitsByLifecycle(
     mergeTodayHabitsByHabitId(todayHabits, todayStates)
@@ -164,22 +177,32 @@ async function getHomeViewModel() {
 
   // 构建 taskList
   const taskList = mergedTodayHabits.map((habit, index) => {
-    const state = todayStates.find(s => s.userHabitId === habit.userHabitId)
+    const state = todayStatesByUserHabitId.get(habit.userHabitId)
     const isDone = state && state.status === 'checked'
-    const practiceDays = calculateHabitPracticeDays(habit.habitId)
+    const habitId = String(habit.habitId)
+    const practiceDays = practiceDaysByHabitId.get(habitId) || 0
+    if ((!habit.name || !habit.category) && !builtInHabitById.has(habitId)) {
+      const builtInHabit = typeof habitService.getBuiltInHabitDef === 'function'
+        ? habitService.getBuiltInHabitDef(habitId)
+        : null
+      builtInHabitById.set(habitId, builtInHabit || {})
+    }
+    const builtInHabit = builtInHabitById.get(habitId) || {}
+    const name = habit.name || builtInHabit.name || ''
+    const category = habit.category || builtInHabit.category || '运动类'
 
     return {
       _id: habit.userHabitId,
       habitId: habit.habitId,
-      title: habit.name,
-      category: habit.category || '运动类',
+      title: name,
+      category,
       duration: habit.duration,
       isChecked: isDone,
       streak: practiceDays,
       bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length],
-      iconUrl: getIconUrl(habit.name),
-      themeClass: getThemeClass(habit.category),
-      emoji: getEmojiByCategory(habit.category),
+      iconUrl: getIconUrl(name),
+      themeClass: getThemeClass(category),
+      emoji: getEmojiByCategory(category),
       meta: `${habit.duration}分钟`
     }
   })
