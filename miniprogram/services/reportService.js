@@ -198,84 +198,68 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
 function buildAggregatedReports(startDate, endDate, todayKey) {
   const userHabits = fetchUserHabits(null) // 获取所有实例
 
-  // 过滤有效实例（与案台页统一逻辑）：
+  // 过滤有效实例：
   // 1. 必须至少有一个策略版本。
-  // 2. 关键：与案台一致——本周内「至少有一天是应修日」或「有有效完成记录」则展示。
-  //    - 至少有应修日：本周内任意一天按最新策略频率判定为应修 → 展示
-  //    - 有有效完成记录：本周内有 dailyState.status === 'checked' → 展示
-  //    - 否则：本周内无任何应修日且无打卡 → 隐藏
-  //    场景示例（user feedback）：
-  //    - daily → daily（从明天起）：本周从明天起每天都应修 → 展示
-  //    - 刚添加（无打卡）：今天应修 → 展示
-  //    - 软删除 + 无打卡：本周无应修日，无打卡 → 隐藏
-  //    - 软删除 + 有打卡：保留打卡 → 展示
-  //    - 未来策略（场景 B）：本周内有应修日 → 展示
-  // 3. 完全无策略的 habit 排除。
-  const dailyStates = fetchDailyStates(startDate, endDate)
-  const dates = dateUtils.buildDateRange(startDate, endDate)
-
-  const validHabits = userHabits.filter(h => {
-    const pvs = fetchPolicyVersionsByUserHabitId(h.userHabitId)
-    if (!pvs || pvs.length === 0) return false
-
-    // 找到最新策略（effectiveEndDate === null）
-    const latestPolicy = pvs.find(pv => pv.effectiveEndDate === null)
-
-    // 检查本周内是否至少有一天是应修日（基于最新策略频率判定）
-    // 与案台 getTodayHabits 共用 isDueOnDateByFrequency
-    // 关键修复：当最新策略的 effectiveStartDate 是今天时，
-    // 需要额外检查今天是否应修（因为周报 dates 不包含今天）
-    let hasAnyDueDay = false
-    if (latestPolicy) {
-      hasAnyDueDay = dates.some(date => {
-        // 如果最新策略的生效日期已到，使用最新策略判定
-        if (latestPolicy.effectiveStartDate <= date) {
-          return reportAggregator.isDueOnDateByFrequency(latestPolicy, date)
-        }
-        // 如果最新策略还没生效（effectiveStartDate > today），检查旧版本在今天的应修状态
-        // 找到昨天有效但今天已关闭的旧版本
-        const oldPolicy = pvs.find(pv =>
-          pv.effectiveEndDate !== null &&
-          pv.effectiveEndDate < latestPolicy.effectiveStartDate &&
-          dateUtils.compareDate(date, pv.effectiveEndDate) === 0
-        )
-        if (oldPolicy) {
-          return reportAggregator.isDueOnDateByFrequency(oldPolicy, date)
-        }
-        return false
-      })
-
-      // 额外检查：如果最新策略今天生效（effectiveStartDate === today），检查今天是否应修
-      // 这处理了"策略今天修改为每天"的场景，因为周报 dates 不包含今天
-      if (latestPolicy.effectiveStartDate === todayKey) {
-        hasAnyDueDay = hasAnyDueDay || reportAggregator.isDueOnDateByFrequency(latestPolicy, todayKey)
-      }
-    }
-
-    // 检查本周内是否有有效完成记录
-    const hasAnyCheckin = dailyStates.some(
-      s => s.userHabitId === h.userHabitId && s.status === 'checked'
-    )
-
-    // 策略修改当天的 canceled/unchecked 不计分，但仍需要在观心展示，
-    // 否则首页已显示/可取消的习惯会在报表列表中消失。
-    const hasAnyVisibleState = dailyStates.some(
-      s => s.userHabitId === h.userHabitId && isVisibleReportState(s, latestPolicy, s.date)
-    )
-
-    // 核心规则：至少有一天是应修日 OR 有有效完成记录
-    return hasAnyDueDay || hasAnyCheckin || hasAnyVisibleState
-  })
-
-  // 为每个有效实例构建报表
-  const instanceReports = validHabits.map(h => {
-    return buildInstanceReport(h, startDate, endDate, todayKey)
-  })
+  // 2. 先构建实例报表，再按裁决结果判断是否展示，避免软删除无 checked
+  //    记录时误删删除前的真实 unchecked 历史。
+  // 3. 删除当天未打卡仍由裁决结果保持低压力口径，不单独撑出报表行。
+  const instanceReports = userHabits
+    .filter(h => {
+      const pvs = fetchPolicyVersionsByUserHabitId(h.userHabitId)
+      return pvs && pvs.length > 0
+    })
+    .map(h => buildInstanceReport(h, startDate, endDate, todayKey))
+    .filter(report => shouldShowInstanceReport(report, startDate, endDate, todayKey))
 
   // 按 habitId 聚合
   const aggregated = reportAggregator.aggregateByHabitId(instanceReports)
 
   return aggregated
+}
+
+function shouldShowInstanceReport(instanceReport, startDate, endDate, todayKey) {
+  const verdicts = instanceReport?._verdicts || []
+  if (!verdicts.length) return false
+
+  const hasVisibleVerdict = verdicts.some(v => {
+    if (v.contributesDenominator || v.contributesNumerator) return true
+    if (v.status === 'checked') return true
+
+    const latestPolicy = getLatestPolicy(instanceReport._policyVersions || [])
+    return isVisibleReportState(v, latestPolicy, v.date)
+  })
+
+  if (hasVisibleVerdict) return true
+
+  return !instanceReport.deletedAt &&
+    hasAnyDueDayByPolicyVersions(instanceReport._policyVersions || [], startDate, endDate, todayKey)
+}
+
+function hasAnyDueDayByPolicyVersions(pvs, startDate, endDate, todayKey) {
+  const dates = dateUtils.buildDateRange(startDate, endDate)
+  const latestPolicy = getLatestPolicy(pvs)
+  if (!latestPolicy) return false
+
+  const hasAnyDueDay = dates.some(date => {
+    if (latestPolicy.effectiveStartDate <= date) {
+      return reportAggregator.isDueOnDateByFrequency(latestPolicy, date)
+    }
+
+    const oldPolicy = pvs.find(pv =>
+      pv.effectiveEndDate !== null &&
+      pv.effectiveEndDate < latestPolicy.effectiveStartDate &&
+      dateUtils.compareDate(date, pv.effectiveEndDate) === 0
+    )
+
+    return oldPolicy
+      ? reportAggregator.isDueOnDateByFrequency(oldPolicy, date)
+      : false
+  })
+
+  if (hasAnyDueDay) return true
+
+  return latestPolicy.effectiveStartDate === todayKey &&
+    reportAggregator.isDueOnDateByFrequency(latestPolicy, todayKey)
 }
 
 // ==================== 适配层 ====================

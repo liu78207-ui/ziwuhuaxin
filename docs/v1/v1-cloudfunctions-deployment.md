@@ -48,6 +48,10 @@ codebase:
 - `getUserStrategies`
 - `clearTestData`
 
+`clearTestData` is a guarded maintenance function, not an ordinary user-facing
+compatibility path. Deploy it only in environments where operators understand
+the data cleanup blast radius.
+
 The source of truth for this list is:
 
 ```text
@@ -82,6 +86,53 @@ by the mini program.
 5. Deploy the compatibility functions if legacy paths are still active.
 6. Recompile the mini program after deployment.
 
+## Maintenance Function: clearTestData
+
+`clearTestData` can clear user-owned data in the current CloudBase environment.
+It is intentionally hard to run:
+
+- Required environment variable: `CLEAR_USER_DATA_ADMIN_TOKEN`.
+- Default behavior: `dryRun` is enabled unless `dryRun:false` is passed.
+- Required request fields for destructive cleanup:
+  - `scope: "allUsers"`
+  - `confirmPhrase: "CLEAR_ALL_USER_DATA"`
+  - `adminToken` matching `CLEAR_USER_DATA_ADMIN_TOKEN`
+- It targets V1 user data collections such as `users`, `user_habits`,
+  `habit_policy_versions`, `checkin_operations`, `daily_checkin_states`,
+  `sync_logs`, `conflict_logs`, `user_settings`, `ai_logs`, and legacy user
+  collections.
+- It must not delete global built-in catalog rows from `habits`; only rows with
+  `_openid` are removable there.
+- Missing collections are treated as skipped maintenance details, not as a
+  reason to delete unrelated data.
+
+Dry run example:
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "scope": "allUsers",
+    "confirmPhrase": "CLEAR_ALL_USER_DATA",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>"
+  }
+}
+```
+
+Destructive example after reviewing dry run counts:
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "scope": "allUsers",
+    "confirmPhrase": "CLEAR_ALL_USER_DATA",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>",
+    "dryRun": false
+  }
+}
+```
+
 ## Smoke Tests
 
 After deployment, use Developer Tools to test these functions:
@@ -92,6 +143,7 @@ After deployment, use Developer Tools to test these functions:
 { "name": "migrateV1Data", "data": { "dryRun": true } }
 { "name": "recoverData", "data": {} }
 { "name": "syncLocalData", "data": {} }
+{ "name": "clearTestData", "data": { "scope": "allUsers", "confirmPhrase": "CLEAR_ALL_USER_DATA", "adminToken": "<token>" } }
 ```
 
 Expected results:
@@ -103,6 +155,7 @@ Expected results:
 - `recoverData` returns `success: true`
 - startup no longer logs `FUNCTION_NOT_FOUND`
 - profile login can create or read a `users` document
+- `clearTestData` without `dryRun:false` returns counts and does not delete data
 
 ## Non-Goals
 

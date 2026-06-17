@@ -163,7 +163,7 @@ app.onLaunch / app.onShow
   -> migrationService 补齐字段
   -> cacheMeta 写入 lastRecoveredAt
   -> reportService 按需重算
-  -> EventBus emit cache:invalidated / sync:updated
+  -> EventBus emit sync:recovered
 ```
 
 恢复成功后必须写回：
@@ -404,6 +404,8 @@ V1 迁移范围：
 - 最近 90 天每日最终状态。
 - 删除当天和策略修改当天特殊锁定状态。
 
+`sync:recovered` 是恢复成功写回本地缓存后的页面刷新事件。案台、修习、观心收到事件后必须重新调用各自 service 获取视图模型；页面不得直接读取恢复缓存、不得直接拼接报表或任务列表。
+
 V1 后置范围：
 
 - 全量历史操作流水精确重建。
@@ -428,6 +430,8 @@ V1 后置范围：
 | 清缓存恢复 | 全部业务缓存 | 重建 `cacheMeta` |
 | app 升级 migration | 结构相关缓存、报表缓存 | `cacheVersion` / `migrationVersion` 更新 |
 | openid 变化 | 当前账号业务缓存 | 重建当前用户缓存 |
+
+`storageService.clearUserDataCache()` 是本地用户数据缓存清理入口，用于清理当前设备上的业务缓存和 Phase 3 迁移备份键。它应覆盖用户习惯、旧打卡日志、习惯兜底信息、用户资料、本地操作日志、策略版本、每日状态、打卡操作、migration meta、pending 队列、客户端序列号以及历史 `*_backup_phase3_*` 键。清理后不得假定本地仍有可用业务数据，必须通过 `recoverData` 恢复云端核心数据，或进入新用户空状态。
 
 可重算缓存：
 

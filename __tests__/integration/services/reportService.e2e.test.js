@@ -325,8 +325,8 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(day8.countsAsDone).toBe(true)
   })
 
-  test('完整路径：已删除且无打卡数据，stats 报表不保留', async () => {
-    // 用户场景：仅添加未打卡就删除，不应在观心页保留
+  test('完整路径：已删除且无打卡数据，但删除前有历史应修日则保留 unchecked', async () => {
+    // 用户场景：昨天添加未打卡，今天删除；昨天是真实历史，应在观心页保留
 
     mockData.myHabits = [
       {
@@ -356,9 +356,14 @@ describe('reportService E2E - getWeeklyReport', () => {
     const reportService = require('../../../miniprogram/services/reportService')
     const result = await reportService.getWeeklyReport('2026-05-04')
 
-    // 关键断言：删除且无打卡，habitReport 不应存在
     const habitReport = result.habitReports.find(r => r.habitId === 'h1')
-    expect(habitReport).toBeUndefined()
+    expect(habitReport).toBeDefined()
+
+    const historyDay = habitReport.days.find(d => d.date === '2026-05-10')
+    expect(historyDay.status).toBe('unchecked')
+    expect(historyDay.displayStatus).toBe('unchecked')
+    expect(historyDay.countsInDenominator).toBe(true)
+    expect(historyDay.countsAsDone).toBe(false)
   })
 
   test('完整路径：daily → weekly 周三，编辑当天是周二已打卡，status 保留 checked', async () => {
@@ -1069,6 +1074,100 @@ describe('reportService E2E - getWeeklyReport', () => {
     expect(friday.displayStatus).toBe('not_required')
     expect(friday.countsInDenominator).toBe(false)
     expect(friday.countsAsDone).toBe(false)
+  })
+
+  test('昨天创建未打卡今天删除：观心保留删除前历史 unchecked 描边', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_deleted_with_yesterday_history',
+        habitId: 'h_deleted_with_yesterday_history',
+        name: '昨日新习惯',
+        status: 'deleted',
+        createdAt: '2026-06-16',
+        deletedAt: '2026-06-17',
+        themeClass: 't-blue'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_deleted_with_yesterday_history',
+        userHabitId: 'uh_deleted_with_yesterday_history',
+        effectiveStartDate: '2026-06-16',
+        effectiveEndDate: '2026-06-17',
+        frequencyType: 'daily'
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_deleted_with_yesterday_history',
+        date: '2026-06-17',
+        status: 'not_required',
+        hasDeletionToday: true,
+        lockedReason: 'deleted_without_checkin',
+        lockReason: 'deleted_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-15')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_deleted_with_yesterday_history')
+
+    expect(habitReport).toBeDefined()
+
+    const yesterday = habitReport.days.find(d => d.date === '2026-06-16')
+    expect(yesterday.status).toBe('unchecked')
+    expect(yesterday.displayStatus).toBe('unchecked')
+    expect(yesterday.countsInDenominator).toBe(true)
+    expect(yesterday.countsAsDone).toBe(false)
+
+    const deletionDay = habitReport.days.find(d => d.date === '2026-06-17')
+    expect(deletionDay.status).toBe('not_required')
+    expect(deletionDay.displayStatus).toBe('not_required')
+    expect(deletionDay.countsInDenominator).toBe(false)
+    expect(deletionDay.countsAsDone).toBe(false)
+  })
+
+  test('当天创建未打卡当天删除：没有删除前历史应修日时不展示压力行', async () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_created_deleted_same_day',
+        habitId: 'h_created_deleted_same_day',
+        name: '当天即删',
+        status: 'deleted',
+        createdAt: '2026-06-17',
+        deletedAt: '2026-06-17',
+        themeClass: 't-purple'
+      }
+    ]
+
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_created_deleted_same_day',
+        userHabitId: 'uh_created_deleted_same_day',
+        effectiveStartDate: '2026-06-17',
+        effectiveEndDate: '2026-06-17',
+        frequencyType: 'daily'
+      }
+    ]
+
+    mockData.dailyStates = [
+      {
+        userHabitId: 'uh_created_deleted_same_day',
+        date: '2026-06-17',
+        status: 'not_required',
+        hasDeletionToday: true,
+        lockedReason: 'deleted_without_checkin',
+        lockReason: 'deleted_without_checkin'
+      }
+    ]
+
+    const reportService = require('../../../miniprogram/services/reportService')
+    const result = await reportService.getWeeklyReport('2026-06-15')
+    const habitReport = result.habitReports.find(r => r.habitId === 'h_created_deleted_same_day')
+
+    expect(habitReport).toBeUndefined()
   })
 
   test('普通应修日取消：业务状态和观心视觉都保留 canceled 描边语义', async () => {

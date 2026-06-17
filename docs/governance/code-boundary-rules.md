@@ -261,6 +261,7 @@ V1 至少包含：
 | `habit:updated` | 添加、编辑、删除习惯后 | 案台、修习、观心 |
 | `report:updated` | 报表缓存失效或重新生成后 | 观心 |
 | `sync:updated` | 同步状态变化后 | 案台、修习、观心、归藏 |
+| `sync:recovered` | `recoverData` 或兼容恢复成功写回本地缓存后 | 案台、修习、观心 |
 | `cache:invalidated` | 缓存失效后 | 案台、修习、观心 |
 | `user:updated` | 用户资料变化后 | 归藏 |
 | `time:dateChanged` | 跨天或业务日期变化 | 案台、观心 |
@@ -412,6 +413,7 @@ EventBus 必须支持：
 
 - 高频打卡事件只刷新今日视图和当前报表缓存。
 - 同步批量完成后合并发一次 `sync:updated`。
+- 云端恢复成功后发出 `sync:recovered`，页面只重新调用各自 service 获取视图模型，不直接读写恢复缓存。
 - `cache:invalidated` 只携带失效 key，不强制所有页面全量刷新。
 
 ### 7.8 验收标准

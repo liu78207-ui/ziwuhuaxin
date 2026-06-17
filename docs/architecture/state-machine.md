@@ -191,13 +191,14 @@ V1 锁定原因：
 | `deleted_after_checkin` | 删除当天已打卡，当日计入分母和分子 |
 | `deleted_without_checkin` | 删除当天未打卡，当日不计入分母 |
 | `strategy_changed_after_checkin` | 策略修改当天最终状态为 `checked`，当日计入分母和分子 |
-| `strategy_changed_without_checkin` | 策略修改当天最终状态为 `canceled`、`unchecked` 或 `not_required`，当日不计入分母 |
+| `strategy_changed_without_checkin` | 策略修改当天最终状态为 `canceled`、`unchecked` 或 `not_required`；当日是否计入分母由最新策略是否命中当天决定 |
 | `date_confidence_low` | 日期低可信，用户确认前不计入报表 |
 
-策略修改当天的两个锁定原因采用“当天最终状态 + 低压力锁定”：
+策略修改当天的两个锁定原因采用“当天最终状态 + 最新策略命中”：
 
 - 当天发生过策略修改，且最终状态为 `checked`，使用 `strategy_changed_after_checkin`，报表分母 1、分子 1。
-- 当天发生过策略修改，且最终状态为 `canceled`、`unchecked` 或 `not_required`，使用 `strategy_changed_without_checkin`，报表分母 0、分子 0。
+- 当天发生过策略修改，且最终状态为 `canceled` 或 `unchecked`，使用 `strategy_changed_without_checkin`；若最后一次保存成功的新策略命中当天，报表分母 1、分子 0，否则分母 0、分子 0。
+- 当天发生过策略修改，且最终状态为 `not_required`，使用 `strategy_changed_without_checkin`，报表分母 0、分子 0。
 - 没有发生策略修改，只是普通打卡后取消，不新增锁定原因，按 `status` 和原本应修规则计算。
 
 同一天多次策略修改、多次打卡或取消时：
