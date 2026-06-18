@@ -252,6 +252,8 @@ pending 项推荐字段：
 }
 ```
 
+`habit/addHabit` pending payload 必须携带本地业务创建日 `createdAt`，并与策略 `startDate` / `effectiveStartDate` 分开同步。云端 `user_habits.createdAt` 表示习惯实例生命周期开始日，不能用未来/自定义计划开始日替代；`habit_policy_versions.startDate` / `effectiveStartDate` 才表示策略生效日。恢复数据时，观心页依赖 `user_habits.createdAt` 判断创建日前历史为 `not_required`。
+
 重试规则：
 
 - 网络恢复时重试。

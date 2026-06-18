@@ -196,4 +196,50 @@ describe('cloud deletion policy', () => {
       }
     }));
   });
+
+  test('syncHabit addHabit preserves userHabit createdAt separately from policy startDate', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [],
+      habit_policy_versions: []
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'addHabit',
+      userHabitId: 'uh_20',
+      habitId: '20',
+      createdAt: '2026-06-02',
+      policyVersionId: 'pv_20',
+      duration: 10,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-03',
+      effectiveStartDate: '2026-06-03'
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(calls.adds).toContainEqual(expect.objectContaining({
+      collection: 'user_habits',
+      payload: {
+        data: expect.objectContaining({
+          userHabitId: 'uh_20',
+          habitId: '20',
+          createdAt: '2026-06-02',
+          latestPolicyVersionId: 'pv_20'
+        })
+      }
+    }));
+    expect(calls.adds).toContainEqual(expect.objectContaining({
+      collection: 'habit_policy_versions',
+      payload: {
+        data: expect.objectContaining({
+          policyVersionId: 'pv_20',
+          userHabitId: 'uh_20',
+          startDate: '2026-06-03',
+          effectiveStartDate: '2026-06-03'
+        })
+      }
+    }));
+  });
 });

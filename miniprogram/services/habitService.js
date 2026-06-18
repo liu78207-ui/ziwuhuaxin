@@ -143,6 +143,7 @@ async function addHabit(habitId, policyInput) {
   syncService.pushWithDedup('habit', 'addHabit', {
     userHabitId,
     habitId,
+    createdAt: userHabit.createdAt,
     policyVersionId: policyVersion.policyVersionId,
     duration: policyVersion.duration,
     frequencyType: policyVersion.frequencyType,

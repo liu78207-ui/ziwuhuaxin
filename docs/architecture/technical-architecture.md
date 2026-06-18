@@ -269,7 +269,7 @@ cloudfunctions/
   latestPolicyVersionId, syncStatus
 }
 ```
-重点：同一 `habitId` 多次添加必须生成不同 `userHabitId`。
+重点：同一 `habitId` 多次添加必须生成不同 `userHabitId`。`createdAt` 是用户习惯实例的生命周期开始日；它必须由本地业务日期随 `addHabit` 同步到云端，不得用策略 `startDate` / `effectiveStartDate` 替代。
 
 `habitPolicyVersion`
 ```js

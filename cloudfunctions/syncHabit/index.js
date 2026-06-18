@@ -48,6 +48,7 @@ exports.main = async (event, context) => {
     frequencyConfig,
     startDate,
     effectiveStartDate,
+    createdAt,
     // 以下字段用于 close 旧版本
     previousPolicyVersionId,
     previousEffectiveEndDate,
@@ -86,11 +87,13 @@ exports.main = async (event, context) => {
       if (existingHabit.data && existingHabit.data.length > 0) {
         // 已存在，检查状态是否已为目标状态
         const existing = existingHabit.data[0];
-        if (existing.status !== (status || 'active')) {
+        const habitCreatedAt = createdAt || existing.createdAt || startDate || toDateStr(new Date());
+        if (existing.status !== (status || 'active') || !existing.createdAt) {
           // 状态不一致，需要更新
           await db.collection('user_habits').doc(existing._id).update({
             data: {
               status: status || 'active',
+              createdAt: habitCreatedAt,
               latestPolicyVersionId: policyVersionId || existing.latestPolicyVersionId,
               syncStatus: 'synced',
               updatedAt: serverTime
@@ -107,7 +110,7 @@ exports.main = async (event, context) => {
             userHabitId,
             habitId: String(habitId),
             status: status || 'active',
-            createdAt: startDate || toDateStr(new Date()),
+            createdAt: createdAt || startDate || toDateStr(new Date()),
             deletedAt: null,
             latestPolicyVersionId: policyVersionId || '',
             syncStatus: 'synced',

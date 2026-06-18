@@ -158,6 +158,7 @@
 - `login` 返回 openid 和 serverTime。
 - `syncHabit` 幂等写入用户习惯。
 - `syncHabit` 幂等写入策略版本。
+- `syncHabit addHabit` 验证 `user_habits.createdAt` 与策略 `startDate/effectiveStartDate` 分离，防止恢复后把计划开始日误当实例创建日。
 - `syncCheckin` 幂等写入打卡 operation。
 - `syncCheckin` 更新 daily state。
 - `syncCheckin` 重复请求不重复计数。

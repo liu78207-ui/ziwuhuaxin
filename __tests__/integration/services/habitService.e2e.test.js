@@ -115,12 +115,23 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
     // 2. 验证 userHabit 已落库
     expect(userHabit.status).toBe('active')
     expect(userHabit.habitId).toBe('20')
+    expect(userHabit.createdAt).toBe('2026-06-02')
 
     // 3. 验证 policy 正确落库
     const policies = mockStorage.policyVersions.filter(p => p.userHabitId === userHabit.userHabitId)
     expect(policies).toHaveLength(1)
     expect(policies[0].effectiveStartDate).toBe('2026-06-03')
     expect(policies[0].effectiveEndDate).toBeNull()
+    expect(syncService.pushWithDedup).toHaveBeenCalledWith(
+      'habit',
+      'addHabit',
+      expect.objectContaining({
+        userHabitId: userHabit.userHabitId,
+        habitId: '20',
+        createdAt: '2026-06-02',
+        startDate: '2026-06-03'
+      })
+    )
 
     // 4. 调用 getTodayHabits (今天 = 2026-06-02)
     const todayHabits = await habitService.getTodayHabits('2026-06-02')
