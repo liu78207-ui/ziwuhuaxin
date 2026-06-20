@@ -161,6 +161,176 @@ describe('migrateV1Data cloud function', () => {
     }))
   })
 
+  test('normalizes legacy built-in habit ids across migrated V1 collections', async () => {
+    const { collections } = createMockCloud({
+      user_strategies: [
+        {
+          _id: 'strategy_jingang',
+          _openid: 'openid_1',
+          habit_id: 'h001',
+          habit_title: '金刚功',
+          category: '运动类',
+          duration: 20,
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-01'
+        },
+        {
+          _id: 'strategy_baduanjin',
+          _openid: 'openid_1',
+          habit_id: 'h002',
+          habit_title: '八段锦',
+          category: '运动类',
+          duration: 15,
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-01'
+        },
+        {
+          _id: 'strategy_zhanzhuang',
+          _openid: 'openid_1',
+          habit_id: 'h003',
+          habit_title: '站桩',
+          category: '运动类',
+          duration: 30,
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-01'
+        }
+      ],
+      user_strategy_versions: [
+        {
+          _id: 'version_jingang',
+          _openid: 'openid_1',
+          habit_id: 'h_001',
+          duration: 20,
+          freq_type: 'daily',
+          start_date: '2026-05-01'
+        },
+        {
+          _id: 'version_baduanjin',
+          _openid: 'openid_1',
+          habit_id: 'h_002',
+          duration: 15,
+          freq_type: 'daily',
+          start_date: '2026-05-01'
+        },
+        {
+          _id: 'version_zhanzhuang',
+          _openid: 'openid_1',
+          habit_id: 'h_003',
+          duration: 30,
+          freq_type: 'daily',
+          start_date: '2026-05-01'
+        }
+      ],
+      checkin_logs: [
+        {
+          _id: 'log_jingang',
+          _openid: 'openid_1',
+          habit_id: 'h001',
+          checkin_date: '2026-05-03',
+          created_at: '2026-05-03T01:00:00.000Z'
+        },
+        {
+          _id: 'log_baduanjin',
+          _openid: 'openid_1',
+          habit_id: 'h002',
+          checkin_date: '2026-05-03',
+          created_at: '2026-05-03T01:10:00.000Z'
+        },
+        {
+          _id: 'log_zhanzhuang',
+          _openid: 'openid_1',
+          habit_id: 'h003',
+          checkin_date: '2026-05-03',
+          created_at: '2026-05-03T01:20:00.000Z'
+        }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/migrateV1Data/index.js')
+    const result = await main({}, {})
+
+    expect(result.success).toBe(true)
+    expect(collections.user_habits.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
+    expect(collections.habit_policy_versions.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
+    expect(collections.checkin_operations.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
+    expect(collections.daily_checkin_states.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
+    expect(collections.user_habits.find(item => item.userHabitId === 'uh_strategy_baduanjin')).toEqual(
+      expect.objectContaining({ habitId: '3', title: '八段锦' })
+    )
+    expect(collections.user_habits.find(item => item.userHabitId === 'uh_strategy_zhanzhuang')).toEqual(
+      expect.objectContaining({ habitId: '2', title: '站桩' })
+    )
+  })
+
+  test('repairs existing V1 target collection habit ids without deleting records', async () => {
+    const { collections, calls } = createMockCloud({
+      user_strategies: [],
+      user_strategy_versions: [],
+      checkin_logs: [],
+      user_habits: [{
+        _id: 'target_user_habit',
+        _openid: 'openid_1',
+        userHabitId: 'uh_existing_jingang',
+        habitId: 'h001',
+        name: '金刚功',
+        status: 'active'
+      }, {
+        _id: 'target_numeric_habit',
+        _openid: 'openid_1',
+        userHabitId: 'uh_existing_numeric',
+        habitId: 1,
+        name: '金刚功',
+        status: 'active'
+      }],
+      habit_policy_versions: [{
+        _id: 'target_policy',
+        _openid: 'openid_1',
+        policyVersionId: 'pv_existing_baduanjin',
+        userHabitId: 'uh_existing_baduanjin',
+        habitId: 'h_002'
+      }],
+      checkin_operations: [{
+        _id: 'target_operation',
+        _openid: 'openid_1',
+        operationId: 'op_existing_zhanzhuang',
+        userHabitId: 'uh_existing_zhanzhuang',
+        habitId: 'h003'
+      }],
+      daily_checkin_states: [{
+        _id: 'target_state',
+        _openid: 'openid_1',
+        stateId: 'ds_existing_running',
+        userHabitId: 'uh_existing_running',
+        habitId: 'h_running'
+      }]
+    })
+
+    const { main } = require('../../../cloudfunctions/migrateV1Data/index.js')
+    const result = await main({}, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.counts.targetHabitIdRepairs).toBe(5)
+    expect(collections.user_habits).toHaveLength(2)
+    expect(collections.habit_policy_versions).toHaveLength(1)
+    expect(collections.checkin_operations).toHaveLength(1)
+    expect(collections.daily_checkin_states).toHaveLength(1)
+    expect(collections.user_habits[0].habitId).toBe('1')
+    expect(collections.user_habits[1].habitId).toBe('1')
+    expect(collections.habit_policy_versions[0].habitId).toBe('3')
+    expect(collections.checkin_operations[0].habitId).toBe('2')
+    expect(collections.daily_checkin_states[0].habitId).toBe('10')
+    expect(calls.updates.map(call => call.collection).sort()).toEqual([
+      'checkin_operations',
+      'daily_checkin_states',
+      'habit_policy_versions',
+      'user_habits',
+      'user_habits'
+    ])
+  })
+
   test('returns a clear error when openid is missing', async () => {
     createMockCloud({}, { OPENID: '' })
 

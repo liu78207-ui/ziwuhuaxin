@@ -98,7 +98,7 @@
 
 迁移规则：
 
-- `habitId`：优先取旧 `strategy.habit_id`，其次 `habit_id`，再次 `habitId`，统一转字符串。
+- `habitId`：优先取旧 `strategy.habit_id` / `habit_id` / `habitId`，但不得原样保留旧测试或 legacy ID；必须归一化为内置习惯 ID 字符串 `'1'` 到 `'21'`。已知旧 ID 如 `h001` / `h_001` -> `'1'`，`h002` / `h_002` -> `'3'`，`h003` / `h_003` -> `'2'`，也可按旧习惯名称兜底映射。
 - `userHabitId`：生成稳定迁移 ID，建议格式为 `uh_${openid}_${habitId}_${createdAtHash}`。
 - `createdAt`：优先 `createdAt`，其次 `plan_start_date`，最后使用迁移时间。
 - `deletedAt`：优先 `deletedAt`，其次 `deleted_at`。
@@ -136,9 +136,11 @@
 - `frequencyConfig`：由旧 `freq_rules` 和 `freq_category` 归一化。
 - `effectiveStartDate`：优先 `plan_start_date`，其次 `createdAt`。
 - `effectiveEndDate`：若存在旧版本 `end_date`，沿用；若习惯已删除，最后一个有效版本结束于删除日期。
-- 若存在 `user_strategy_versions`，优先按版本表生成多个策略版本。
+- 若存在 `user_strategy_versions`，优先按版本表生成多个策略版本；版本表中的旧 `habit_id` 必须使用与 `user_habits` 相同的归一化规则匹配和写入。
 - 若不存在版本表，只生成一个当前策略版本。
 - 同一 `userHabitId` 下任意日期最多命中一个策略版本。
+- 旧 `checkin_logs` 迁移为 `checkin_operations` / `daily_checkin_states` 时，也必须使用相同的 `habitId` 归一化规则，避免恢复后首页图标、观心名称和报表生命周期错乱。
+- 若目标集合已存在由旧迁移或测试数据写入的非法 `habitId`，迁移函数允许在当前 `_openid` 范围内受控修复 `user_habits`、`habit_policy_versions`、`checkin_operations`、`daily_checkin_states` 的 `habitId` 字段；该修复不得删除记录、不得清空集合、不得跨用户修改。
 
 频次映射建议：
 
@@ -312,4 +314,3 @@ V1 可后置：
 - 多端离线乱序操作完整裁决。
 - 全年每日应修快照物理补齐。
 - 超长期历史报表快照持久化。
-

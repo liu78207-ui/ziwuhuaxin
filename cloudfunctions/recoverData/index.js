@@ -4,6 +4,43 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const PAGE_SIZE = 100;
 const DEFAULT_DAILY_STATE_DAYS = 90;
+const BUILT_IN_HABITS = {
+  '1': { name: '金刚功', category: '运动类', targetMinutes: 15 },
+  '2': { name: '站桩', category: '运动类', targetMinutes: 20 },
+  '3': { name: '八段锦', category: '运动类', targetMinutes: 15 },
+  '4': { name: '五禽戏', category: '运动类', targetMinutes: 20 },
+  '5': { name: '太极拳', category: '运动类', targetMinutes: 30 },
+  '6': { name: '快走', category: '运动类', targetMinutes: 30 },
+  '7': { name: '瑜伽', category: '运动类', targetMinutes: 45 },
+  '8': { name: '普拉提', category: '运动类', targetMinutes: 40 },
+  '9': { name: '游泳', category: '运动类', targetMinutes: 45 },
+  '10': { name: '跑步', category: '运动类', targetMinutes: 30 },
+  '11': { name: '跳绳', category: '运动类', targetMinutes: 15 },
+  '12': { name: '艾灸', category: '理疗类', targetMinutes: 30 },
+  '13': { name: '刮痧', category: '理疗类', targetMinutes: 20 },
+  '14': { name: '拔罐', category: '理疗类', targetMinutes: 15 },
+  '15': { name: '推拿', category: '理疗类', targetMinutes: 30 },
+  '16': { name: '经络拍打', category: '理疗类', targetMinutes: 15 },
+  '17': { name: '晨起温水', category: '起居类', targetMinutes: 5 },
+  '18': { name: '梳头', category: '起居类', targetMinutes: 5 },
+  '19': { name: '叩齿', category: '起居类', targetMinutes: 5 },
+  '20': { name: '揉腹', category: '起居类', targetMinutes: 10 },
+  '21': { name: '睡前泡脚', category: '起居类', targetMinutes: 20 }
+};
+const LEGACY_HABIT_ID_ALIASES = {
+  h001: '1',
+  h002: '3',
+  h003: '2',
+  h004: '6',
+  h005: '12',
+  h006: '13',
+  h007: '15',
+  h008: '21',
+  h009: '20',
+  h010: '16',
+  hrunning: '10',
+  hpaobu: '10'
+};
 
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -42,8 +79,33 @@ function pickDefined(source, keys) {
   return result;
 }
 
+function firstDefined(source, keys) {
+  for (const key of keys) {
+    if (source && source[key] !== undefined && source[key] !== null && source[key] !== '') {
+      return source[key];
+    }
+  }
+  return undefined;
+}
+
+function normalizeAliasKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeHabitId(value) {
+  const raw = String(value || '').trim();
+  if (/^(?:[1-9]|1[0-9]|2[0-1])$/.test(raw)) return raw;
+  return LEGACY_HABIT_ID_ALIASES[normalizeAliasKey(raw)] || raw;
+}
+
+function setDefined(target, key, value) {
+  if (value !== undefined && value !== null && value !== '') {
+    target[key] = value;
+  }
+}
+
 function slimUserHabit(habit) {
-  return pickDefined(habit, [
+  const result = pickDefined(habit, [
     'userHabitId',
     'habitId',
     'name',
@@ -62,10 +124,26 @@ function slimUserHabit(habit) {
     'latestPolicyVersionId',
     'syncStatus'
   ]);
+  result.userHabitId = firstDefined(habit, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
+  const rawHabitId = firstDefined(habit, ['habitId', 'habit_id', 'habit_Id']);
+  if (rawHabitId !== undefined) {
+    result.habitId = normalizeHabitId(rawHabitId);
+  }
+  const builtIn = BUILT_IN_HABITS[result.habitId] || {};
+  setDefined(result, 'name', firstDefined(habit, ['name', 'title', 'habitTitle', 'habit_title']) || builtIn.name || result.name);
+  setDefined(result, 'category', result.category || builtIn.category);
+  setDefined(result, 'targetMinutes', firstDefined(habit, ['targetMinutes', 'target_minutes', 'duration']) || builtIn.targetMinutes || result.targetMinutes);
+  setDefined(result, 'themeClass', firstDefined(habit, ['themeClass', 'theme_class']) || result.themeClass);
+  setDefined(result, 'iconUrl', firstDefined(habit, ['iconUrl', 'icon_url']) || result.iconUrl);
+  if (!result.status && result.isDeleted === true) {
+    result.status = 'deleted';
+  }
+  return result;
 }
 
 function slimPolicyVersion(policy) {
-  return pickDefined(policy, [
+  const result = pickDefined(policy, [
     'policyVersionId',
     'userHabitId',
     'habitId',
@@ -79,10 +157,21 @@ function slimPolicyVersion(policy) {
     'updatedAt',
     'syncStatus'
   ]);
+  result.userHabitId = firstDefined(policy, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
+  const rawHabitId = firstDefined(policy, ['habitId', 'habit_id', 'habit_Id']);
+  if (rawHabitId !== undefined) {
+    result.habitId = normalizeHabitId(rawHabitId);
+  }
+  result.policyVersionId = firstDefined(policy, ['policyVersionId', 'policy_version_id']) || result.policyVersionId;
+  result.frequencyType = firstDefined(policy, ['frequencyType', 'freq_type']) || result.frequencyType;
+  result.frequencyConfig = firstDefined(policy, ['frequencyConfig', 'freq_rules']) || result.frequencyConfig;
+  result.startDate = firstDefined(policy, ['startDate', 'start_date', 'plan_start_date']) || result.startDate;
+  return result;
 }
 
 function slimDailyState(state) {
-  return pickDefined(state, [
+  const result = pickDefined(state, [
     'stateId',
     'userHabitId',
     'habitId',
@@ -102,6 +191,14 @@ function slimDailyState(state) {
     'syncStatus',
     'updatedAt'
   ]);
+  result.userHabitId = firstDefined(state, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
+  const rawHabitId = firstDefined(state, ['habitId', 'habit_id', 'habit_Id']);
+  if (rawHabitId !== undefined) {
+    result.habitId = normalizeHabitId(rawHabitId);
+  }
+  result.policyVersionId = firstDefined(state, ['policyVersionId', 'policy_version_id']) || result.policyVersionId;
+  return result;
 }
 
 async function listAllByOpenid(collectionName, openid) {

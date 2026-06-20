@@ -83,7 +83,8 @@ describe('recoverData cloud function', () => {
     expect(result.serverTime).toEqual(expect.any(Number))
     expect(result.data.userHabits[0]).toEqual({
       userHabitId: 'uh_1',
-      title: 'Habit One'
+      title: 'Habit One',
+      name: 'Habit One'
     })
     expect(result.data.userHabits[0]._openid).toBeUndefined()
     expect(result.data.userHabits[0].legacyStrategyId).toBeUndefined()
@@ -139,9 +140,74 @@ describe('recoverData cloud function', () => {
     const result = await main({}, {})
 
     expect(result.success).toBe(true)
-    expect(result.data.userHabits).toEqual([{ userHabitId: 'uh_1', habitId: '1' }])
+    expect(result.data.userHabits).toEqual([{
+      userHabitId: 'uh_1',
+      habitId: '1',
+      name: '金刚功',
+      category: '运动类',
+      targetMinutes: 15
+    }])
     expect(result.data.policyVersions).toEqual([{ policyVersionId: 'pv_1', userHabitId: 'uh_1' }])
     expect(result.data.dailyStates).toEqual([{ stateId: 'recent', userHabitId: 'uh_1', date: '2026-06-01' }])
+  })
+
+  test('normalizes mixed legacy field names before returning recovered data', async () => {
+    createMockCloud({
+      user_habits: [{
+        _openid: 'openid_1',
+        user_habit_id: 'uh_legacy',
+        habit_Id: 'h002',
+        habit_title: '八段锦',
+        target_minutes: 15,
+        theme_class: 't-yellow',
+        icon_url: '/legacy.png'
+      }],
+      habit_policy_versions: [{
+        _openid: 'openid_1',
+        policy_version_id: 'pv_legacy',
+        user_habit_id: 'uh_legacy',
+        habit_id: 'h_002',
+        freq_type: 'daily',
+        start_date: '2026-06-01'
+      }],
+      daily_checkin_states: [{
+        _openid: 'openid_1',
+        stateId: 'state_legacy',
+        user_habit_id: 'uh_legacy',
+        habit_id: 3,
+        policy_version_id: 'pv_legacy',
+        date: '2026-06-15',
+        status: 'checked'
+      }]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({}, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.userHabits).toEqual([expect.objectContaining({
+      userHabitId: 'uh_legacy',
+      habitId: '3',
+      name: '八段锦',
+      category: '运动类',
+      targetMinutes: 15,
+      themeClass: 't-yellow',
+      iconUrl: '/legacy.png'
+    })])
+    expect(result.data.policyVersions).toEqual([expect.objectContaining({
+      policyVersionId: 'pv_legacy',
+      userHabitId: 'uh_legacy',
+      habitId: '3',
+      frequencyType: 'daily',
+      startDate: '2026-06-01'
+    })])
+    expect(result.data.dailyStates).toEqual([expect.objectContaining({
+      stateId: 'state_legacy',
+      userHabitId: 'uh_legacy',
+      habitId: '3',
+      policyVersionId: 'pv_legacy',
+      status: 'checked'
+    })])
   })
 
   test('supports historical daily state range and cursor pagination', async () => {

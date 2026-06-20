@@ -93,9 +93,14 @@ It is intentionally hard to run:
 
 - Required environment variable: `CLEAR_USER_DATA_ADMIN_TOKEN`.
 - Default behavior: `dryRun` is enabled unless `dryRun:false` is passed.
-- Required request fields for destructive cleanup:
+- Required request fields for full destructive cleanup:
   - `scope: "allUsers"`
   - `confirmPhrase: "CLEAR_ALL_USER_DATA"`
+  - `adminToken` matching `CLEAR_USER_DATA_ADMIN_TOKEN`
+- Required request fields for one-account cleanup:
+  - `scope: "targetOpenid"`
+  - `targetOpenid`
+  - `confirmPhrase: "CLEAR_TARGET_USER_DATA"`
   - `adminToken` matching `CLEAR_USER_DATA_ADMIN_TOKEN`
 - It targets V1 user data collections such as `users`, `user_habits`,
   `habit_policy_versions`, `checkin_operations`, `daily_checkin_states`,
@@ -106,7 +111,7 @@ It is intentionally hard to run:
 - Missing collections are treated as skipped maintenance details, not as a
   reason to delete unrelated data.
 
-Dry run example:
+Full dry run example:
 
 ```json
 {
@@ -119,7 +124,7 @@ Dry run example:
 }
 ```
 
-Destructive example after reviewing dry run counts:
+Full destructive example after reviewing dry run counts:
 
 ```json
 {
@@ -127,6 +132,35 @@ Destructive example after reviewing dry run counts:
   "data": {
     "scope": "allUsers",
     "confirmPhrase": "CLEAR_ALL_USER_DATA",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>",
+    "dryRun": false
+  }
+}
+```
+
+Single-account dry run example:
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "scope": "targetOpenid",
+    "targetOpenid": "oCt9o12Rj50RtOaGiKKhwqf7QSMg",
+    "confirmPhrase": "CLEAR_TARGET_USER_DATA",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>"
+  }
+}
+```
+
+Single-account destructive example after reviewing dry run counts:
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "scope": "targetOpenid",
+    "targetOpenid": "oCt9o12Rj50RtOaGiKKhwqf7QSMg",
+    "confirmPhrase": "CLEAR_TARGET_USER_DATA",
     "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>",
     "dryRun": false
   }
@@ -144,6 +178,7 @@ After deployment, use Developer Tools to test these functions:
 { "name": "recoverData", "data": {} }
 { "name": "syncLocalData", "data": {} }
 { "name": "clearTestData", "data": { "scope": "allUsers", "confirmPhrase": "CLEAR_ALL_USER_DATA", "adminToken": "<token>" } }
+{ "name": "clearTestData", "data": { "scope": "targetOpenid", "targetOpenid": "oCt9o12Rj50RtOaGiKKhwqf7QSMg", "confirmPhrase": "CLEAR_TARGET_USER_DATA", "adminToken": "<token>" } }
 ```
 
 Expected results:

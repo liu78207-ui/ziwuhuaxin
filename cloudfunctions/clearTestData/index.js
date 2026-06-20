@@ -12,25 +12,28 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const _ = db.command;
 
-const REQUIRED_SCOPE = 'allUsers';
-const CONFIRM_PHRASE = 'CLEAR_ALL_USER_DATA';
+const ALL_USERS_SCOPE = 'allUsers';
+const TARGET_OPENID_SCOPE = 'targetOpenid';
+const ALL_USERS_CONFIRM_PHRASE = 'CLEAR_ALL_USER_DATA';
+const TARGET_OPENID_CONFIRM_PHRASE = 'CLEAR_TARGET_USER_DATA';
 const ADMIN_TOKEN_ENV = 'CLEAR_USER_DATA_ADMIN_TOKEN';
+const USER_OWNED_QUERY = { _openid: _.exists(true) };
 
 const USER_DATA_COLLECTIONS = [
-  { name: 'users', query: {} },
-  { name: 'user_habits', query: {} },
-  { name: 'habit_policy_versions', query: {} },
-  { name: 'checkin_operations', query: {} },
-  { name: 'daily_checkin_states', query: {} },
-  { name: 'sync_logs', query: {} },
-  { name: 'conflict_logs', query: {} },
-  { name: 'user_settings', query: {} },
-  { name: 'ai_logs', query: {} },
-  { name: 'user_strategies', query: {} },
-  { name: 'user_strategy_versions', query: {} },
-  { name: 'checkin_logs', query: {} },
+  { name: 'users' },
+  { name: 'user_habits' },
+  { name: 'habit_policy_versions' },
+  { name: 'checkin_operations' },
+  { name: 'daily_checkin_states' },
+  { name: 'sync_logs' },
+  { name: 'conflict_logs' },
+  { name: 'user_settings' },
+  { name: 'ai_logs' },
+  { name: 'user_strategies' },
+  { name: 'user_strategy_versions' },
+  { name: 'checkin_logs' },
   // `habits` may also contain global built-in rows. Only remove user/test rows.
-  { name: 'habits', query: { _openid: _.exists(true) } }
+  { name: 'habits' }
 ];
 
 function isCollectionMissingError(err, collectionName) {
@@ -61,6 +64,16 @@ function normalizeEvent(event = {}) {
   return event || {};
 }
 
+function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function getConfirmPhrase(scope) {
+  return scope === TARGET_OPENID_SCOPE
+    ? TARGET_OPENID_CONFIRM_PHRASE
+    : ALL_USERS_CONFIRM_PHRASE;
+}
+
 function validateRequest(event) {
   const token = process.env[ADMIN_TOKEN_ENV];
   if (!token) {
@@ -70,17 +83,25 @@ function validateRequest(event) {
     };
   }
 
-  if (event.scope !== REQUIRED_SCOPE) {
+  if (![ALL_USERS_SCOPE, TARGET_OPENID_SCOPE].includes(event.scope)) {
     return {
       success: false,
-      message: `scope 必须为 ${REQUIRED_SCOPE}。`
+      message: `scope 必须为 ${ALL_USERS_SCOPE} 或 ${TARGET_OPENID_SCOPE}。`
     };
   }
 
-  if (event.confirmPhrase !== CONFIRM_PHRASE) {
+  if (event.scope === TARGET_OPENID_SCOPE && !isNonEmptyString(event.targetOpenid)) {
     return {
       success: false,
-      message: `confirmPhrase 必须为 ${CONFIRM_PHRASE}。`
+      message: `scope 为 ${TARGET_OPENID_SCOPE} 时 targetOpenid 必填。`
+    };
+  }
+
+  const expectedConfirmPhrase = getConfirmPhrase(event.scope);
+  if (event.confirmPhrase !== expectedConfirmPhrase) {
+    return {
+      success: false,
+      message: `confirmPhrase 必须为 ${expectedConfirmPhrase}。`
     };
   }
 
@@ -92,6 +113,21 @@ function validateRequest(event) {
   }
 
   return { success: true };
+}
+
+function buildTargets(event) {
+  if (event.scope === TARGET_OPENID_SCOPE) {
+    const targetOpenid = event.targetOpenid.trim();
+    return USER_DATA_COLLECTIONS.map(target => ({
+      name: target.name,
+      query: { _openid: targetOpenid }
+    }));
+  }
+
+  return USER_DATA_COLLECTIONS.map(target => ({
+    name: target.name,
+    query: USER_OWNED_QUERY
+  }));
 }
 
 async function countCollection(collectionName, query) {
@@ -106,7 +142,7 @@ async function countCollection(collectionName, query) {
 
 async function removeCollection(collectionName, query) {
   const res = await db.collection(collectionName).where(query).remove();
-  return Number(res.deleted || res.removed || 0);
+  return Number(res.deleted || res.removed || (res.stats && res.stats.removed) || 0);
 }
 
 async function inspectOrRemoveCollection(target, dryRun) {
@@ -158,7 +194,8 @@ exports.main = async (rawEvent = {}, context = {}) => {
   }
 
   const details = {};
-  for (const target of USER_DATA_COLLECTIONS) {
+  const targets = buildTargets(event);
+  for (const target of targets) {
     details[target.name] = await inspectOrRemoveCollection(target, dryRun);
   }
 
@@ -169,7 +206,8 @@ exports.main = async (rawEvent = {}, context = {}) => {
   return {
     success: !hasUnexpectedFailure,
     dryRun,
-    scope: REQUIRED_SCOPE,
+    scope: event.scope,
+    targetOpenid: event.scope === TARGET_OPENID_SCOPE ? event.targetOpenid.trim() : '',
     details,
     message: dryRun
       ? 'dryRun 完成：未删除任何数据，请确认 details 后再用 dryRun:false 执行。'
@@ -179,7 +217,12 @@ exports.main = async (rawEvent = {}, context = {}) => {
 
 exports._private = {
   USER_DATA_COLLECTIONS,
-  CONFIRM_PHRASE,
+  USER_OWNED_QUERY,
+  ALL_USERS_SCOPE,
+  TARGET_OPENID_SCOPE,
+  ALL_USERS_CONFIRM_PHRASE,
+  TARGET_OPENID_CONFIRM_PHRASE,
   ADMIN_TOKEN_ENV,
+  buildTargets,
   isCollectionMissingError
 };

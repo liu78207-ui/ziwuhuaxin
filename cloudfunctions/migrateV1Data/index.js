@@ -32,6 +32,63 @@ const TARGET_COLLECTIONS = [
   'migration_logs',
   'conflict_logs'
 ];
+const BUILT_IN_HABIT_BY_NAME = {
+  '金刚功': '1',
+  '站桩': '2',
+  '八段锦': '3',
+  '五禽戏': '4',
+  '太极拳': '5',
+  '快走': '6',
+  '瑜伽': '7',
+  '普拉提': '8',
+  '游泳': '9',
+  '跑步': '10',
+  '跳绳': '11',
+  '艾灸': '12',
+  '刮痧': '13',
+  '拔罐': '14',
+  '推拿': '15',
+  '经络拍打': '16',
+  '晨起温水': '17',
+  '梳头': '18',
+  '叩齿': '19',
+  '揉腹': '20',
+  '睡前泡脚': '21'
+};
+const LEGACY_HABIT_ID_ALIASES = {
+  h001: '1',
+  h002: '3',
+  h003: '2',
+  h004: '6',
+  h005: '12',
+  h006: '13',
+  h007: '15',
+  h008: '21',
+  h009: '20',
+  h010: '16',
+  hjinganggong: '1',
+  hzhanzhuang: '2',
+  hbaduanjin: '3',
+  hwuqinxi: '4',
+  htaijiquan: '5',
+  hkuaizou: '6',
+  hyujia: '7',
+  hpulati: '8',
+  hyouyong: '9',
+  hrunning: '10',
+  hpaobu: '10',
+  htiaosheng: '11',
+  haijiu: '12',
+  hguasha: '13',
+  hbaguan: '14',
+  htuina: '15',
+  hjingluopaida: '16',
+  hchenqiwenshui: '17',
+  hshutou: '18',
+  hkouchi: '19',
+  hroufu: '20',
+  hshuiqianpaojiao: '21'
+};
 
 function normalizeEvent(event) {
   if (event && typeof event === 'object') {
@@ -91,6 +148,25 @@ function sanitizeId(value) {
     .replace(/^_+|_+$/g, '') || 'unknown';
 }
 
+function normalizeAliasKey(value) {
+  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function normalizeBuiltInHabitId(record) {
+  const rawHabitId = String(getValue(record, ['habitId', 'habit_id', 'habit_Id'], '') || '').trim();
+  if (/^(?:[1-9]|1[0-9]|2[0-1])$/.test(rawHabitId)) {
+    return rawHabitId;
+  }
+
+  const alias = LEGACY_HABIT_ID_ALIASES[normalizeAliasKey(rawHabitId)];
+  if (alias) {
+    return alias;
+  }
+
+  const name = getValue(record, ['name', 'title', 'habit_title', 'habitTitle'], '');
+  return BUILT_IN_HABIT_BY_NAME[name] || rawHabitId;
+}
+
 function getValue(record, keys, fallback = '') {
   for (const key of keys) {
     if (record && record[key] !== undefined && record[key] !== null && record[key] !== '') {
@@ -143,6 +219,48 @@ async function getAll(collectionName, openid) {
   }
 }
 
+async function repairTargetCollectionHabitIds(collectionName, openid, dryRun, serverTime) {
+  const records = await getAll(collectionName, openid);
+  let repaired = 0;
+
+  for (const record of records) {
+    const rawHabitId = getValue(record, ['habitId', 'habit_id', 'habit_Id'], '');
+    const currentHabitId = String(rawHabitId || '').trim();
+    const normalizedHabitId = normalizeBuiltInHabitId(record);
+    if (!currentHabitId || !normalizedHabitId || (currentHabitId === normalizedHabitId && rawHabitId === normalizedHabitId)) {
+      continue;
+    }
+
+    repaired += 1;
+    if (!dryRun && record._id) {
+      await db.collection(collectionName).doc(record._id).update({
+        data: {
+          habitId: normalizedHabitId,
+          updatedAt: serverTime
+        }
+      });
+    }
+  }
+
+  return repaired;
+}
+
+async function repairTargetHabitIds(openid, dryRun, serverTime) {
+  const collectionsToRepair = [
+    'user_habits',
+    'habit_policy_versions',
+    'checkin_operations',
+    'daily_checkin_states'
+  ];
+  let repaired = 0;
+
+  for (const collectionName of collectionsToRepair) {
+    repaired += await repairTargetCollectionHabitIds(collectionName, openid, dryRun, serverTime);
+  }
+
+  return repaired;
+}
+
 async function getAllForAdmin(collectionName) {
   try {
     const res = await db.collection(collectionName).where({}).get();
@@ -160,7 +278,7 @@ async function resolveOpenid(event, wxOpenid) {
     return { success: true, openid: wxOpenid, openidSource: 'wx-context' };
   }
 
-  if (!event.adminMigration) {
+  if (!event.adminMigration && !event.targetOpenid) {
     return { success: false, code: 'NO_OPENID', message: '无法获取用户身份' };
   }
 
@@ -263,7 +381,7 @@ function normalizeFrequency(record) {
 
 function buildUserHabit(openid, strategy, serverTime) {
   const strategyId = getValue(strategy, ['_id', 'id'], '');
-  const habitId = String(getValue(strategy, ['habitId', 'habit_id'], ''));
+  const habitId = normalizeBuiltInHabitId(strategy);
   const startDate = toDateStr(getValue(strategy, ['createdAt', 'plan_start_date', 'startDate'], new Date()));
   const deletedAt = getValue(strategy, ['deletedAt', 'deleted_at'], null);
   const isDeleted = strategy.isDeleted === true || strategy.is_deleted === true || Boolean(deletedAt);
@@ -415,7 +533,8 @@ exports.main = async (rawEvent = {}, context = {}) => {
     policyVersions: 0,
     checkinOperations: 0,
     dailyStates: 0,
-    conflictLogs: 0
+    conflictLogs: 0,
+    targetHabitIdRepairs: 0
   };
   const skipped = {
     orphanCheckinLogs: 0,
@@ -453,7 +572,7 @@ exports.main = async (rawEvent = {}, context = {}) => {
       userHabitsByHabitId[userHabit.habitId] = userHabit;
 
       const matchingVersions = legacyVersions.filter(version => {
-        const versionHabitId = String(getValue(version, ['habitId', 'habit_id'], ''));
+        const versionHabitId = normalizeBuiltInHabitId(version);
         return versionHabitId === userHabit.habitId;
       });
       const versionSources = matchingVersions.length > 0 ? matchingVersions : [strategy];
@@ -497,7 +616,7 @@ exports.main = async (rawEvent = {}, context = {}) => {
     });
 
     for (const log of sortedLogs) {
-      const habitId = String(getValue(log, ['habitId', 'habit_id'], ''));
+      const habitId = normalizeBuiltInHabitId(log);
       const userHabit = userHabitsByHabitId[habitId];
       const date = toDateStr(getValue(log, ['date', 'checkin_date', 'created_at', 'createdAt'], ''));
 
@@ -546,6 +665,8 @@ exports.main = async (rawEvent = {}, context = {}) => {
         counts.dailyStates += 1;
       }
     }
+
+    counts.targetHabitIdRepairs = await repairTargetHabitIds(openid, dryRun, serverTime);
 
     const migrationLog = {
       _openid: openid,

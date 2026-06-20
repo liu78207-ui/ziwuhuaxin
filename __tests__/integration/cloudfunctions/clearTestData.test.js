@@ -2,6 +2,7 @@ function createCollection(name, options = {}) {
   const {
     total = 0,
     deleted = total,
+    removeResult,
     missing = false
   } = options;
 
@@ -16,6 +17,9 @@ function createCollection(name, options = {}) {
     remove: jest.fn(() => {
       if (missing) {
         return Promise.reject(new Error(`collection.remove:fail -502005 database collection not exists: ${name}`));
+      }
+      if (removeResult) {
+        return Promise.resolve(removeResult);
       }
       return Promise.resolve({ deleted });
     })
@@ -55,6 +59,12 @@ describe('clearTestData cloud function', () => {
   const validPayload = {
     scope: 'allUsers',
     confirmPhrase: 'CLEAR_ALL_USER_DATA',
+    adminToken: 'secret'
+  };
+  const targetOpenidPayload = {
+    scope: 'targetOpenid',
+    targetOpenid: 'oCt9o12Rj50RtOaGiKKhwqf7QSMg',
+    confirmPhrase: 'CLEAR_TARGET_USER_DATA',
     adminToken: 'secret'
   };
 
@@ -104,6 +114,9 @@ describe('clearTestData cloud function', () => {
     expect(result.details.habits.matched).toBe(3);
     expect(users.queryRef.remove).not.toHaveBeenCalled();
     expect(habits.queryRef.remove).not.toHaveBeenCalled();
+    expect(users.where).toHaveBeenCalledWith({
+      _openid: { $exists: true }
+    });
     expect(habits.where).toHaveBeenCalledWith({
       _openid: { $exists: true }
     });
@@ -134,9 +147,124 @@ describe('clearTestData cloud function', () => {
     expect(result.details.habits).toMatchObject({ matched: 1, deleted: 1 });
     expect(users.queryRef.remove).toHaveBeenCalled();
     expect(dailyStates.queryRef.remove).toHaveBeenCalled();
+    expect(users.where).toHaveBeenCalledWith({
+      _openid: { $exists: true }
+    });
+    expect(dailyStates.where).toHaveBeenCalledWith({
+      _openid: { $exists: true }
+    });
     expect(habits.where).toHaveBeenCalledWith({
       _openid: { $exists: true }
     });
+  });
+
+  test('targetOpenid dryRun only counts data owned by the specified openid', async () => {
+    const users = createCollection('users', { total: 1 });
+    const userHabits = createCollection('user_habits', { total: 21 });
+    const habits = createCollection('habits', { total: 2 });
+    const { main } = loadClearTestData({
+      collections: {
+        users,
+        user_habits: userHabits,
+        habits
+      }
+    });
+
+    const result = await main({
+      ...targetOpenidPayload,
+      dryRun: true
+    }, {});
+
+    expect(result).toMatchObject({
+      success: true,
+      dryRun: true,
+      scope: 'targetOpenid',
+      targetOpenid: targetOpenidPayload.targetOpenid
+    });
+    expect(result.details.users.matched).toBe(1);
+    expect(result.details.user_habits.matched).toBe(21);
+    expect(result.details.habits.matched).toBe(2);
+    expect(users.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });
+    expect(userHabits.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });
+    expect(habits.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });
+    expect(users.queryRef.remove).not.toHaveBeenCalled();
+    expect(userHabits.queryRef.remove).not.toHaveBeenCalled();
+    expect(habits.queryRef.remove).not.toHaveBeenCalled();
+  });
+
+  test('targetOpenid real run deletes only data owned by the specified openid', async () => {
+    const users = createCollection('users', { total: 1, deleted: 1 });
+    const checkinLogs = createCollection('checkin_logs', { total: 71, deleted: 71 });
+    const habits = createCollection('habits', { total: 2, deleted: 2 });
+    const { main } = loadClearTestData({
+      collections: {
+        users,
+        checkin_logs: checkinLogs,
+        habits
+      }
+    });
+
+    const result = await main({
+      ...targetOpenidPayload,
+      dryRun: false
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(result.dryRun).toBe(false);
+    expect(result.scope).toBe('targetOpenid');
+    expect(result.details.users).toMatchObject({ matched: 1, deleted: 1 });
+    expect(result.details.checkin_logs).toMatchObject({ matched: 71, deleted: 71 });
+    expect(result.details.habits).toMatchObject({ matched: 2, deleted: 2 });
+    expect(users.queryRef.remove).toHaveBeenCalled();
+    expect(checkinLogs.queryRef.remove).toHaveBeenCalled();
+    expect(habits.queryRef.remove).toHaveBeenCalled();
+    expect(habits.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });
+  });
+
+  test('targetOpenid real run reads CloudBase stats.removed delete count', async () => {
+    const users = createCollection('users', {
+      total: 1,
+      removeResult: { stats: { removed: 1 } }
+    });
+    const { main } = loadClearTestData({ collections: { users } });
+
+    const result = await main({
+      ...targetOpenidPayload,
+      dryRun: false
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(result.details.users).toMatchObject({ matched: 1, deleted: 1 });
+    expect(users.queryRef.remove).toHaveBeenCalled();
+  });
+
+  test('targetOpenid rejects missing targetOpenid before touching collections', async () => {
+    const users = createCollection('users', { total: 1 });
+    const { main } = loadClearTestData({ collections: { users } });
+
+    const result = await main({
+      scope: 'targetOpenid',
+      confirmPhrase: 'CLEAR_TARGET_USER_DATA',
+      adminToken: 'secret'
+    }, {});
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('targetOpenid 必填');
+    expect(users.where).not.toHaveBeenCalled();
+  });
+
+  test('targetOpenid rejects allUsers confirmation phrase', async () => {
+    const users = createCollection('users', { total: 1 });
+    const { main } = loadClearTestData({ collections: { users } });
+
+    const result = await main({
+      ...targetOpenidPayload,
+      confirmPhrase: 'CLEAR_ALL_USER_DATA'
+    }, {});
+
+    expect(result.success).toBe(false);
+    expect(result.message).toContain('CLEAR_TARGET_USER_DATA');
+    expect(users.where).not.toHaveBeenCalled();
   });
 
   test('skips missing collections without failing the whole cleanup', async () => {
