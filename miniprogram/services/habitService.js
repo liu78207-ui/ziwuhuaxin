@@ -98,8 +98,7 @@ async function addHabit(habitId, policyInput) {
     status: 'active',
     createdAt: businessDate,
     deletedAt: null,
-    latestPolicyVersionId: '',
-    syncStatus: 1
+    latestPolicyVersionId: ''
   }
 
   // 5. 保存到 storage（触发迁移补齐其他字段）
@@ -286,8 +285,7 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
     effectiveStartDate: startDate,
     effectiveEndDate: null,
     createdAt: businessDate,
-    updatedAt: businessDate,
-    syncStatus: 1
+    updatedAt: businessDate
   }
 
   // 3. 保存
@@ -429,7 +427,6 @@ function markStrategyChangedToday(userHabitId, date, policyVersionId) {
     status,
     policyVersionId,
     hasPolicyChangedToday: true,
-    lockedReason: resolveStrategyChangeLockedReason(status),
     lockReason: resolveStrategyChangeLockedReason(status),
     updatedAt: new Date().toISOString()
   }
@@ -452,7 +449,7 @@ function markDeletionToday(userHabitId, date) {
   const finalStatus = existingState?.status === DAILY_STATE_STATUS.checked
     ? DAILY_STATE_STATUS.checked
     : DAILY_STATE_STATUS.not_required
-  const lockedReason = resolveDeletionLockedReason(finalStatus)
+  const lockReason = resolveDeletionLockedReason(finalStatus)
   const baseState = existingState || createDailyCheckinState({
     userHabitId,
     habitId: habit.habitId,
@@ -466,8 +463,7 @@ function markDeletionToday(userHabitId, date) {
     policyVersionId: habit.latestPolicyVersionId || baseState.policyVersionId || '',
     hasDeletionToday: true,
     isLocked: true,
-    lockedReason,
-    lockReason: lockedReason,
+    lockReason,
     updatedAt: new Date().toISOString()
   }
 
@@ -514,12 +510,12 @@ async function getTodayHabits(date) {
     })
     .filter(({ habit, policy, state }) => {
       const deletedAt = habit.deletedAt ? String(habit.deletedAt).split('T')[0] : null
-      const isDeletedCheckedToday = habit.status === 'deleted' &&
+      const deletedCheckedToday = habit.status === 'deleted' &&
         deletedAt === date &&
         state &&
         state.status === 'checked'
 
-      if (isDeletedCheckedToday) return true
+      if (deletedCheckedToday) return true
       if (habit.status !== 'active') return false
       if (!policy) return false
       if (!policy.effectiveStartDate) return false
@@ -588,27 +584,34 @@ async function runMigration() {
  * @returns {string}
  */
 function buildStrategyText(strategy) {
-  const { freq_type, freq_rules, freq_category } = strategy
+  const frequencyType = strategy.frequencyType || 'daily'
+  const frequencyConfig = strategy.frequencyConfig || {}
+  const freqRules = frequencyType === 'weekly'
+    ? (frequencyConfig.weekdays || [])
+    : (frequencyConfig.intervalDays || 1)
+  const freqCategory = frequencyType === 'weekly'
+    ? 'weekly'
+    : (frequencyType === 'interval' || Number(freqRules) > 1 ? 'daily-interval' : 'everyday')
 
   // 间隔打卡
-  if (freq_type === 'interval') {
-    const interval = freq_rules || 1
+  if (frequencyType === 'interval') {
+    const interval = freqRules || 1
     return `每${interval + 1}天`
   }
 
-  // 每天或按天间隔（legacy：freq_category 为 daily-interval 但 freq_type 被保存为 daily）
-  if (freq_category === 'daily-interval' || freq_type === 'daily') {
-    if (freq_rules && freq_rules > 1) {
-      return `每${freq_rules + 1}天`
+  // 每天或按天间隔
+  if (freqCategory === 'daily-interval' || frequencyType === 'daily') {
+    if (freqRules && freqRules > 1) {
+      return `每${freqRules + 1}天`
     }
     return '每天'
   }
 
   // 每周固定
-  if (freq_category === 'weekly' || freq_type === 'weekly') {
-    if (freq_rules && freq_rules.length > 0) {
+  if (freqCategory === 'weekly' || frequencyType === 'weekly') {
+    if (freqRules && freqRules.length > 0) {
       const weekdayNames = ['', '一', '二', '三', '四', '五', '六', '日']
-      const days = freq_rules.map(d => weekdayNames[d]).join('、')
+      const days = freqRules.map(d => weekdayNames[d]).join('、')
       return `每周${days}`
     }
     return '每周'
@@ -625,13 +628,11 @@ function buildStrategyText(strategy) {
  * @returns {Object}
  */
 function buildStrategyObject(userHabitId, policyInput, options = {}) {
-  const freqType = policyInput.frequencyType || policyInput.freq_type || 'daily'
+  const freqType = policyInput.frequencyType || 'daily'
   const frequencyConfig = policyInput.frequencyConfig
-  // 规范化 freqRules：支持数字、数组、{ intervalDays }、{ weekdays } 以及旧字段 freq_rules
+  // 规范化 frequencyConfig：支持数字、数组、{ intervalDays }、{ weekdays }
   let freqRules
-  if (policyInput.freq_rules !== undefined && policyInput.freq_rules !== null) {
-    freqRules = policyInput.freq_rules
-  } else if (typeof frequencyConfig === 'number') {
+  if (typeof frequencyConfig === 'number') {
     freqRules = frequencyConfig
   } else if (Array.isArray(frequencyConfig)) {
     freqRules = frequencyConfig
@@ -640,18 +641,16 @@ function buildStrategyObject(userHabitId, policyInput, options = {}) {
   } else {
     freqRules = frequencyConfig?.intervalDays || 1
   }
-  const freqCategory = freqType === 'weekly' ? 'weekly'
-    : (freqType === 'interval' || (typeof freqRules === 'number' && freqRules > 1) ? 'daily-interval' : 'everyday')
-
   return {
-    habit_id: userHabitId,
-    habit_title: options.habitTitle || '',
+    userHabitId,
+    habitTitle: options.habitTitle || '',
     category: options.category || '',
     duration: policyInput.duration,
-    freq_type: freqType,
-    freq_rules: freqRules,
-    freq_category: freqCategory,
-    plan_start_date: policyInput.startDate || policyInput.plan_start_date || ''
+    frequencyType: freqType,
+    frequencyConfig: freqType === 'weekly'
+      ? { weekdays: Array.isArray(freqRules) ? freqRules : [] }
+      : { intervalDays: Number(freqRules) || 1 },
+    startDate: policyInput.startDate || ''
   }
 }
 
@@ -698,11 +697,7 @@ function buildHabitDisplayList(builtInHabits) {
       category: habit.category
     })
 
-    const freqText = buildStrategyText({
-      freq_type: freqType,
-      freq_rules: freqRules,
-      freq_category: freqType === 'weekly' ? 'weekly' : (freqRules > 1 ? 'daily-interval' : 'everyday')
-    })
+    const freqText = buildStrategyText(strategy)
     const strategyText = `${freqText} · ${duration}分钟`
 
     return {

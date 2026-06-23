@@ -1,7 +1,8 @@
 function mockWxServerSdk(collections, options = {}) {
   const command = {
     in: jest.fn(value => ({ $in: value })),
-    gte: jest.fn(value => ({ lte: jest.fn(end => ({ gte: value, lte: end })) }))
+    gte: jest.fn(value => ({ lte: jest.fn(end => ({ gte: value, lte: end })) })),
+    remove: jest.fn(() => ({ $remove: true }))
   };
 
   const makeCollection = name => ({
@@ -225,11 +226,13 @@ describe('cloud deletion policy', () => {
         data: expect.objectContaining({
           userHabitId: 'uh_20',
           habitId: '20',
-          createdAt: '2026-06-02',
-          latestPolicyVersionId: 'pv_20'
+          createdAt: '2026-06-02'
         })
       }
     }));
+    const addedHabit = calls.adds.find(call => call.collection === 'user_habits').payload.data;
+    expect(addedHabit.latestPolicyVersionId).toBeUndefined();
+    expect(addedHabit.syncStatus).toBeUndefined();
     expect(calls.adds).toContainEqual(expect.objectContaining({
       collection: 'habit_policy_versions',
       payload: {

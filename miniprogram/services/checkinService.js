@@ -96,7 +96,6 @@ async function checkin(userHabitId, date) {
     idempotencyKey: operation.idempotencyKey,
     action: 'checkin',
     hasPolicyChangedToday: state.hasPolicyChangedToday === true,
-    lockedReason: state.lockedReason,
     lockReason: state.lockReason,
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
@@ -166,7 +165,6 @@ async function undoCheckin(userHabitId, date) {
     idempotencyKey: operation.idempotencyKey,
     action: 'undo',
     hasPolicyChangedToday: state.hasPolicyChangedToday === true,
-    lockedReason: state.lockedReason,
     lockReason: state.lockReason,
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
@@ -236,7 +234,7 @@ function getCheckinHistory(userHabitId, date) {
 
 function isStrategyChangedState(state) {
   if (!state) return false
-  const reason = state.lockedReason || state.lockReason
+  const reason = state.lockReason
   return state.hasPolicyChangedToday === true ||
     reason === 'strategy_changed_after_checkin' ||
     reason === 'strategy_changed_without_checkin'
@@ -258,12 +256,11 @@ function applyStrategyChangeLock(nextState, previousState, policyVersionId) {
     return state
   }
 
-  const lockedReason = getStrategyChangeLockedReason(state.status)
+  const lockReason = getStrategyChangeLockedReason(state.status)
   return {
     ...state,
     hasPolicyChangedToday: true,
-    lockedReason,
-    lockReason: lockedReason
+    lockReason
   }
 }
 

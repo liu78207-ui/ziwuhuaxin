@@ -1,0 +1,121 @@
+/* pages/about/about.wxss */
+
+.page-wrapper {
+  --about-bg: var(--bg-primary);
+  --about-body-text: #6C747B;
+
+  min-height: 100vh;
+  background-color: var(--about-bg);
+}
+
+.nav-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nav-mask-height);
+  padding-top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: background-color 0.1s ease;
+}
+
+.nav-back {
+  position: fixed;
+  left: 24rpx;
+  top: 48px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+}
+
+.nav-title-wrap {
+  position: fixed;
+  top: 48px;
+  left: 0;
+  right: 0;
+  height: 32px;
+  line-height: 32px;
+  text-align: center;
+  z-index: 100;
+}
+
+.nav-title {
+  font-size: 38rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: inherit;
+}
+
+.nav-back-icon {
+  width: 18rpx;
+  height: 18rpx;
+  border-left: 5rpx solid var(--text-primary);
+  border-bottom: 5rpx solid var(--text-primary);
+  transform: rotate(45deg);
+}
+
+.content-scroll {
+  position: fixed;
+  top: 88rpx;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding-top: env(safe-area-inset-top);
+}
+
+.about-content {
+  padding: 104rpx 48rpx calc(96rpx + env(safe-area-inset-bottom));
+}
+
+.about-section {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 104rpx;
+}
+
+.about-section-last {
+  margin-bottom: 0;
+}
+
+.section-index {
+  color: var(--color-primary);
+  font-size: 76rpx;
+  font-weight: 700;
+  font-style: italic;
+  line-height: 1;
+  letter-spacing: 0;
+  margin-bottom: 30rpx;
+}
+
+.section-title {
+  color: var(--text-primary);
+  font-size: 44rpx;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: 0;
+  margin-bottom: 64rpx;
+}
+
+.section-paragraph {
+  color: var(--about-body-text);
+  font-size: 31rpx;
+  font-weight: 500;
+  line-height: 2;
+  letter-spacing: 0;
+  margin-bottom: 48rpx;
+}
+
+.section-paragraph:last-child {
+  margin-bottom: 0;
+}
+
+.text-emphasis {
+  color: var(--color-primary);
+  font-weight: 700;
+}

@@ -228,7 +228,6 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
     expect(state).toBeDefined()
     expect(state.status).toBe('unchecked')
     expect(state.hasPolicyChangedToday).toBe(true)
-    expect(state.lockedReason).toBe('strategy_changed_without_checkin')
     expect(state.lockReason).toBe('strategy_changed_without_checkin')
     expect(syncService.pushWithDedup).toHaveBeenLastCalledWith(
       'habit',
@@ -239,7 +238,7 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
           date: '2026-06-02',
           status: 'unchecked',
           hasPolicyChangedToday: true,
-          lockedReason: 'strategy_changed_without_checkin'
+          lockReason: 'strategy_changed_without_checkin'
         })
       })
     )
@@ -276,7 +275,6 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
     expect(state).toBeDefined()
     expect(state.status).toBe('checked')
     expect(state.hasPolicyChangedToday).toBe(true)
-    expect(state.lockedReason).toBe('strategy_changed_after_checkin')
     expect(state.lockReason).toBe('strategy_changed_after_checkin')
     expect(syncService.pushWithDedup).toHaveBeenLastCalledWith(
       'habit',
@@ -287,7 +285,7 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
           date: '2026-06-02',
           status: 'checked',
           hasPolicyChangedToday: true,
-          lockedReason: 'strategy_changed_after_checkin'
+          lockReason: 'strategy_changed_after_checkin'
         })
       })
     )

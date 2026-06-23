@@ -344,71 +344,6 @@ async function recoverOrSync() {
   }
 }
 
-/**
- * 从云端恢复 V1 数据到本地缓存
- * 在本地关键缓存为空时调用（清缓存/换设备/首次登录）
- */
-function isFunctionNotFoundError(error) {
-  const message = error?.message || ''
-  const code = error?.code || ''
-  return code === 'FUNCTION_NOT_FOUND' ||
-    message.includes('-501000') ||
-    message.includes('FUNCTION_NOT_FOUND') ||
-    message.includes('FunctionName parameter could not be found')
-}
-
-function isTimeoutError(error) {
-  const message = (error?.message || '').toLowerCase()
-  const code = error?.code || ''
-  return code === cloudService.ERROR_CODES.TIMEOUT ||
-    message.includes('timeout')
-}
-
-function isCollectionMissingError(error) {
-  const message = error?.message || ''
-  return message.includes('-502005') ||
-    message.includes('collection not exists') ||
-    message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
-    message.includes('ResourceNotFound') ||
-    message.includes('Db or Table not exist')
-}
-
-function shouldFallbackToLegacyRecover(error) {
-  return isFunctionNotFoundError(error) ||
-    isTimeoutError(error) ||
-    isCollectionMissingError(error)
-}
-
-function persistLegacyRecoverPayload(payload) {
-  if (payload.MyHabits && Array.isArray(payload.MyHabits)) {
-    storageService.setMyHabits(payload.MyHabits)
-  }
-  if (payload.CheckinLogs && Array.isArray(payload.CheckinLogs)) {
-    storageService.setCheckinLogs(payload.CheckinLogs)
-  }
-  if (payload.AllHabitsInfo && typeof payload.AllHabitsInfo === 'object') {
-    storageService.setAllHabitsInfo(payload.AllHabitsInfo)
-  }
-}
-
-async function recoverFromLegacyCloud() {
-  const result = await cloudService.callFunction('syncLocalData', {})
-  if (!result.success) {
-    return {
-      success: false,
-      source: 'none',
-      error: result.error || {
-        code: 'RECOVER_FAILED',
-        message: 'syncLocalData cloud function failed'
-      }
-    }
-  }
-
-  const payload = result.data?.data || result.data || {}
-  persistLegacyRecoverPayload(payload)
-  return { success: true, source: 'syncLocalData', restored: true }
-}
-
 function buildRecoverDataParams(options = {}) {
   const params = {
     dailyStateDays: options.dailyStateDays || 90
@@ -422,12 +357,27 @@ function buildRecoverDataParams(options = {}) {
   return params
 }
 
+function cleanRecoveredObject(data) {
+  return Object.keys(data).reduce((result, key) => {
+    const value = data[key]
+    if (value !== undefined && value !== null && value !== '') {
+      result[key] = value
+    }
+    return result
+  }, {})
+}
+
+function resolveLatestPolicyVersionId(policyVersions, userHabitId) {
+  const policies = Array.isArray(policyVersions) ? policyVersions : []
+  const active = policies.find(pv =>
+    pv.userHabitId === userHabitId && pv.effectiveEndDate === null
+  )
+  return active ? active.policyVersionId : ''
+}
+
 async function recoverFromCloud(options = {}) {
   const result = await cloudService.callFunction('recoverData', buildRecoverDataParams(options))
   if (!result.success) {
-    if (shouldFallbackToLegacyRecover(result.error)) {
-      return recoverFromLegacyCloud()
-    }
     throw new Error(result.error?.message || 'recoverData 云函数返回失败')
   }
 
@@ -439,19 +389,18 @@ async function recoverFromCloud(options = {}) {
 
   // 恢复 userHabits -> MyHabits
   if (userHabits && Array.isArray(userHabits)) {
-    const migratedHabits = userHabits.map(h => ({
+    const migratedHabits = userHabits.map(h => cleanRecoveredObject({
       userHabitId: h.userHabitId,
       habitId: h.habitId,
-      name: h.name || h.title || h.habitTitle || '',
+      name: h.name || h.title || h.habitTitle,
       category: h.category || '运动类',
       targetMinutes: h.targetMinutes || h.duration || 20,
       themeClass: h.themeClass || 't-default',
-      iconUrl: h.iconUrl || '',
+      iconUrl: h.iconUrl,
       status: h.status || 'active',
-      createdAt: h.createdAt || '',
-      deletedAt: h.deletedAt || null,
-      latestPolicyVersionId: h.latestPolicyVersionId || '',
-      syncStatus: 1
+      createdAt: h.createdAt,
+      deletedAt: h.deletedAt,
+      latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId)
     }))
     storageService.setMyHabits(migratedHabits)
   }

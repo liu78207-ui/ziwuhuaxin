@@ -20,14 +20,14 @@
   right: 0;
   background-color: var(--bg-primary);
   z-index: 100;
-  padding: 100rpx 48rpx 0;
+  padding: 0 48rpx;
+  min-height: var(--nav-mask-height);
 }
 
 /* ============================================
    导航栏标题
    ============================================ */
 .nav-header {
-  padding-bottom: 24rpx;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -48,7 +48,7 @@
 .tabs-top {
   display: flex;
   gap: 48rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 0;
   padding-bottom: 12rpx;
 }
 
@@ -83,8 +83,13 @@
    可滚动内容区域
    ============================================ */
 .content-scroll {
-  flex: 1;
-  padding: 290rpx 48rpx 200rpx;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow-y: auto;
+  padding: 270rpx 48rpx 200rpx;
   box-sizing: border-box;
 }
 
@@ -435,7 +440,7 @@
   font-size: 20rpx;
   font-family: sans-serif;
   background: #F4F6F8;
-  color: #B0B0B0;
+  color: var(--color-disabled-text);
   font-weight: 500;
 }
 
@@ -451,7 +456,7 @@
 .mc-cell.future {
   background: #F4F6F8;
   border: 2rpx solid transparent;
-  color: #B0B0B0;
+  color: var(--color-disabled-text);
   box-sizing: border-box;
 }
 
@@ -465,14 +470,14 @@
 .mc-cell.not_required {
   background: #F4F6F8;
   border: 2rpx solid transparent;
-  color: #B0B0B0;
+  color: var(--color-disabled-text);
   box-sizing: border-box;
 }
 
 .mc-cell.low_confidence {
   background: #F4F6F8;
   border: 2rpx solid transparent;
-  color: #B0B0B0;
+  color: var(--color-disabled-text);
   box-sizing: border-box;
 }
 

@@ -17,11 +17,14 @@ describe('iconMap 工具函数测试', () => {
     test('应该为火属性习惯返回t-red主题', () => {
       const result = iconMap.getIconConfig('金刚功');
       expect(result.themeClass).toBe('t-red');
+      expect(iconMap.getIconConfig('跑步').themeClass).toBe('t-red');
+      expect(iconMap.getIconConfig('跳绳').themeClass).toBe('t-red');
     });
 
     test('应该为木属性习惯返回t-green主题', () => {
       const result = iconMap.getIconConfig('站桩');
       expect(result.themeClass).toBe('t-green');
+      expect(iconMap.getIconConfig('经络拍打').themeClass).toBe('t-green');
     });
 
     test('应该为土属性习惯返回t-yellow主题', () => {
@@ -79,6 +82,9 @@ describe('iconMap 工具函数测试', () => {
       expect(iconMap.getThemeClass('金刚功')).toBe('t-red');
       expect(iconMap.getThemeClass('站桩')).toBe('t-green');
       expect(iconMap.getThemeClass('八段锦')).toBe('t-yellow');
+      expect(iconMap.getThemeClass('跑步')).toBe('t-red');
+      expect(iconMap.getThemeClass('跳绳')).toBe('t-red');
+      expect(iconMap.getThemeClass('经络拍打')).toBe('t-green');
     });
 
     test('未知习惯应该返回默认主题t-blue', () => {

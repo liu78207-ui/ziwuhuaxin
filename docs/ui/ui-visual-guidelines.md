@@ -55,9 +55,27 @@
 | `--color-warning` | `#F2A93B` | 提醒、重点数据 |
 | `--color-danger` | `#F0655B` | 删除、危险操作 |
 | `--color-disabled-bg` | `#F4F6F8` | 禁用、非活跃状态 |
-| `--color-disabled-text` | `#B0B0B0` | 禁用、未来日期、非活跃说明 |
+| `--color-disabled-text` | `#AEB8C2` | 禁用、未来日期、非活跃说明 |
 | `--color-mask-soft` | `rgba(0, 0, 0, 0.3)` | 普通底部弹窗蒙层 |
 | `--color-mask-strong` | `rgba(0, 0, 0, 0.5)` | 选择器、操作菜单蒙层 |
+
+### 2.1.1 文字灰阶使用规则
+
+文字灰阶统一采用冷蓝灰体系。文字颜色只允许使用以下灰阶 token，不得新增硬编码中性灰、暖灰或透明黑作为文字色：
+
+| 层级 | Token | 使用场景 |
+|---|---|---|
+| 主文字 | `--color-text-main` / `--text-primary` / `--ink-title` | 页面标题、卡片标题、关键数据、操作项主文案 |
+| 正文说明 | `--color-text-secondary` / `--text-secondary` / `--ink-main` | 正文、说明文字、协议正文、设置说明 |
+| 弱提示 | `--color-text-muted` / `--text-tertiary` / `--text-sub` | 日期副标题、未选中 tab、弱提示、弹窗说明 |
+| 禁用文字 | `--color-disabled-text` | 未来日期、不可用状态、空态占位、禁用提示 |
+
+实现要求：
+
+- 不新增 `#333`、`#666`、`#999999`、`#B0B0B0`、`#3D3A36`、`#5C5850`、`#C5C2BB` 等硬编码文字灰色。
+- 不使用 `rgba(0, 0, 0, x)` 作为文字色表达层级；需要变弱时使用弱提示或禁用 token。
+- 白色文字仅用于深色/主题色按钮、图标和深色卡片上的反白文案。
+- 主题色、危险色、成功/警告色仅用于状态和操作语义，不替代文字灰阶。
 
 ### 2.2 习惯五主题色系统
 
@@ -108,15 +126,16 @@
 |---|---|---|
 | 金刚功 | `habit-jinganggong.png` | `t-red` |
 | 快走 | `habit-kuaizou.png` | `t-red` |
+| 跑步 | `habit-paobu.png` | `t-red` |
+| 跳绳 | `habit-tiaosheng.png` | `t-red` |
 | 艾灸 | `habit-aijiu.png` | `t-red` |
 | 睡前泡脚 | `habit-shuiqian-paojiao.png` | `t-red` |
 | 站桩 | `habit-zhanzhuang.png` | `t-green` |
-| 跳绳 | `habit-tiaosheng.png` | `t-green` |
 | 刮痧 | `habit-guasha.png` | `t-green` |
 | 揉腹 | `habit-roufu.png` | `t-green` |
+| 经络拍打 | `habit-jingluo-paida.png` | `t-green` |
 | 八段锦 | `habit-baduanjin.png` | `t-yellow` |
 | 五禽戏 | `habit-wuqinxi.png` | `t-yellow` |
-| 跑步 | `habit-paobu.png` | `t-yellow` |
 | 推拿 | `habit-tuina.png` | `t-yellow` |
 | 梳头 | `habit-shutou.png` | `t-yellow` |
 | 太极拳 | `habit-taijiquan.png` | `t-blue` |
@@ -125,7 +144,6 @@
 | 晨起温水 | `habit-chenqi-wenshui.png` | `t-blue` |
 | 瑜伽 | `habit-yujia.png` | `t-purple` |
 | 普拉提 | `habit-pulati.png` | `t-purple` |
-| 经络拍打 | `habit-jingluo-paida.png` | `t-purple` |
 | 叩齿 | `habit-kouchi.png` | `t-purple` |
 
 ### 2.5 主题 fallback 规则

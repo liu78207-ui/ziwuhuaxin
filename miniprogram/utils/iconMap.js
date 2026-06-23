@@ -6,19 +6,20 @@ const HABIT_ICONS = {
   // 🔴 火属性 / 温阳气血 - 红色 (t-red)
   '金刚功': { file: 'habit-jinganggong.png', theme: 't-red' },
   '快走': { file: 'habit-kuaizou.png', theme: 't-red' },
+  '跑步': { file: 'habit-paobu.png', theme: 't-red' },
+  '跳绳': { file: 'habit-tiaosheng.png', theme: 't-red' },
   '艾灸': { file: 'habit-aijiu.png', theme: 't-red' },
   '睡前泡脚': { file: 'habit-shuiqian-paojiao.png', theme: 't-red' },
 
   // 🟢 木属性 / 疏肝理气 - 绿色 (t-green)
   '站桩': { file: 'habit-zhanzhuang.png', theme: 't-green' },
-  '跳绳': { file: 'habit-tiaosheng.png', theme: 't-green' },
   '刮痧': { file: 'habit-guasha.png', theme: 't-green' },
   '揉腹': { file: 'habit-roufu.png', theme: 't-green' },
+  '经络拍打': { file: 'habit-jingluo-paida.png', theme: 't-green' },
 
   // 🟡 土属性 / 健脾强身 - 黄色 (t-yellow)
   '八段锦': { file: 'habit-baduanjin.png', theme: 't-yellow' },
   '五禽戏': { file: 'habit-wuqinxi.png', theme: 't-yellow' },
-  '跑步': { file: 'habit-paobu.png', theme: 't-yellow' },
   '推拿': { file: 'habit-tuina.png', theme: 't-yellow' },
   '梳头': { file: 'habit-shutou.png', theme: 't-yellow' },
 
@@ -31,7 +32,6 @@ const HABIT_ICONS = {
   // 🟣 特殊类 / 柔韧与骨相 - 紫色 (t-purple)
   '瑜伽': { file: 'habit-yujia.png', theme: 't-purple' },
   '普拉提': { file: 'habit-pulati.png', theme: 't-purple' },
-  '经络拍打': { file: 'habit-jingluo-paida.png', theme: 't-purple' },
   '叩齿': { file: 'habit-kouchi.png', theme: 't-purple' }
 };
 

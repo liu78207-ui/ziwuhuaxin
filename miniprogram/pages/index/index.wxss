@@ -21,7 +21,7 @@ page {
 
 .userinfo-nickname {
   font-size: 48rpx;
-  color: #333;
+  color: var(--color-text-main);
 }
 
 .usermotto {
@@ -30,5 +30,5 @@ page {
 
 .user-motto {
   font-size: 32rpx;
-  color: #666;
+  color: var(--color-text-secondary);
 }

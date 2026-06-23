@@ -91,6 +91,48 @@ function fetchPolicyVersionsByUserHabitId(userHabitId) {
   return storageService.getPolicyVersionsByUserHabitId(userHabitId)
 }
 
+function groupByUserHabitId(items) {
+  return (items || []).reduce((result, item) => {
+    const userHabitId = item && item.userHabitId
+    if (!userHabitId) return result
+    if (!result[userHabitId]) {
+      result[userHabitId] = []
+    }
+    result[userHabitId].push(item)
+    return result
+  }, {})
+}
+
+function indexByHabitId(items) {
+  return (items || []).reduce((result, item) => {
+    if (item && item.habitId) {
+      result[item.habitId] = item
+    }
+    return result
+  }, {})
+}
+
+function buildReportContext(startDate, endDate) {
+  let builtInHabits = []
+  try {
+    builtInHabits = habitService.getBuiltInHabits()
+  } catch (e) {
+    builtInHabits = []
+  }
+
+  const userHabits = fetchUserHabits(null)
+  const policyVersions = fetchPolicyVersions()
+  const dailyStates = fetchDailyStates(startDate, endDate)
+
+  return {
+    userHabits,
+    policyVersions,
+    dailyStates,
+    policyVersionsByUserHabitId: groupByUserHabitId(policyVersions),
+    builtInByHabitId: indexByHabitId(builtInHabits)
+  }
+}
+
 // ==================== 锁定快照 ====================
 
 /**
@@ -131,14 +173,16 @@ function resolveLockSnapshot(userHabit, policyVersions, date) {
  * @param {string} todayKey
  * @returns {object}
  */
-function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
+function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = null) {
   const userHabitId = userHabit.userHabitId
 
   // 获取该实例的策略版本
-  const policyVersions = fetchPolicyVersionsByUserHabitId(userHabitId)
+  const policyVersions = context?.policyVersionsByUserHabitId
+    ? (context.policyVersionsByUserHabitId[userHabitId] || [])
+    : fetchPolicyVersionsByUserHabitId(userHabitId)
 
   // 获取每日状态
-  const dailyStates = fetchDailyStates(startDate, endDate)
+  const dailyStates = context?.dailyStates || fetchDailyStates(startDate, endDate)
 
   // 构建锁定快照
   const lockSnapshots = []
@@ -167,8 +211,9 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
   let theme = userHabit.themeClass || 't-blue'
 
   try {
-    const builtInHabits = habitService.getBuiltInHabits()
-    const builtIn = builtInHabits.find(h => h.habitId === userHabit.habitId)
+    const builtIn = context?.builtInByHabitId
+      ? context.builtInByHabitId[userHabit.habitId]
+      : habitService.getBuiltInHabits().find(h => h.habitId === userHabit.habitId)
     if (builtIn) {
       name = builtIn.name || name
       theme = builtIn.themeClass || theme
@@ -195,8 +240,9 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey) {
  * @param {string} todayKey
  * @returns {Array}
  */
-function buildAggregatedReports(startDate, endDate, todayKey) {
-  const userHabits = fetchUserHabits(null) // 获取所有实例
+function buildAggregatedReports(startDate, endDate, todayKey, context = null) {
+  const reportContext = context || buildReportContext(startDate, endDate)
+  const userHabits = reportContext.userHabits || [] // 获取所有实例
 
   // 过滤有效实例：
   // 1. 必须至少有一个策略版本。
@@ -205,10 +251,12 @@ function buildAggregatedReports(startDate, endDate, todayKey) {
   // 3. 删除当天未打卡仍由裁决结果保持低压力口径，不单独撑出报表行。
   const instanceReports = userHabits
     .filter(h => {
-      const pvs = fetchPolicyVersionsByUserHabitId(h.userHabitId)
+      const pvs = reportContext.policyVersionsByUserHabitId
+        ? (reportContext.policyVersionsByUserHabitId[h.userHabitId] || [])
+        : fetchPolicyVersionsByUserHabitId(h.userHabitId)
       return pvs && pvs.length > 0
     })
-    .map(h => buildInstanceReport(h, startDate, endDate, todayKey))
+    .map(h => buildInstanceReport(h, startDate, endDate, todayKey, reportContext))
     .filter(report => shouldShowInstanceReport(report, startDate, endDate, todayKey))
 
   // 按 habitId 聚合

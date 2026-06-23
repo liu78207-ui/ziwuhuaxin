@@ -11,8 +11,6 @@
    导航栏标题
    ============================================ */
 .nav-header {
-  padding-top: 128rpx;
-  padding-bottom: 32rpx;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -89,7 +87,7 @@
 
 .avatar-icon {
   font-size: 64rpx;
-  color: #C5C2BB;
+  color: var(--color-disabled-text);
 }
 
 /* 昵称 */
@@ -106,6 +104,10 @@
 
 .pv-login-name:active {
   opacity: 0.7;
+}
+
+.pv-name-placeholder {
+  color: var(--color-text-muted);
 }
 
 /* 身份标签 */
@@ -151,9 +153,163 @@
   opacity: 0.7;
 }
 
+.pv-list-row.is-disabled {
+  opacity: 0.45;
+}
+
 .pv-list-arrow {
   font-size: 16px;
   color: var(--text-sub);
   font-weight: 300;
   font-family: sans-serif;
+}
+
+/* ============================================
+   联系我们弹窗
+   ============================================ */
+.contact-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.contact-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.contact-modal-content {
+  width: calc(100% - 96rpx);
+  background-color: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.contact-modal.show .contact-modal-content {
+  transform: scale(1);
+}
+
+.contact-modal-header {
+  padding: 47rpx 40rpx 40rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+}
+
+.contact-modal-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-left: 16rpx;
+}
+
+.contact-close-btn {
+  width: 56rpx;
+  height: 56rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 4rpx;
+}
+
+.contact-close-icon {
+  font-size: 36rpx;
+  color: var(--text-sub);
+  line-height: 1;
+}
+
+.contact-modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 56rpx 72rpx;
+}
+
+.contact-qrcode {
+  width: 280rpx;
+  height: 280rpx;
+  margin-bottom: 48rpx;
+  border-radius: var(--radius-card);
+}
+
+.contact-tip {
+  font-size: 30rpx;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.clear-cache-modal-content {
+  min-height: 420rpx;
+}
+
+.clear-cache-modal-header {
+  padding: 74rpx 56rpx 30rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.clear-cache-modal-title {
+  margin-left: 0;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.clear-cache-modal-body {
+  padding: 0 68rpx 70rpx;
+}
+
+.clear-cache-modal-text {
+  display: block;
+  width: 100%;
+  font-size: 32rpx;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--text-sub);
+  text-align: center;
+}
+
+.clear-cache-modal-footer {
+  display: flex;
+  border-top: 1px solid var(--border-light);
+}
+
+.clear-cache-modal-btn {
+  flex: 1;
+  height: 104rpx;
+  line-height: 104rpx;
+  border-radius: 0;
+  font-size: 32rpx;
+  font-weight: 600;
+  border: none;
+  padding: 0;
+  background-color: transparent;
+}
+
+.clear-cache-modal-btn::after {
+  border: none;
+}
+
+.clear-cache-modal-cancel {
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-light);
+}
+
+.clear-cache-modal-confirm {
+  color: var(--color-danger);
 }

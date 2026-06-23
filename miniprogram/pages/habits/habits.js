@@ -2,6 +2,7 @@ const iconMap = require('../../utils/iconMap.js');
 const shareService = require('../../services/shareService');
 const habitService = require('../../services/habitService');
 const eventBus = require('../../services/eventBus');
+const { getNavTitleStyle } = require('../../utils/navLayout');
 
 Page({
   data: {
@@ -70,7 +71,12 @@ Page({
     showActionMenu: false,
     actionMenuTitle: '',
     actionMenuItems: [],
-    actionMenuCallback: null
+    actionMenuCallback: null,
+    showDeleteHabitModal: false,
+    pendingDeleteHabit: null,
+    deleteHabitModalContent: '',
+    isDeletingHabit: false,
+    navTitleStyle: ''
   },
 
   // 返回上一页
@@ -92,6 +98,9 @@ Page({
 
   onLoad() {
     console.log('habits页面 onLoad');
+    this.setData({
+      navTitleStyle: getNavTitleStyle()
+    });
     this.subscribeSyncEvents();
     // 完整的习惯数据（与数据库一致）
     const allHabits = [
@@ -280,17 +289,7 @@ Page({
             // 修改策略
             this.openEditStrategyModal(habit);
           } else if (index === 1) {
-            // 删除习惯
-            wx.showModal({
-              title: '删除习惯',
-              content: `确定要删除「${habit.title}」吗？\n历史打卡数据将保留`,
-              confirmColor: '#F0655B',
-              success: (modalRes) => {
-                if (modalRes.confirm) {
-                  this.removeStrategy(habit);
-                }
-              }
-            });
+            this.openDeleteHabitModal(habit);
           }
         }
       });
@@ -335,6 +334,48 @@ Page({
         callback(index);
       }, 300); // 等待弹窗动画完成
     }
+  },
+
+  openDeleteHabitModal(habit) {
+    this.setData({
+      showDeleteHabitModal: true,
+      pendingDeleteHabit: habit,
+      deleteHabitModalContent: `确定要删除「${habit.title}」吗？ 历史打卡数据将保留`
+    });
+  },
+
+  closeDeleteHabitModal() {
+    if (this.data.isDeletingHabit) {
+      return;
+    }
+    this.setData({
+      showDeleteHabitModal: false,
+      pendingDeleteHabit: null,
+      deleteHabitModalContent: ''
+    });
+  },
+
+  async confirmDeleteHabit() {
+    if (this.data.isDeletingHabit || !this.data.pendingDeleteHabit) {
+      return;
+    }
+
+    const habit = this.data.pendingDeleteHabit;
+    this.setData({ isDeletingHabit: true });
+    try {
+      await this.removeStrategy(habit);
+      this.setData({
+        showDeleteHabitModal: false,
+        pendingDeleteHabit: null,
+        deleteHabitModalContent: ''
+      });
+    } finally {
+      this.setData({ isDeletingHabit: false });
+    }
+  },
+
+  preventBubble() {
+    // 阻止弹窗内容点击冒泡到遮罩
   },
 
   // 长按 habit - 快速修改（仅对已添加的习惯）
@@ -393,8 +434,8 @@ Page({
   openEditStrategyModal(habit) {
     // 从当前 habit 中读取已有策略
     const strategy = this.normalizeStrategyForEdit(habit);
-    const freqCategory = strategy.freq_category || 'everyday';
-    const freqRules = strategy.freq_rules;
+    const freqCategory = strategy.frequencyCategory || 'everyday';
+    const freqRules = strategy.frequencyRules;
 
     // 解析已有的策略设置
     let dailyInterval = 2;
@@ -419,7 +460,7 @@ Page({
 
     // 处理计划开始时间
     const today = this.getTodayDate();
-    const savedPlanStartDate = strategy.plan_start_date || today;
+    const savedPlanStartDate = strategy.startDate || today;
     const habitCreatedAt = habit.createdAt || today;
     const minDate = habitCreatedAt < today ? habitCreatedAt : today;
     const isNotStarted = savedPlanStartDate > today;
@@ -467,42 +508,39 @@ Page({
 
   normalizeStrategyForEdit(habit) {
     const strategy = habit.strategy || {};
-    const rawFrequencyType = strategy.freq_type || strategy.frequencyType || 'daily';
+    const rawFrequencyType = strategy.frequencyType || 'daily';
     const rawFrequencyConfig = strategy.frequencyConfig || {};
-    let freqRules = strategy.freq_rules;
+    let freqRules;
 
-    if (freqRules === undefined || freqRules === null) {
-      if (rawFrequencyType === 'weekly') {
-        freqRules = Array.isArray(rawFrequencyConfig)
-          ? rawFrequencyConfig
-          : (Array.isArray(rawFrequencyConfig.weekdays) ? rawFrequencyConfig.weekdays : []);
-      } else {
-        freqRules = typeof rawFrequencyConfig === 'number'
-          ? rawFrequencyConfig
-          : (rawFrequencyConfig.intervalDays || 1);
-      }
+    if (rawFrequencyType === 'weekly') {
+      freqRules = Array.isArray(rawFrequencyConfig)
+        ? rawFrequencyConfig
+        : (Array.isArray(rawFrequencyConfig.weekdays) ? rawFrequencyConfig.weekdays : []);
+    } else {
+      freqRules = typeof rawFrequencyConfig === 'number'
+        ? rawFrequencyConfig
+        : (rawFrequencyConfig.intervalDays || 1);
     }
 
-    const freqCategory = strategy.freq_category ||
-      (rawFrequencyType === 'weekly'
-        ? 'weekly'
-        : (Number(freqRules) > 1 ? 'daily-interval' : 'everyday'));
+    const freqCategory = rawFrequencyType === 'weekly'
+      ? 'weekly'
+      : (Number(freqRules) > 1 ? 'daily-interval' : 'everyday');
 
     return {
       ...strategy,
       duration: strategy.duration || habit.targetMinutes || habit.default_duration || 20,
-      freq_type: rawFrequencyType,
-      freq_rules: freqRules,
-      freq_category: freqCategory,
-      plan_start_date: strategy.plan_start_date || strategy.startDate || strategy.effectiveStartDate || ''
+      frequencyType: rawFrequencyType,
+      frequencyRules: freqRules,
+      frequencyCategory: freqCategory,
+      startDate: strategy.startDate || strategy.effectiveStartDate || ''
     };
   },
 
   // 移除习惯策略
   async removeStrategy(habit) {
     // 1. 获取 userHabitId
-    const userHabitId = habit.strategy && habit.strategy.habit_id
-      ? String(habit.strategy.habit_id)
+    const userHabitId = habit.strategy && habit.strategy.userHabitId
+      ? String(habit.strategy.userHabitId)
       : null;
 
     if (!userHabitId) {
@@ -776,40 +814,40 @@ Page({
     this.setData({ isSavingStrategy: true });
 
     // 根据频次分类构建策略数据
-    let freq_type, freq_rules;
+    let frequencyType, frequencyRules;
     switch (freqCategory) {
       case 'everyday':
-        freq_type = 'daily';
-        freq_rules = 1; // 每天
+        frequencyType = 'daily';
+        frequencyRules = 1; // 每天
         break;
       case 'daily-interval':
-        freq_type = 'interval';
-        freq_rules = dailyInterval; // 间隔天数
+        frequencyType = 'interval';
+        frequencyRules = dailyInterval; // 间隔天数
         break;
       case 'weekly':
-        freq_type = 'weekly';
-        freq_rules = selectedWeekdays;
+        frequencyType = 'weekly';
+        frequencyRules = selectedWeekdays;
         break;
       default:
-        freq_type = 'daily';
-        freq_rules = 1;
+        frequencyType = 'daily';
+        frequencyRules = 1;
     }
 
     // 获取计划开始日期
     const planStartDate = this.getFinalPlanStartDate();
 
     // 判断是新增还是修改：
-    // - 新增：habit.strategy.habit_id 不存在，或指向一个已删除的 userHabit
-    // - 修改：habit.strategy.habit_id 存在且指向一个 active 的 userHabit
-    const existingUserHabitId = habit.strategy && habit.strategy.habit_id
+    // - 新增：habit.strategy.userHabitId 不存在，或指向一个已删除的 userHabit
+    // - 修改：habit.strategy.userHabitId 存在且指向一个 active 的 userHabit
+    const existingUserHabitId = habit.strategy && habit.strategy.userHabitId
     const isEdit = existingUserHabitId
       && habitService.getHabitByUserHabitId(existingUserHabitId)
       && habitService.getHabitByUserHabitId(existingUserHabitId).status === 'active'
 
     const policyInput = {
       duration: this.data.selectedDuration || habit.default_duration || 30,
-      frequencyType: freq_type,
-      frequencyConfig: freq_type === 'weekly' ? { weekdays: freq_rules } : { intervalDays: freq_rules },
+      frequencyType,
+      frequencyConfig: frequencyType === 'weekly' ? { weekdays: frequencyRules } : { intervalDays: frequencyRules },
       startDate: planStartDate
     }
 
@@ -827,14 +865,13 @@ Page({
         console.log('habitService.addHabit 完成:', userHabitId)
       }
       strategy = {
-        habit_id: userHabitId,
-        habit_title: habit.title,
+        userHabitId,
+        habitTitle: habit.title,
         category: habit.category,
         duration: this.data.selectedDuration || habit.default_duration || 30,
-        freq_type: freq_type,
-        freq_rules: freq_rules,
-        freq_category: freqCategory,
-        plan_start_date: planStartDate
+        frequencyType,
+        frequencyConfig: frequencyType === 'weekly' ? { weekdays: frequencyRules } : { intervalDays: frequencyRules },
+        startDate: planStartDate
       };
     } catch (e) {
       console.error('保存策略失败:', e);
@@ -1016,6 +1053,7 @@ Page({
     const selectedDate = `${year}-${monthStr}-${dayStr}`;
 
     this.setData({
+      planStartDatePickerValue: value,
       planStartDatePickerTempValue: selectedDate
     });
   },

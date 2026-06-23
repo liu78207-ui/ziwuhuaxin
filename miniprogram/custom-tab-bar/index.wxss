@@ -3,17 +3,18 @@
 
 /* 使用全局主题色变量 */
 :host {
-  --tab-primary: #38A385;
-  --tab-text-sub: #8B959E;
+  --tab-primary: var(--color-primary, #38A385);
+  --tab-text-sub: var(--color-text-muted, #8B959E);
 }
 
 /* 底栏容器 */
 .tab-bar-container {
   position: fixed;
-  bottom: 20rpx;
+  bottom: 0;
   left: 32rpx;
   right: 32rpx;
   z-index: 1000;
+  transform: translateY(10px);
 }
 
 /* 底栏主体 - 毛玻璃效果 */
@@ -21,12 +22,12 @@
   display: flex;
   align-items: center;
   justify-content: space-around;
-  height: 122rpx;
+  height: calc(122rpx + 10px);
   padding: 0 24rpx;
   background: rgba(255, 255, 255, 0.9);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-radius: 32px;
+  border-radius: 999rpx;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.04);
 }
 

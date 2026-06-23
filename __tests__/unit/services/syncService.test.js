@@ -18,71 +18,35 @@ describe('syncService recoverFromCloud', () => {
     syncService = require('../../../miniprogram/services/syncService')
   })
 
-  test('falls back to syncLocalData when recoverData cloud function is not deployed', async () => {
+  test('does not fall back to syncLocalData when recoverData cloud function is not deployed', async () => {
     wx.cloud.callFunction
       .mockRejectedValueOnce(new Error('cloud.callFunction:fail Error: errCode: -501000 | errMsg: FunctionName parameter could not be found.'))
-      .mockResolvedValueOnce({
-        result: {
-          success: true,
-          data: {
-            MyHabits: [{ habitId: 'h_001', name: 'Test Habit' }],
-            CheckinLogs: [{ habitId: 'h_001', date: '2026-05-31' }],
-            AllHabitsInfo: { h_001: { habitId: 'h_001', name: 'Test Habit' } }
-          }
-        }
-      })
 
-    await expect(syncService.recoverFromCloud()).resolves.toEqual({
-      success: true,
-      source: 'syncLocalData',
-      restored: true
-    })
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('FunctionName parameter could not be found')
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
       data: { dailyStateDays: 90 }
     })
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
-      name: 'syncLocalData',
-      data: {}
-    })
-    expect(storage.MyHabits).toEqual([{ habitId: 'h_001', name: 'Test Habit' }])
-    expect(storage.CheckinLogs).toEqual([{ habitId: 'h_001', date: '2026-05-31' }])
-    expect(storage.AllHabitsInfo).toEqual({ h_001: { habitId: 'h_001', name: 'Test Habit' } })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    expect(storage.MyHabits).toBeUndefined()
+    expect(storage.CheckinLogs).toBeUndefined()
   })
 
-  test('falls back to syncLocalData when recoverData times out', async () => {
+  test('does not fall back to syncLocalData when recoverData times out', async () => {
     wx.cloud.callFunction
       .mockRejectedValueOnce(new Error('timeout'))
-      .mockResolvedValueOnce({
-        result: {
-          success: true,
-          data: {
-            MyHabits: [{ habitId: 'h_002', name: 'Recovered Habit' }],
-            CheckinLogs: [{ habitId: 'h_002', date: '2026-05-31' }]
-          }
-        }
-      })
 
-    await expect(syncService.recoverFromCloud()).resolves.toEqual({
-      success: true,
-      source: 'syncLocalData',
-      restored: true
-    })
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
       data: { dailyStateDays: 90 }
     })
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
-      name: 'syncLocalData',
-      data: {}
-    })
-    expect(storage.MyHabits).toEqual([{ habitId: 'h_002', name: 'Recovered Habit' }])
-    expect(storage.CheckinLogs).toEqual([{ habitId: 'h_002', date: '2026-05-31' }])
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
   })
 
-  test('falls back to syncLocalData when recoverData target collections are not created yet', async () => {
+  test('does not fall back to syncLocalData when recoverData target collections are not created yet', async () => {
     wx.cloud.callFunction
       .mockResolvedValueOnce({
         result: {
@@ -91,73 +55,64 @@ describe('syncService recoverFromCloud', () => {
           message: 'collection.get:fail -502005 database collection not exists. [ResourceNotFound] Db or Table not exist: user_habits.'
         }
       })
-      .mockResolvedValueOnce({
-        result: {
-          success: true,
-          data: {
-            MyHabits: [{ habitId: 'h_003', name: 'Legacy Habit' }],
-            CheckinLogs: [{ habitId: 'h_003', date: '2026-05-31' }]
-          }
-        }
-      })
 
-    await expect(syncService.recoverFromCloud()).resolves.toEqual({
-      success: true,
-      source: 'syncLocalData',
-      restored: true
-    })
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('collection not exists')
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
       data: { dailyStateDays: 90 }
     })
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
-      name: 'syncLocalData',
-      data: {}
-    })
-    expect(storage.MyHabits).toEqual([{ habitId: 'h_003', name: 'Legacy Habit' }])
-    expect(storage.CheckinLogs).toEqual([{ habitId: 'h_003', date: '2026-05-31' }])
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    expect(storage.MyHabits).toBeUndefined()
+    expect(storage.CheckinLogs).toBeUndefined()
   })
 
-  test('returns a non-blocking failure when both recovery functions time out', async () => {
+  test('bootstrapCloudData returns a non-blocking failure when recoverData times out', async () => {
     wx.cloud.callFunction
       .mockRejectedValueOnce(new Error('timeout'))
-      .mockRejectedValueOnce(new Error('timeout'))
 
-    await expect(syncService.recoverFromCloud()).resolves.toEqual({
+    await expect(syncService.bootstrapCloudData()).resolves.toEqual({
       success: false,
       source: 'none',
-      error: {
-        code: 'TIMEOUT',
-        message: 'timeout'
-      }
+      restored: false,
+      skipped: false,
+      error: 'timeout'
     })
 
     expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
       name: 'recoverData',
       data: { dailyStateDays: 90 }
     })
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, {
-      name: 'syncLocalData',
-      data: {}
-    })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
   })
 
-  test('persists migrated V1 user habits using title and duration fields', async () => {
+  test('recoverFromCloud throws when recoverData fails', async () => {
+    wx.cloud.callFunction
+      .mockRejectedValueOnce(new Error('timeout'))
+
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
+
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
+      name: 'recoverData',
+      data: { dailyStateDays: 90 }
+    })
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+  })
+
+  test('persists recovered V1 user habits using canonical fields', async () => {
     wx.cloud.callFunction.mockResolvedValueOnce({
       result: {
         success: true,
         data: {
           userHabits: [{
             userHabitId: 'uh_001',
-            habitId: 'h_001',
-            title: '八段锦',
+            habitId: '3',
+            name: '八段锦',
             category: '运动类',
-            duration: 15,
-            status: 'active',
-            latestPolicyVersionId: 'pv_001'
+            targetMinutes: 15,
+            status: 'active'
           }],
-          policyVersions: [{ policyVersionId: 'pv_001', userHabitId: 'uh_001' }],
+          policyVersions: [{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }],
           dailyStates: [{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }]
         }
       }
@@ -171,12 +126,12 @@ describe('syncService recoverFromCloud', () => {
 
     expect(storage.MyHabits).toEqual([expect.objectContaining({
       userHabitId: 'uh_001',
-      habitId: 'h_001',
+      habitId: '3',
       name: '八段锦',
       targetMinutes: 15,
       latestPolicyVersionId: 'pv_001'
     })])
-    expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_001', userHabitId: 'uh_001' }])
+    expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }])
     expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }])
   })
 
@@ -191,11 +146,10 @@ describe('syncService recoverFromCloud', () => {
           userHabits: [{
             userHabitId: 'uh_bootstrap',
             habitId: '1',
-            title: '金刚功',
-            status: 'active',
-            latestPolicyVersionId: 'pv_bootstrap'
+            name: '金刚功',
+            status: 'active'
           }],
-          policyVersions: [{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap' }],
+          policyVersions: [{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap', effectiveEndDate: null }],
           dailyStates: [{ stateId: 'ds_bootstrap', userHabitId: 'uh_bootstrap', date: '2026-06-16' }]
         }
       }
@@ -218,7 +172,7 @@ describe('syncService recoverFromCloud', () => {
       habitId: '1',
       name: '金刚功'
     })])
-    expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap' }])
+    expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_bootstrap', userHabitId: 'uh_bootstrap', effectiveEndDate: null }])
     expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_bootstrap', userHabitId: 'uh_bootstrap', date: '2026-06-16' }])
     expect(recoveredHandler).toHaveBeenCalledWith({
       source: 'recoverData',

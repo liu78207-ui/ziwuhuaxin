@@ -1,0 +1,23 @@
+<!--pages/privacy/privacy.wxml-->
+<!-- 隐私政策页面 -->
+
+<view class="page-wrapper">
+  <!-- 导航栏 -->
+  <view class="nav-header">
+    <text class="nav-title">隐私政策</text>
+    <view class="nav-back" bindtap="goBack">
+      <text class="nav-back-icon">‹</text>
+    </view>
+  </view>
+
+  <!-- 内容区域 -->
+  <scroll-view class="content-scroll" scroll-y="true">
+    <view class="policy-content">
+      <block wx:for="{{contentBlocks}}" wx:key="index">
+        <view class="policy-block policy-{{item.type}}">
+          <text selectable="{{true}}">{{item.text}}</text>
+        </view>
+      </block>
+    </view>
+  </scroll-view>
+</view>

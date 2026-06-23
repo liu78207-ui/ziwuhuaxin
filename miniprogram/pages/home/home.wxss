@@ -7,9 +7,10 @@ page {
 }
 
 .page-wrapper {
-  min-height: 100vh;
+  height: 100vh;
   background-color: var(--bg-primary);
   position: relative;
+  overflow: hidden;
 }
 
 /* ============================================
@@ -20,14 +21,16 @@ page {
   top: 0;
   left: 0;
   right: 0;
-  padding: 100rpx 48rpx 20rpx;
-  display: flex;
-  justify-content: flex-start;
-  align-items: flex-end;
-  height: 180rpx;
+  height: var(--nav-mask-height);
   box-sizing: border-box;
   z-index: 100;
   transition: background-color 0.1s ease;
+}
+
+.nav-title-wrap {
+  margin-left: 48rpx;
+  display: flex;
+  align-items: center;
 }
 
 .nav-title {
@@ -40,7 +43,11 @@ page {
    可滚动内容区域
    ============================================ */
 .content-scroll {
-  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 200rpx 48rpx 200rpx;
   box-sizing: border-box;
 }
@@ -328,7 +335,7 @@ page {
 /* 习惯元信息 */
 .gi-sub {
   font-size: 23rpx;
-  color: var(--text-sub, #999999);
+  color: var(--color-text-muted);
   margin-top: -4rpx;
   font-weight: 400;
 }
@@ -394,7 +401,7 @@ page {
 
 .plus-icon {
   font-size: 56rpx;
-  color: rgba(0, 0, 0, 0.25);
+  color: var(--color-disabled-text);
   line-height: 1;
   margin-top: -16rpx;
 }

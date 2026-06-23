@@ -3,7 +3,10 @@
     "pages/home/home",
     "pages/habits/habits",
     "pages/stats/stats",
-    "pages/profile/profile"
+    "pages/profile/profile",
+    "pages/about/about",
+    "pages/privacy/privacy",
+    "pages/agreement/agreement"
   ],
   "lazyCodeLoading": "requiredComponents",
   "window": {

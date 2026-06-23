@@ -6,7 +6,7 @@ const HABITS = {
   '2': { habitId: '2', name: '站桩', category: '运动类', targetMinutes: 20, themeClass: 't-green' },
   '3': { habitId: '3', name: '八段锦', category: '运动类', targetMinutes: 15, themeClass: 't-yellow' },
   '5': { habitId: '5', name: '太极拳', category: '运动类', targetMinutes: 30, themeClass: 't-green' },
-  '11': { habitId: '11', name: '跳绳', category: '运动类', targetMinutes: 15, themeClass: 't-green' },
+  '11': { habitId: '11', name: '跳绳', category: '运动类', targetMinutes: 15, themeClass: 't-red' },
   '12': { habitId: '12', name: '艾灸', category: '理疗类', targetMinutes: 30, themeClass: 't-red' },
   '13': { habitId: '13', name: '刮痧', category: '理疗类', targetMinutes: 20, themeClass: 't-purple' },
   '15': { habitId: '15', name: '推拿', category: '理疗类', targetMinutes: 30, themeClass: 't-red' },

@@ -3,6 +3,7 @@ const lunarCalendar = require('../../utils/lunarCalendar.js');
 const shareService = require('../../services/shareService');
 const timeService = require('../../services/timeService.js');
 const eventBus = require('../../services/eventBus.js');
+const { getNavTitleStyle } = require('../../utils/navLayout');
 
 // All report data must come from reportService / reportAggregator.
 let reportService = null
@@ -21,7 +22,7 @@ const getDebugOffset = () => {
 
 // 鑾峰彇妯℃嫙鏃ユ湡锛堝鏋滃浜庤皟璇曟ā寮忥級
 const getSimulatedDate = () => {
-  return timeService.getSimulatedDate(getApp());
+  return timeService.getSimulatedDate({ getDebugOffset });
 };
 
 const normalizeDateKey = (date) => {
@@ -49,11 +50,14 @@ Page({
     },
     currentWeekStart: null, // 褰撳墠鍛ㄥ紑濮嬫棩鏈?
     currentMonth: null, // 褰撳墠鏄剧ず鐨勬湀浠?(0-11)
-    currentYear: null // 褰撳墠鏄剧ず鐨勫勾浠?
+    currentYear: null, // 褰撳墠鏄剧ず鐨勫勾浠?
+    navTitleStyle: ''
   },
 
   unsubscribeSyncRecovered: null,
   unsubscribeSyncUpdated: null,
+  syncRefreshTimer: null,
+  reportLoadToken: 0,
 
   // 杩斿洖涓婁竴椤?
   goBack() {
@@ -67,14 +71,12 @@ Page({
   },
 
   onLoad() {
-    this.subscribeSyncEvents();
-    // 鍒濆鍖栧綋鍓嶆椂闂达紙鑰冭檻璋冭瘯鍋忕Щ锛?
-    const today = getSimulatedDate();
-    const weekStart = this.getWeekStart(today);
     this.setData({
-      currentWeekStart: weekStart,
-      currentMonth: today.getUTCMonth(),
-      currentYear: today.getUTCFullYear(),
+      navTitleStyle: getNavTitleStyle()
+    });
+    this.subscribeSyncEvents();
+    this.resetToCurrentPeriod();
+    this.setData({
       // 鍒濆鍖栫┖鏁版嵁缁撴瀯锛岄伩鍏嶆覆鏌撻敊璇?
       habitMatrix: [],
       monthHabits: [],
@@ -98,13 +100,27 @@ Page({
     if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
 
     const refresh = () => {
-      this.loadRealData();
+      this.scheduleSyncRefresh();
     };
     this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
     this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
   },
 
+  scheduleSyncRefresh() {
+    if (this.syncRefreshTimer) {
+      clearTimeout(this.syncRefreshTimer);
+    }
+    this.syncRefreshTimer = setTimeout(() => {
+      this.syncRefreshTimer = null;
+      this.loadRealData();
+    }, 120);
+  },
+
   unsubscribeSyncEvents() {
+    if (this.syncRefreshTimer) {
+      clearTimeout(this.syncRefreshTimer);
+      this.syncRefreshTimer = null;
+    }
     if (this.unsubscribeSyncRecovered) {
       this.unsubscribeSyncRecovered();
       this.unsubscribeSyncRecovered = null;
@@ -125,6 +141,8 @@ Page({
     wx.nextTick(() => {
       (async () => {
         try {
+          this.resetToCurrentPeriod();
+          this.updateDateDisplay();
           await this.loadRealData();
         } catch (err) {
           console.error('[stats] loadRealData failed:', err);
@@ -138,6 +156,15 @@ Page({
         selected: 2
       });
     }
+  },
+
+  resetToCurrentPeriod() {
+    const today = getSimulatedDate();
+    this.setData({
+      currentWeekStart: this.getWeekStart(today),
+      currentMonth: today.getUTCMonth(),
+      currentYear: today.getUTCFullYear()
+    });
   },
 
   // 鑾峰彇鍛ㄥ紑濮嬫棩鏈燂紙鍛ㄤ竴锛?
@@ -203,6 +230,9 @@ Page({
   // 鍒囨崲鎶ヨ〃绫诲瀷
   switchTab(e) {
     const tab = e.currentTarget.dataset.tab;
+    if (!tab || tab === this.data.currentTab) {
+      return;
+    }
     this.setData({ currentTab: tab });
     // 浣跨敤 wx.nextTick 纭繚 setData 瀹屾垚鍚庡啀鍔犺浇鏁版嵁
     wx.nextTick(() => {
@@ -273,6 +303,7 @@ Page({
 
   // V1 report path: data comes from reportService.
   async loadRealData() {
+    const token = this.beginReportLoad();
     const currentTab = this.data.currentTab;
 
     // 确保时间状态已初始化（考虑调试偏移）
@@ -285,13 +316,14 @@ Page({
     // Phase 6D - V1 路径：loadWeek/Month/YearData 直接从 reportService 获取数据
     try {
       if (currentTab === 'week') {
-        await this.loadWeekData();
+        await this.loadWeekData(token);
       } else if (currentTab === 'month') {
-        await this.loadMonthData();
+        await this.loadMonthData(token);
       } else if (currentTab === 'year') {
-        await this.loadYearData();
+        await this.loadYearData(token);
       }
     } catch (err) {
+      if (!this.isReportLoadCurrent(token)) return;
       console.error('加载数据失败:', err);
       this.setData({
         habitMatrix: [],
@@ -305,6 +337,15 @@ Page({
         }
       });
     }
+  },
+
+  beginReportLoad() {
+    this.reportLoadToken += 1;
+    return this.reportLoadToken;
+  },
+
+  isReportLoadCurrent(token) {
+    return typeof token !== 'number' || token === this.reportLoadToken;
   },
 
   // 鑾峰彇褰撳墠鍛ㄧ殑鏃ユ湡鏁扮粍
@@ -513,7 +554,7 @@ Page({
     return report.dueCount > 0 || report.doneCount > 0;
   },
 
-  async loadWeekData() {
+  async loadWeekData(token) {
     if (!reportService) {
       console.warn('[stats] reportService not available, skipping week data load');
       return;
@@ -522,6 +563,7 @@ Page({
     const weekDates = this.getWeekDates();
     const weekStart = this.formatDateKey(weekDates[0]);
     const report = await reportService.getWeeklyReport(weekStart);
+    if (!this.isReportLoadCurrent(token)) return;
 
     this.setData({
       habitMatrix: report.habitReports
@@ -533,7 +575,7 @@ Page({
     });
   },
 
-  async loadMonthData() {
+  async loadMonthData(token) {
     const year = this.data.currentYear;
     const month = this.data.currentMonth;
     const monthStart = `${year}-${String(month + 1).padStart(2, '0')}-01`;
@@ -549,6 +591,7 @@ Page({
 
     const monthStr = `${year}-${String(month + 1).padStart(2, '0')}`;
     const report = await reportService.getMonthlyReport(monthStr);
+    if (!this.isReportLoadCurrent(token)) return;
 
     this.setData({
       monthHabits: report.habitReports
@@ -560,7 +603,7 @@ Page({
     });
   },
 
-  async loadYearData() {
+  async loadYearData(token) {
     const year = this.data.currentYear;
 
     if (!reportService) {
@@ -569,6 +612,7 @@ Page({
     }
 
     const report = await reportService.getYearlyReport(String(year));
+    if (!this.isReportLoadCurrent(token)) return;
 
     this.setData({
       yearHabits: report.habitReports

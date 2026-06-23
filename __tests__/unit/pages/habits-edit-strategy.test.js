@@ -2,9 +2,9 @@
  * __tests__/unit/pages/habits-edit-strategy.test.js
  *
  * 修习页 saveStrategy 路由测试：
- * - 新增：habit.strategy.habit_id 不存在 → habitService.addHabit
- * - 修改：habit.strategy.habit_id 存在且 active → habitService.updateHabitPolicy
- * - 修改：habit.strategy.habit_id 存在但已删除（被 softDeleteHabit 删过）→ 走 addHabit 路径
+ * - 新增：habit.strategy.userHabitId 不存在 → habitService.addHabit
+ * - 修改：habit.strategy.userHabitId 存在且 active → habitService.updateHabitPolicy
+ * - 修改：habit.strategy.userHabitId 存在但已删除（被 softDeleteHabit 删过）→ 走 addHabit 路径
  */
 
 const mockAddHabit = jest.fn()
@@ -89,7 +89,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     if (consoleLogSpy) consoleLogSpy.mockRestore()
   })
 
-  test('新增：habit.strategy.habit_id 不存在 → 调 addHabit，不调 updateHabitPolicy', async () => {
+  test('新增：habit.strategy.userHabitId 不存在 → 调 addHabit，不调 updateHabitPolicy', async () => {
     const { page } = loadHabitsPage()
     const habit = {
       _id: 'catalog-20',
@@ -115,7 +115,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     expect(mockUpdateHabitPolicy).not.toHaveBeenCalled()
   })
 
-  test('修改：habit.strategy.habit_id 存在且 active → 调 updateHabitPolicy，不调 addHabit', async () => {
+  test('修改：habit.strategy.userHabitId 存在且 active → 调 updateHabitPolicy，不调 addHabit', async () => {
     const { page } = loadHabitsPage()
 
     // 在 loadHabitsPage 之后设置返回值（避免被 loadHabitsPage 中的 mockReset 清除）
@@ -131,12 +131,11 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       hasStrategy: true,
       strategy: {
-        habit_id: 'uh_existing_20',
-        habit_title: '揉腹',
-        freq_type: 'daily',
-        freq_rules: 1,
-        freq_category: 'everyday',
-        plan_start_date: '2026-06-02'
+        userHabitId: 'uh_existing_20',
+        habitTitle: '揉腹',
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-02'
       }
     }
     page.data.selectedHabit = habit
@@ -181,12 +180,11 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       hasStrategy: true,
       strategy: {
-        habit_id: 'uh_future_20',
-        habit_title: '揉腹',
-        freq_type: 'daily',
-        freq_rules: 1,
-        freq_category: 'everyday',
-        plan_start_date: '2026-06-10'
+        userHabitId: 'uh_future_20',
+        habitTitle: '揉腹',
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-10'
       }
     }
 
@@ -219,12 +217,11 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       hasStrategy: true,
       strategy: {
-        habit_id: 'uh_future_20',
-        habit_title: '揉腹',
-        freq_type: 'daily',
-        freq_rules: 1,
-        freq_category: 'everyday',
-        plan_start_date: '2026-06-10'
+        userHabitId: 'uh_future_20',
+        habitTitle: '揉腹',
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-10'
       }
     }
 
@@ -245,7 +242,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
     )
   })
 
-  test('历史数据：habit.strategy.habit_id 指向已删除 userHabit → 走 addHabit 路径', async () => {
+  test('canonical 数据：habit.strategy.userHabitId 指向已删除 userHabit → 走 addHabit 路径', async () => {
     const { page } = loadHabitsPage()
 
     // 在 loadHabitsPage 之后设置返回值
@@ -262,12 +259,11 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       hasStrategy: true,
       strategy: {
-        habit_id: 'uh_deleted_20',
-        habit_title: '揉腹',
-        freq_type: 'daily',
-        freq_rules: 1,
-        freq_category: 'everyday',
-        plan_start_date: '2026-05-01'
+        userHabitId: 'uh_deleted_20',
+        habitTitle: '揉腹',
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-05-01'
       }
     }
     page.data.selectedHabit = habit
@@ -307,7 +303,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       createdAt: '2026-05-01',
       strategy: {
-        habit_id: 'uh_existing_20',
+        userHabitId: 'uh_existing_20',
         duration: 30,
         frequencyType: 'weekly',
         frequencyConfig: { weekdays: [2, 4, 6] },
@@ -328,7 +324,7 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       createdAt: '2026-05-01',
       strategy: {
-        habit_id: 'uh_existing_20',
+        userHabitId: 'uh_existing_20',
         duration: 45,
         frequencyType: 'interval',
         frequencyConfig: { intervalDays: 3 },
@@ -347,12 +343,11 @@ describe('修习页 saveStrategy 路由：新增 vs 修改', () => {
       default_duration: 10,
       createdAt: '2026-05-01',
       strategy: {
-        habit_id: 'uh_existing_20',
+        userHabitId: 'uh_existing_20',
         duration: 60,
-        freq_type: 'weekly',
-        freq_rules: [1, 3, 5],
-        freq_category: 'weekly',
-        plan_start_date: '2026-05-01'
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [1, 3, 5] },
+        startDate: '2026-05-01'
       }
     })
 

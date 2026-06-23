@@ -715,6 +715,114 @@ describe('stats page V1 report links', () => {
     expect(yearReport.practiceCount).toBe(3);
   });
 
+  test('快速切换报表时旧请求不能覆盖最后一次 tab 数据', async () => {
+    let resolveMonthReport;
+    const monthPromise = new Promise(resolve => {
+      resolveMonthReport = resolve;
+    });
+    const mockReportService = {
+      getWeeklyReport: jest.fn(),
+      getMonthlyReport: jest.fn(() => monthPromise),
+      getYearlyReport: jest.fn(async () => ({
+        habitReports: [
+          {
+            habitId: 'h_fast_year',
+            habit: {
+              habitId: 'h_fast_year',
+              name: '年报最终数据',
+              category: 'sports',
+              themeClass: 't-green'
+            },
+            days: [
+              {
+                date: '2026-06-10',
+                status: 'checked'
+              }
+            ],
+            dueCount: 1,
+            doneCount: 1,
+            checkinDays: 1,
+            hasVisibleState: true
+          }
+        ],
+        stats: { checkinRate: 100, totalCount: 1, checkinDays: 1, maxStreak: 1 }
+      }))
+    };
+
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentTab = 'week';
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 5;
+
+    page.switchTab({ currentTarget: { dataset: { tab: 'month' } } });
+    await Promise.resolve();
+    page.switchTab({ currentTarget: { dataset: { tab: 'year' } } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    resolveMonthReport({
+      habitReports: [
+        {
+          habitId: 'h_slow_month',
+          habit: {
+            habitId: 'h_slow_month',
+            name: '慢月报',
+            category: 'sports',
+            themeClass: 't-red'
+          },
+          days: [
+            {
+              date: '2026-06-10',
+              status: 'checked',
+              displayStatus: 'checked',
+              isDue: true,
+              countsAsDone: true
+            }
+          ],
+          dueCount: 1,
+          doneCount: 1,
+          hasVisibleState: true
+        }
+      ],
+      stats: { checkinRate: 100, totalCount: 1, checkinDays: 1, maxStreak: 1 }
+    });
+    await Promise.resolve();
+
+    expect(page.data.currentTab).toBe('year');
+    expect(page.data.yearHabits).toHaveLength(1);
+    expect(page.data.yearHabits[0].habitId).toBe('h_fast_year');
+    expect(page.data.monthHabits).toHaveLength(0);
+  });
+
+  test('连续 sync:updated 事件只触发一次防抖刷新', () => {
+    jest.useFakeTimers();
+    const { page } = loadStatsPageWithV1();
+    const eventBus = require('../../../miniprogram/services/eventBus');
+    page.loadRealData = jest.fn();
+    page.subscribeSyncEvents();
+
+    eventBus.emit('sync:updated', { source: 'test-1' });
+    eventBus.emit('sync:updated', { source: 'test-2' });
+
+    expect(page.loadRealData).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(119);
+    expect(page.loadRealData).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(1);
+    expect(page.loadRealData).toHaveBeenCalledTimes(1);
+
+    page.unsubscribeSyncEvents();
+  });
+
+  test('点击当前报表 tab 不重复加载数据', () => {
+    const { page } = loadStatsPageWithV1();
+    page.data.currentTab = 'month';
+    page.loadRealData = jest.fn();
+
+    page.switchTab({ currentTarget: { dataset: { tab: 'month' } } });
+
+    expect(page.loadRealData).not.toHaveBeenCalled();
+  });
+
   test('周报映射保留策略修改命中当天的 unchecked 描边状态', async () => {
     const mockReportService = {
       getWeeklyReport: jest.fn(async () => ({
@@ -1057,16 +1165,22 @@ describe('stats page V1 report links', () => {
     const themeOverrides = {
       '1': 't-red',   // 金刚功
       '3': 't-yellow', // 八段锦
+      '10': 't-red',  // 跑步
+      '11': 't-red',  // 跳绳
       '12': 't-red',  // 艾灸
       '14': 't-blue', // 拔罐
+      '16': 't-green', // 经络拍打
       '17': 't-blue'  // 晨起温水
     };
 
     const habits = [
       { habitId: '1', name: '金刚功', category: '运动类', themeClass: 't-blue' },
       { habitId: '3', name: '八段锦', category: '运动类', themeClass: 't-blue' },
+      { habitId: '10', name: '跑步', category: '运动类', themeClass: 't-blue' },
+      { habitId: '11', name: '跳绳', category: '运动类', themeClass: 't-blue' },
       { habitId: '12', name: '艾灸', category: '理疗类', themeClass: 't-blue' },
       { habitId: '14', name: '拔罐', category: '理疗类', themeClass: 't-blue' },
+      { habitId: '16', name: '经络拍打', category: '理疗类', themeClass: 't-blue' },
       { habitId: '17', name: '晨起温水', category: '起居类', themeClass: 't-blue' }
     ].map(h => makeUserHabit({
       ...h,

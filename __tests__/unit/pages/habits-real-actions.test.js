@@ -61,7 +61,7 @@ describe('修习页真实删除操作', () => {
       category: '理疗类',
       default_duration: 15,
       iconUrl: '/assets/icons/habit-jingluo-paida.png',
-      themeClass: 't-purple',
+      themeClass: 't-green',
       hasStrategy: true,
       strategy: {
         habit_id: '16',

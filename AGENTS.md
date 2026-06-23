@@ -218,6 +218,7 @@ AI 能力不得阻断核心打卡闭环。
 - 同一内置习惯删除后再次添加，必须生成新的 `userHabitId`。
 - 旧生命周期和新生命周期可以共享同一个 `habitId`，但数据计算必须以 `userHabitId` 为边界。
 - 报表可按 `habitId` 聚合展示，但必须先按 `userHabitId` 分别计算。
+- V1 主链路字段统一使用 `lowerCamelCase`；除 CloudBase `_openid` / `_id` 和集合名外，不得在新集合、云函数主链路、前端缓存、service/page ViewModel 中新增 `habit_id`、`Habit_Id`、`freq_type`、`sync_status`、`lockedReason` 等 legacy 字段。
 
 ## 6. 状态机原则
 

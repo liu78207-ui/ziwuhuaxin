@@ -5,6 +5,8 @@
 
 const shareService = require('../../services/shareService');
 const userService = require('../../services/userService');
+const cacheService = require('../../services/cacheService');
+const { getNavTitleStyle } = require('../../utils/navLayout');
 
 function getErrorMessage(err) {
   return err && err.message ? err.message : String(err || 'unknown error');
@@ -20,10 +22,18 @@ Page({
     isAvatarSaving: false,
     isAvatarChoosing: false,
     isProfileSaving: false,
-    isLoggingIn: false
+    isLoggingIn: false,
+    isClearingCache: false,
+    showClearCacheModal: false,
+    showContactModal: false,
+    contactQrcodeUrl: '/assets/images/contact-qrcode.png',
+    navTitleStyle: ''
   },
 
   onLoad() {
+    this.setData({
+      navTitleStyle: getNavTitleStyle()
+    });
     this.refreshViewModel();
   },
 
@@ -235,16 +245,77 @@ Page({
     });
   },
 
-  viewHistory() {
-    wx.showToast({ title: '记录功能开发中', icon: 'none' });
-  },
-
   viewSettings() {
     wx.showToast({ title: '设置功能开发中', icon: 'none' });
   },
 
+  async onClearCacheTap() {
+    if (this.data.isClearingCache) {
+      return;
+    }
+
+    this.setData({ showClearCacheModal: true });
+  },
+
+  closeClearCacheModal() {
+    if (this.data.isClearingCache) {
+      return;
+    }
+    this.setData({ showClearCacheModal: false });
+  },
+
+  async confirmClearCache() {
+    if (this.data.isClearingCache) {
+      return;
+    }
+
+    this.setData({ isClearingCache: true });
+    wx.showLoading({ title: '清理中', mask: true });
+
+    let toastOptions = { title: '缓存已清空', icon: 'none' };
+    try {
+      const result = await cacheService.clearLocalUserCacheAndRecover({ dailyStateDays: 90 });
+      this.refreshViewModel();
+
+      if (!result.success) {
+        toastOptions = { title: '清理失败，请稍后重试', icon: 'none' };
+      } else if (result.recoveryError) {
+        toastOptions = { title: '缓存已清空，恢复失败', icon: 'none' };
+      } else {
+        toastOptions = {
+          title: result.restored ? '缓存已清空，已恢复云端数据' : '缓存已清空',
+          icon: 'none'
+        };
+      }
+    } catch (err) {
+      console.error('清空缓存失败:', getErrorMessage(err));
+      toastOptions = { title: '清理失败，请稍后重试', icon: 'none' };
+    } finally {
+      wx.hideLoading();
+      this.setData({
+        isClearingCache: false,
+        showClearCacheModal: false
+      });
+      wx.showToast(toastOptions);
+    }
+  },
+
   viewAbout() {
-    wx.showToast({ title: '关于功能开发中', icon: 'none' });
+    wx.navigateTo({
+      url: '/pages/about/about'
+    });
+  },
+
+  viewContact() {
+    this.setData({ showContactModal: true });
+  },
+
+  closeContactModal() {
+    this.setData({ showContactModal: false });
+  },
+
+  preventBubble() {
+    // 阻止冒泡
   },
 
   onShareAppMessage() {

@@ -5,7 +5,7 @@
   <!-- 固定头部区域 -->
   <view class="header-fixed">
     <!-- 导航栏标题 -->
-    <view class="nav-header">
+    <view class="nav-header" style="{{navTitleStyle}}">
       <text class="nav-title">观心</text>
     </view>
 

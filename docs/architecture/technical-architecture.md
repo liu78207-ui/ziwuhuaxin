@@ -264,9 +264,8 @@ cloudfunctions/
 `userHabit`
 ```js
 {
-  userHabitId, openid, habitId, status, isDeleted,
-  createdAt, updatedAt, deletedAt,
-  latestPolicyVersionId, syncStatus
+  userHabitId, _openid, habitId, status,
+  createdAt, updatedAt, deletedAt
 }
 ```
 重点：同一 `habitId` 多次添加必须生成不同 `userHabitId`。`createdAt` 是用户习惯实例的生命周期开始日；它必须由本地业务日期随 `addHabit` 同步到云端，不得用策略 `startDate` / `effectiveStartDate` 替代。
@@ -277,7 +276,7 @@ cloudfunctions/
   policyVersionId, userHabitId, habitId,
   duration, frequencyType, frequencyConfig,
   startDate, effectiveStartDate, effectiveEndDate,
-  createdAt, updatedAt, syncStatus
+  createdAt, updatedAt
 }
 ```
 重点：策略版本按 `userHabitId` 归属；同一实例下时间段不得重叠。
@@ -285,10 +284,10 @@ cloudfunctions/
 `checkinOperation`
 ```js
 {
-  operationId, idempotencyKey, openid,
+  operationId, idempotencyKey, _openid,
   userHabitId, habitId, policyVersionId,
   date, action, clientTime, serverTime,
-  timezone, source, syncStatus, createdAt
+  source, clientSequence
 }
 ```
 V1 保留接口和字段，不强制实现复杂分布式裁决。
@@ -296,13 +295,13 @@ V1 保留接口和字段，不强制实现复杂分布式裁决。
 `dailyCheckinState`
 ```js
 {
-  stateId, openid, userHabitId, habitId, policyVersionId,
+  stateId, _openid, userHabitId, habitId, policyVersionId,
   date, status, checkedAt, canceledAt,
-  lastOperationId, isLocked, lockReason, hasPolicyChangedToday,
-  syncStatus, updatedAt
+  lastOperationId, lastOperationClientTime, lastOperationClientSequence,
+  lockReason, hasPolicyChangedToday, hasDeletionToday, updatedAt
 }
 ```
-首页和报表优先读它，不直接累计操作流水。策略修改当天可使用 `lockReason` 或兼容字段 `lockedReason` 表达低压力锁定口径。
+首页和报表优先读它，不直接累计操作流水。策略修改当天统一使用 `lockReason` 表达低压力锁定口径。
 
 `reportData`
 ```js
@@ -313,6 +312,25 @@ V1 保留接口和字段，不强制实现复杂分布式裁决。
 ```
 V1 默认运行时生成，不长期持久化。
 
+### 字段命名规范
+
+V1 新数据链路统一使用 `lowerCamelCase` 字段名。适用范围包括 V1 新集合、云函数入参/出参、前端缓存、service ViewModel 和页面 ViewModel。
+
+允许例外：
+- CloudBase 系统字段：`_openid`、`_id`。
+- 数据库集合名：`user_habits`、`habit_policy_versions`、`checkin_operations`、`daily_checkin_states`。
+- 维护迁移函数和 legacy 兼容函数内部读取旧字段，但不得写入 V1 新集合。
+
+线上主链路禁止新写入或返回以下字段：`Habit_Id`、`habit_Id`、`habit_id`、`user_habit_id`、`policy_version_id`、`checkin_date`、`freq_type`、`freq_rules`、`plan_start_date`、`sync_status`、`lockedReason`、`syncStatus`、`isDeleted`。
+
+V1 云端字段保持精简：
+- `user_habits` 以 `status` 和 `deletedAt` 表达生命周期，不再写 `isDeleted`、`syncStatus` 或空字符串 `latestPolicyVersionId`。
+- `habit_policy_versions` 必须显式保留 `effectiveEndDate: null` 作为当前有效策略标记。
+- `checkin_operations` 只在有值时写 `policyVersionId`、`clientSequence`。
+- `daily_checkin_states` 统一使用 `lockReason`，不再写兼容字段 `lockedReason`；只在有值时写打卡/取消时间和最后操作字段。
+
+发布前必须运行 `npm run verify:field-naming`，防止 V1 主链路重新引入 legacy 字段。
+
 ## 五、腾讯云开发架构方案
 
 云数据库集合设计：
@@ -321,7 +339,7 @@ V1 默认运行时生成，不长期持久化。
 |---|---|---|---|---|---|
 | `users` | 用户初始化和资料 | `_openid`, `profile`, `createdAt` | `_openid` 唯一 | 仅本人/云函数 | 是 |
 | `built_in_habits` | 内置习惯云端管理，可选 | `habitId`, `enabled`, `sortOrder` | `habitId`, `enabled` | 只读或云函数读 | 可选 |
-| `user_habits` | 用户习惯实例 | `_openid`, `userHabitId`, `habitId`, `isDeleted` | `_openid+userHabitId`, `_openid+habitId` | 按 openid 隔离 | 是 |
+| `user_habits` | 用户习惯实例 | `_openid`, `userHabitId`, `habitId`, `status`, `deletedAt` | `_openid+userHabitId`, `_openid+habitId` | 按 openid 隔离 | 是 |
 | `habit_policy_versions` | 策略版本 | `_openid`, `policyVersionId`, `userHabitId`, `effectiveStartDate` | `_openid+userHabitId+effectiveStartDate` | 按 openid 隔离 | 是 |
 | `checkin_operations` | 操作流水 | `_openid`, `operationId`, `idempotencyKey`, `userHabitId`, `date` | `idempotencyKey` 唯一，`_openid+date` | 云函数写 | 是 |
 | `daily_checkin_states` | 每日最终状态 | `_openid`, `stateId`, `userHabitId`, `date`, `status` | `_openid+userHabitId+date` 唯一 | 云函数写 | 是 |
@@ -418,7 +436,7 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 二次确认 -> 软删除 `userHabit` -> 关闭当前策略版本 -> 保留历史状态和流水 -> 今日已打卡则首页保留取消入口 -> 未打卡则移除今日任务 -> 报表保留历史。
 
 打卡/取消：
-前端防抖 -> 本地乐观更新 `dailyCheckinState` -> 生成 `checkinOperation` -> pending 入缓存 -> `syncCheckin` 幂等写云端 -> 成功更新 `syncStatus`，失败保留 pending 并提示稍后同步。
+前端防抖 -> 本地乐观更新 `dailyCheckinState` -> 生成 `checkinOperation` -> pending 入缓存 -> `syncCheckin` 幂等写云端 -> 成功移除 pending，失败保留 pending 并提示稍后同步。
 
 同一天多次打卡和取消都保留操作流水，`dailyCheckinState.status` 以最后一次有效操作归并结果为准。若当天发生过策略修改，取消后的最终状态不得再按完成计入报表；当天是否计入分母由最后一次保存成功的新策略是否命中当天决定。
 

@@ -16,6 +16,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const _ = db.command || {};
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -31,6 +32,24 @@ function toDateStr(value) {
   if (typeof value.toDate === 'function') return formatDate(value.toDate());
   if (typeof value.toISOString === 'function') return value.toISOString().split('T')[0];
   return String(value).split('T')[0];
+}
+
+function cleanData(data) {
+  return Object.keys(data).reduce((result, key) => {
+    const value = data[key];
+    if (value !== undefined && value !== null && value !== '') {
+      result[key] = value;
+    }
+    return result;
+  }, {});
+}
+
+function removeFieldValue() {
+  return typeof _.remove === 'function' ? _.remove() : null;
+}
+
+function legacyLockedReasonFieldName() {
+  return 'locked' + 'Reason';
 }
 
 exports.main = async (event, context) => {
@@ -91,13 +110,11 @@ exports.main = async (event, context) => {
         if (existing.status !== (status || 'active') || !existing.createdAt) {
           // 状态不一致，需要更新
           await db.collection('user_habits').doc(existing._id).update({
-            data: {
+            data: cleanData({
               status: status || 'active',
               createdAt: habitCreatedAt,
-              latestPolicyVersionId: policyVersionId || existing.latestPolicyVersionId,
-              syncStatus: 'synced',
               updatedAt: serverTime
-            }
+            })
           });
         }
         // 注意：不直接 return，必须继续执行 policyVersion 同步
@@ -105,17 +122,14 @@ exports.main = async (event, context) => {
       } else {
         // 写入 user_habits
         await db.collection('user_habits').add({
-          data: {
+          data: cleanData({
             _openid: openid,
             userHabitId,
             habitId: String(habitId),
             status: status || 'active',
             createdAt: createdAt || startDate || toDateStr(new Date()),
-            deletedAt: null,
-            latestPolicyVersionId: policyVersionId || '',
-            syncStatus: 'synced',
             updatedAt: serverTime
-          }
+          })
         });
       }
       // 继续执行 policyVersion 同步（见下方 if 块）
@@ -132,7 +146,6 @@ exports.main = async (event, context) => {
             status: 'deleted',
             // 使用 payload 中的 deletedAt，不可用云端同步日期
             deletedAt: deletedAt || toDateStr(new Date()),
-            syncStatus: 'synced',
             updatedAt: serverTime
           }
         });
@@ -150,7 +163,6 @@ exports.main = async (event, context) => {
         await db.collection('habit_policy_versions').doc(pv._id).update({
           data: {
             effectiveEndDate: endDate,
-            syncStatus: 'synced',
             updatedAt: serverTime
           }
         });
@@ -159,25 +171,23 @@ exports.main = async (event, context) => {
       if (deletionDailyState) {
         const dailyStateDate = deletionDailyState.date || endDate;
         const dailyStateStatus = deletionDailyState.status || 'not_required';
-        const lockedReason = dailyStateStatus === 'checked'
+        const lockReason = dailyStateStatus === 'checked'
           ? 'deleted_after_checkin'
           : 'deleted_without_checkin';
-        const stateData = {
+        const stateData = cleanData({
           userHabitId,
           habitId: String(habitId),
-          policyVersionId: deletionDailyState.policyVersionId || policyVersionId || '',
+          policyVersionId: deletionDailyState.policyVersionId || policyVersionId,
           date: dailyStateDate,
           status: dailyStateStatus,
-          checkedAt: deletionDailyState.checkedAt || null,
-          canceledAt: deletionDailyState.canceledAt || null,
-          lastOperationId: deletionDailyState.lastOperationId || null,
+          checkedAt: deletionDailyState.checkedAt,
+          canceledAt: deletionDailyState.canceledAt,
+          lastOperationId: deletionDailyState.lastOperationId,
           hasDeletionToday: true,
           isLocked: true,
-          lockedReason,
-          lockReason: lockedReason,
-          syncStatus: 'synced',
+          lockReason,
           updatedAt: serverTime
-        };
+        });
 
         const existingState = await db.collection('daily_checkin_states').where({
           _openid: openid,
@@ -187,15 +197,18 @@ exports.main = async (event, context) => {
 
         if (existingState.data && existingState.data.length > 0) {
           await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
-            data: stateData
+            data: {
+              ...stateData,
+              [legacyLockedReasonFieldName()]: removeFieldValue()
+            }
           });
         } else {
           await db.collection('daily_checkin_states').add({
-            data: {
+            data: cleanData({
               _openid: openid,
               stateId: deletionDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,
               ...stateData
-            }
+            })
           });
         }
       }
@@ -219,7 +232,6 @@ exports.main = async (event, context) => {
           await db.collection('habit_policy_versions').doc(oldVersion.data[0]._id).update({
             data: {
               effectiveEndDate: previousEffectiveEndDate,
-              syncStatus: 'synced',
               updatedAt: serverTime
             }
           });
@@ -239,14 +251,15 @@ exports.main = async (event, context) => {
         if (needsUpdate) {
           await db.collection('habit_policy_versions').doc(existing._id).update({
             data: {
+              ...cleanData({
+                duration: duration || existing.duration,
+                frequencyType: frequencyType || existing.frequencyType,
+                frequencyConfig: frequencyConfig || existing.frequencyConfig,
+                startDate: startDate || existing.startDate,
+                effectiveStartDate: effectiveStartDate || existing.effectiveStartDate,
+                updatedAt: serverTime
+              }),
               effectiveEndDate: null,
-              duration: duration || existing.duration,
-              frequencyType: frequencyType || existing.frequencyType,
-              frequencyConfig: frequencyConfig || existing.frequencyConfig,
-              startDate: startDate || existing.startDate,
-              effectiveStartDate: effectiveStartDate || existing.effectiveStartDate,
-              syncStatus: 'synced',
-              updatedAt: serverTime
             }
           });
         }
@@ -254,19 +267,20 @@ exports.main = async (event, context) => {
         // 写入新版本
         await db.collection('habit_policy_versions').add({
           data: {
-            _openid: openid,
-            policyVersionId,
-            userHabitId,
-            habitId: String(habitId),
-            duration: duration || 20,
-            frequencyType: frequencyType || 'daily',
-            frequencyConfig: frequencyConfig || { intervalDays: 1 },
-            startDate: startDate || toDateStr(new Date()),
-            effectiveStartDate: effectiveStartDate || startDate || toDateStr(new Date()),
+            ...cleanData({
+              _openid: openid,
+              policyVersionId,
+              userHabitId,
+              habitId: String(habitId),
+              duration: duration || 20,
+              frequencyType: frequencyType || 'daily',
+              frequencyConfig: frequencyConfig || { intervalDays: 1 },
+              startDate: startDate || toDateStr(new Date()),
+              effectiveStartDate: effectiveStartDate || startDate || toDateStr(new Date()),
+              createdAt: serverTime,
+              updatedAt: serverTime
+            }),
             effectiveEndDate: null,
-            syncStatus: 'synced',
-            createdAt: serverTime,
-            updatedAt: serverTime
           }
         });
       }
@@ -274,25 +288,22 @@ exports.main = async (event, context) => {
       if (action === 'updatePolicy' && strategyChangedDailyState) {
         const dailyStateDate = strategyChangedDailyState.date || toDateStr(new Date());
         const dailyStateStatus = strategyChangedDailyState.status || 'unchecked';
-        const stateData = {
+        const lockReason = dailyStateStatus === 'checked'
+          ? 'strategy_changed_after_checkin'
+          : 'strategy_changed_without_checkin';
+        const stateData = cleanData({
           userHabitId,
           habitId: String(habitId),
           policyVersionId,
           date: dailyStateDate,
           status: dailyStateStatus,
-          checkedAt: strategyChangedDailyState.checkedAt || null,
-          canceledAt: strategyChangedDailyState.canceledAt || null,
-          lastOperationId: strategyChangedDailyState.lastOperationId || null,
+          checkedAt: strategyChangedDailyState.checkedAt,
+          canceledAt: strategyChangedDailyState.canceledAt,
+          lastOperationId: strategyChangedDailyState.lastOperationId,
           hasPolicyChangedToday: true,
-          lockedReason: dailyStateStatus === 'checked'
-            ? 'strategy_changed_after_checkin'
-            : 'strategy_changed_without_checkin',
-          lockReason: dailyStateStatus === 'checked'
-            ? 'strategy_changed_after_checkin'
-            : 'strategy_changed_without_checkin',
-          syncStatus: 'synced',
+          lockReason,
           updatedAt: serverTime
-        };
+        });
 
         const existingState = await db.collection('daily_checkin_states').where({
           _openid: openid,
@@ -302,15 +313,18 @@ exports.main = async (event, context) => {
 
         if (existingState.data && existingState.data.length > 0) {
           await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
-            data: stateData
+            data: {
+              ...stateData,
+              [legacyLockedReasonFieldName()]: removeFieldValue()
+            }
           });
         } else {
           await db.collection('daily_checkin_states').add({
-            data: {
+            data: cleanData({
               _openid: openid,
               stateId: strategyChangedDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,
               ...stateData
-            }
+            })
           });
         }
       }

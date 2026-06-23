@@ -56,7 +56,7 @@ describe('recoverData cloud function', () => {
         _id: 'uh_1',
         _openid: 'openid_1',
         userHabitId: 'uh_1',
-        title: 'Habit One',
+        name: 'Habit One',
         legacyStrategyId: 'legacy_noise',
         migrationVersion: 1
       }],
@@ -67,7 +67,6 @@ describe('recoverData cloud function', () => {
         stateId: 'ds_1',
         userHabitId: 'uh_1',
         hasPolicyChangedToday: true,
-        lockedReason: 'strategy_changed_after_checkin',
         lockReason: 'strategy_changed_after_checkin',
         migratedFrom: 'checkin_logs'
       }]
@@ -83,7 +82,6 @@ describe('recoverData cloud function', () => {
     expect(result.serverTime).toEqual(expect.any(Number))
     expect(result.data.userHabits[0]).toEqual({
       userHabitId: 'uh_1',
-      title: 'Habit One',
       name: 'Habit One'
     })
     expect(result.data.userHabits[0]._openid).toBeUndefined()
@@ -99,7 +97,6 @@ describe('recoverData cloud function', () => {
       stateId: 'ds_1',
       userHabitId: 'uh_1',
       lockReason: 'strategy_changed_after_checkin',
-      lockedReason: 'strategy_changed_after_checkin',
       hasPolicyChangedToday: true
     })
     expect(result.data.dailyStates[0]._openid).toBeUndefined()
@@ -151,33 +148,38 @@ describe('recoverData cloud function', () => {
     expect(result.data.dailyStates).toEqual([{ stateId: 'recent', userHabitId: 'uh_1', date: '2026-06-01' }])
   })
 
-  test('normalizes mixed legacy field names before returning recovered data', async () => {
+  test('returns only canonical V1 fields and ignores legacy aliases', async () => {
     createMockCloud({
       user_habits: [{
         _openid: 'openid_1',
-        user_habit_id: 'uh_legacy',
-        habit_Id: 'h002',
-        habit_title: '八段锦',
-        target_minutes: 15,
-        theme_class: 't-yellow',
-        icon_url: '/legacy.png'
+        userHabitId: 'uh_clean',
+        habitId: '3',
+        name: '八段锦',
+        targetMinutes: 15,
+        themeClass: 't-yellow',
+        iconUrl: '/clean.png',
+        habit_id: 'h001',
+        user_habit_id: 'uh_legacy'
       }],
       habit_policy_versions: [{
         _openid: 'openid_1',
-        policy_version_id: 'pv_legacy',
-        user_habit_id: 'uh_legacy',
-        habit_id: 'h_002',
+        policyVersionId: 'pv_clean',
+        userHabitId: 'uh_clean',
+        habitId: '3',
+        frequencyType: 'daily',
+        startDate: '2026-06-01',
         freq_type: 'daily',
-        start_date: '2026-06-01'
+        policy_version_id: 'pv_legacy'
       }],
       daily_checkin_states: [{
         _openid: 'openid_1',
-        stateId: 'state_legacy',
-        user_habit_id: 'uh_legacy',
-        habit_id: 3,
-        policy_version_id: 'pv_legacy',
+        stateId: 'state_clean',
+        userHabitId: 'uh_clean',
+        habitId: '3',
+        policyVersionId: 'pv_clean',
         date: '2026-06-15',
-        status: 'checked'
+        status: 'checked',
+        lockedReason: 'legacy_noise'
       }]
     })
 
@@ -186,28 +188,33 @@ describe('recoverData cloud function', () => {
 
     expect(result.success).toBe(true)
     expect(result.data.userHabits).toEqual([expect.objectContaining({
-      userHabitId: 'uh_legacy',
+      userHabitId: 'uh_clean',
       habitId: '3',
       name: '八段锦',
       category: '运动类',
       targetMinutes: 15,
       themeClass: 't-yellow',
-      iconUrl: '/legacy.png'
+      iconUrl: '/clean.png'
     })])
+    expect(result.data.userHabits[0].habit_id).toBeUndefined()
+    expect(result.data.userHabits[0].user_habit_id).toBeUndefined()
     expect(result.data.policyVersions).toEqual([expect.objectContaining({
-      policyVersionId: 'pv_legacy',
-      userHabitId: 'uh_legacy',
+      policyVersionId: 'pv_clean',
+      userHabitId: 'uh_clean',
       habitId: '3',
       frequencyType: 'daily',
       startDate: '2026-06-01'
     })])
+    expect(result.data.policyVersions[0].freq_type).toBeUndefined()
+    expect(result.data.policyVersions[0].policy_version_id).toBeUndefined()
     expect(result.data.dailyStates).toEqual([expect.objectContaining({
-      stateId: 'state_legacy',
-      userHabitId: 'uh_legacy',
+      stateId: 'state_clean',
+      userHabitId: 'uh_clean',
       habitId: '3',
-      policyVersionId: 'pv_legacy',
+      policyVersionId: 'pv_clean',
       status: 'checked'
     })])
+    expect(result.data.dailyStates[0].lockedReason).toBeUndefined()
   })
 
   test('supports historical daily state range and cursor pagination', async () => {

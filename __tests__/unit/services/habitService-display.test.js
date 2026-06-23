@@ -59,12 +59,11 @@ describe('habitService.buildHabitDisplayList', () => {
     ])
 
     expect(habit.strategy).toMatchObject({
-      habit_id: 'uh_20',
+      userHabitId: 'uh_20',
       duration: 45,
-      freq_type: 'weekly',
-      freq_rules: [2, 4, 6],
-      freq_category: 'weekly',
-      plan_start_date: '2026-05-01'
+      frequencyType: 'weekly',
+      frequencyConfig: { weekdays: [2, 4, 6] },
+      startDate: '2026-05-01'
     })
     expect(habit.strategyText).toBe('每周二、四、六 · 45分钟')
   })
@@ -97,12 +96,11 @@ describe('habitService.buildHabitDisplayList', () => {
     ])
 
     expect(habit.strategy).toMatchObject({
-      habit_id: 'uh_16',
+      userHabitId: 'uh_16',
       duration: 30,
-      freq_type: 'interval',
-      freq_rules: 3,
-      freq_category: 'daily-interval',
-      plan_start_date: '2026-05-01'
+      frequencyType: 'interval',
+      frequencyConfig: { intervalDays: 3 },
+      startDate: '2026-05-01'
     })
     expect(habit.strategyText).toBe('每4天 · 30分钟')
   })

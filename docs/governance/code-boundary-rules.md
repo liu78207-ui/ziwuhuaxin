@@ -12,6 +12,14 @@
 - 缓存、云同步、报表、时间统一入口。
 - 禁止继续扩大旧架构债务。
 
+字段命名边界：
+
+- V1 主链路统一使用 `lowerCamelCase` 字段。
+- CloudBase 系统字段 `_openid`、`_id` 和集合名可保留下划线。
+- 维护迁移函数、legacy 兼容云函数和历史测试夹具可以读取旧字段，但不得作为新写入模型。
+- 新 V1 代码不得写入或返回 `habit_id`、`Habit_Id`、`user_habit_id`、`policy_version_id`、`checkin_date`、`freq_type`、`freq_rules`、`plan_start_date`、`sync_status`、`lockedReason`、`syncStatus`、`isDeleted`。
+- 发布前必须运行 `npm run verify:field-naming`。
+
 ## 2. 页面层禁止事项
 
 `pages` 禁止：
@@ -285,7 +293,7 @@ V1 至少包含：
     date: '2026-05-22'
   },
   meta: {
-    syncStatus: 'pending',
+    pending: true,
     cacheKeys: ['dailyStates', 'todayHabits', 'weeklyReport']
   }
 }

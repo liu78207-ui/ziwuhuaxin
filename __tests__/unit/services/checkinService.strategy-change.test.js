@@ -59,22 +59,21 @@ describe('checkinService 策略修改当天锁定字段', () => {
       date: '2026-06-02',
       status: 'unchecked',
       hasPolicyChangedToday: true,
-      lockedReason: 'strategy_changed_without_checkin'
+      lockReason: 'strategy_changed_without_checkin'
     })
 
     const state = await checkinService.checkin('uh1', '2026-06-02')
 
     expect(state.status).toBe('checked')
     expect(state.hasPolicyChangedToday).toBe(true)
-    expect(state.lockedReason).toBe('strategy_changed_after_checkin')
     expect(state.lockReason).toBe('strategy_changed_after_checkin')
+    expect(state.lockedReason).toBeUndefined()
     expect(state.policyVersionId).toBe('pv_latest')
     expect(syncService.pushWithDedup).toHaveBeenLastCalledWith(
       'checkin',
       'checkin',
       expect.objectContaining({
         hasPolicyChangedToday: true,
-        lockedReason: 'strategy_changed_after_checkin',
         lockReason: 'strategy_changed_after_checkin'
       })
     )
@@ -90,22 +89,21 @@ describe('checkinService 策略修改当天锁定字段', () => {
       date: '2026-06-02',
       status: 'checked',
       hasPolicyChangedToday: true,
-      lockedReason: 'strategy_changed_after_checkin'
+      lockReason: 'strategy_changed_after_checkin'
     })
 
     const state = await checkinService.undoCheckin('uh1', '2026-06-02')
 
     expect(state.status).toBe('canceled')
     expect(state.hasPolicyChangedToday).toBe(true)
-    expect(state.lockedReason).toBe('strategy_changed_without_checkin')
     expect(state.lockReason).toBe('strategy_changed_without_checkin')
+    expect(state.lockedReason).toBeUndefined()
     expect(state.policyVersionId).toBe('pv_latest')
     expect(syncService.pushWithDedup).toHaveBeenLastCalledWith(
       'checkin',
       'undoCheckin',
       expect.objectContaining({
         hasPolicyChangedToday: true,
-        lockedReason: 'strategy_changed_without_checkin',
         lockReason: 'strategy_changed_without_checkin'
       })
     )

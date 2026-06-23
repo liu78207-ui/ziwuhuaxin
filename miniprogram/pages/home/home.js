@@ -9,6 +9,7 @@ const checkinService = require('../../services/checkinService');
 const timeService = require('../../services/timeService');
 const shareService = require('../../services/shareService');
 const eventBus = require('../../services/eventBus');
+const { getNavTitleStyle } = require('../../utils/navLayout');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -32,7 +33,8 @@ Page({
     pressingId: null,
     checkedCount: 0,
     totalCount: 0,
-    progressPercent: 0
+    progressPercent: 0,
+    navTitleStyle: ''
   },
 
   // 防抖控制：记录正在处理的 habitId
@@ -67,6 +69,9 @@ Page({
   },
 
   onLoad() {
+    this.setData({
+      navTitleStyle: getNavTitleStyle()
+    });
     this.subscribeSyncEvents();
     this.loadViewModel();
   },
@@ -141,9 +146,7 @@ Page({
     }
   },
 
-  // 页面滚动监听 - 导航栏背景色渐显
-  onPageScroll(e) {
-    const scrollTop = e.scrollTop;
+  updateNavBgOpacity(scrollTop = 0) {
     const threshold = 0;
     const maxScroll = 30;
     let opacity = 0;
@@ -158,6 +161,17 @@ Page({
         navBgOpacity: roundedOpacity
       });
     }
+  },
+
+  // 页面滚动监听 - 兼容旧测试与页面级滚动
+  onPageScroll(e) {
+    this.updateNavBgOpacity(e.scrollTop);
+  },
+
+  // 内容区域滚动监听 - 导航栏背景色渐显
+  onHomeScroll(e) {
+    const scrollTop = e.detail && e.detail.scrollTop ? e.detail.scrollTop : 0;
+    this.updateNavBgOpacity(scrollTop);
   },
 
   scheduleViewModelRefresh(source = 'event', delay = 160) {

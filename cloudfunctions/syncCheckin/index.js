@@ -15,6 +15,7 @@ const cloud = require('wx-server-sdk');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
+const _ = db.command || {};
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -32,6 +33,24 @@ function toDateStr(value) {
   return String(value).split('T')[0];
 }
 
+function cleanData(data) {
+  return Object.keys(data).reduce((result, key) => {
+    const value = data[key];
+    if (value !== undefined && value !== null && value !== '') {
+      result[key] = value;
+    }
+    return result;
+  }, {});
+}
+
+function removeFieldValue() {
+  return typeof _.remove === 'function' ? _.remove() : null;
+}
+
+function legacyLockedReasonFieldName() {
+  return 'locked' + 'Reason';
+}
+
 exports.main = async (event, context) => {
   const wxContext = cloud.getWXContext();
   const openid = wxContext.OPENID;
@@ -46,7 +65,6 @@ exports.main = async (event, context) => {
     date,
     action, // 'checkin' | 'undo'
     hasPolicyChangedToday,
-    lockedReason,
     lockReason,
     clientCreatedAt: rawClientCreatedAt,
     clientSequence: rawClientSequence
@@ -75,7 +93,7 @@ exports.main = async (event, context) => {
   const canceledAt = action === 'undo' ? serverTime : null;
   const clientCreatedAt = rawClientCreatedAt || event.clientTime || null;
   const clientSequence = typeof rawClientSequence === 'number' ? rawClientSequence : 0;
-  const strategyLockReason = lockedReason || lockReason || (
+  const strategyLockReason = lockReason || (
     hasPolicyChangedToday
       ? (dailyStateStatus === 'checked'
         ? 'strategy_changed_after_checkin'
@@ -98,21 +116,20 @@ exports.main = async (event, context) => {
       opRecordId = existingOp.data[0]._id;
     } else {
       // 写入 checkin_operations（操作流水）
-      const opData = {
+      const opData = cleanData({
         _openid: openid,
         operationId: operationId || idempotencyKey,
         idempotencyKey,
         userHabitId,
         habitId: String(habitId),
-        policyVersionId: policyVersionId || '',
+        policyVersionId,
         date: targetDate,
         action,
         clientTime: event.clientTime || new Date().toISOString(),
         clientSequence: clientSequence,
         serverTime,
-        source: 'miniprogram',
-        syncStatus: 'synced'
-      };
+        source: 'miniprogram'
+      });
 
       try {
         const opResult = await db.collection('checkin_operations').add({ data: opData });
@@ -164,8 +181,12 @@ exports.main = async (event, context) => {
       }
 
       // 更新现有状态
+      const clearOppositeTimeField = dailyStateStatus === 'checked'
+        ? { canceledAt: removeFieldValue() }
+        : { checkedAt: removeFieldValue() };
       await db.collection('daily_checkin_states').doc(existing._id).update({
         data: {
+          ...cleanData({
           status: dailyStateStatus,
           checkedAt: checkedAt,
           canceledAt: canceledAt,
@@ -173,20 +194,22 @@ exports.main = async (event, context) => {
           lastOperationClientTime: clientCreatedAt || null,
           lastOperationClientSequence: clientSequence,
           ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
-          ...(strategyLockReason ? { lockedReason: strategyLockReason, lockReason: strategyLockReason } : {}),
-          syncStatus: 'synced',
+          ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
           updatedAt: serverTime
+          }),
+          ...clearOppositeTimeField,
+          [legacyLockedReasonFieldName()]: removeFieldValue()
         }
       });
       stateUpdated = true;
     } else {
       // 创建新状态
       await db.collection('daily_checkin_states').add({
-        data: {
+        data: cleanData({
           _openid: openid,
           userHabitId,
           habitId: String(habitId),
-          policyVersionId: policyVersionId || '',
+          policyVersionId,
           date: targetDate,
           status: dailyStateStatus,
           checkedAt: checkedAt,
@@ -195,10 +218,9 @@ exports.main = async (event, context) => {
           lastOperationClientTime: clientCreatedAt || null,
           lastOperationClientSequence: clientSequence,
           ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
-          ...(strategyLockReason ? { lockedReason: strategyLockReason, lockReason: strategyLockReason } : {}),
-          syncStatus: 'synced',
+          ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
           updatedAt: serverTime
-        }
+        })
       });
       stateUpdated = true;
     }

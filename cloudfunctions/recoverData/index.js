@@ -27,21 +27,6 @@ const BUILT_IN_HABITS = {
   '20': { name: '揉腹', category: '起居类', targetMinutes: 10 },
   '21': { name: '睡前泡脚', category: '起居类', targetMinutes: 20 }
 };
-const LEGACY_HABIT_ID_ALIASES = {
-  h001: '1',
-  h002: '3',
-  h003: '2',
-  h004: '6',
-  h005: '12',
-  h006: '13',
-  h007: '15',
-  h008: '21',
-  h009: '20',
-  h010: '16',
-  hrunning: '10',
-  hpaobu: '10'
-};
-
 function pad2(value) {
   return String(value).padStart(2, '0');
 }
@@ -79,23 +64,10 @@ function pickDefined(source, keys) {
   return result;
 }
 
-function firstDefined(source, keys) {
-  for (const key of keys) {
-    if (source && source[key] !== undefined && source[key] !== null && source[key] !== '') {
-      return source[key];
-    }
-  }
-  return undefined;
-}
-
-function normalizeAliasKey(value) {
-  return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-
 function normalizeHabitId(value) {
   const raw = String(value || '').trim();
   if (/^(?:[1-9]|1[0-9]|2[0-1])$/.test(raw)) return raw;
-  return LEGACY_HABIT_ID_ALIASES[normalizeAliasKey(raw)] || raw;
+  return raw;
 }
 
 function setDefined(target, key, value) {
@@ -117,28 +89,19 @@ function slimUserHabit(habit) {
     'themeClass',
     'iconUrl',
     'status',
-    'isDeleted',
     'createdAt',
     'updatedAt',
-    'deletedAt',
-    'latestPolicyVersionId',
-    'syncStatus'
+    'deletedAt'
   ]);
-  result.userHabitId = firstDefined(habit, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = habit.userHabitId;
   result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
-  const rawHabitId = firstDefined(habit, ['habitId', 'habit_id', 'habit_Id']);
-  if (rawHabitId !== undefined) {
-    result.habitId = normalizeHabitId(rawHabitId);
+  if (habit.habitId !== undefined) {
+    result.habitId = normalizeHabitId(habit.habitId);
   }
   const builtIn = BUILT_IN_HABITS[result.habitId] || {};
-  setDefined(result, 'name', firstDefined(habit, ['name', 'title', 'habitTitle', 'habit_title']) || builtIn.name || result.name);
+  setDefined(result, 'name', result.name || builtIn.name);
   setDefined(result, 'category', result.category || builtIn.category);
-  setDefined(result, 'targetMinutes', firstDefined(habit, ['targetMinutes', 'target_minutes', 'duration']) || builtIn.targetMinutes || result.targetMinutes);
-  setDefined(result, 'themeClass', firstDefined(habit, ['themeClass', 'theme_class']) || result.themeClass);
-  setDefined(result, 'iconUrl', firstDefined(habit, ['iconUrl', 'icon_url']) || result.iconUrl);
-  if (!result.status && result.isDeleted === true) {
-    result.status = 'deleted';
-  }
+  setDefined(result, 'targetMinutes', result.targetMinutes || result.duration || builtIn.targetMinutes);
   return result;
 }
 
@@ -154,19 +117,13 @@ function slimPolicyVersion(policy) {
     'effectiveStartDate',
     'effectiveEndDate',
     'createdAt',
-    'updatedAt',
-    'syncStatus'
+    'updatedAt'
   ]);
-  result.userHabitId = firstDefined(policy, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = policy.userHabitId;
   result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
-  const rawHabitId = firstDefined(policy, ['habitId', 'habit_id', 'habit_Id']);
-  if (rawHabitId !== undefined) {
-    result.habitId = normalizeHabitId(rawHabitId);
+  if (policy.habitId !== undefined) {
+    result.habitId = normalizeHabitId(policy.habitId);
   }
-  result.policyVersionId = firstDefined(policy, ['policyVersionId', 'policy_version_id']) || result.policyVersionId;
-  result.frequencyType = firstDefined(policy, ['frequencyType', 'freq_type']) || result.frequencyType;
-  result.frequencyConfig = firstDefined(policy, ['frequencyConfig', 'freq_rules']) || result.frequencyConfig;
-  result.startDate = firstDefined(policy, ['startDate', 'start_date', 'plan_start_date']) || result.startDate;
   return result;
 }
 
@@ -185,19 +142,15 @@ function slimDailyState(state) {
     'lastOperationClientSequence',
     'isLocked',
     'lockReason',
-    'lockedReason',
     'hasPolicyChangedToday',
     'hasDeletionToday',
-    'syncStatus',
     'updatedAt'
   ]);
-  result.userHabitId = firstDefined(state, ['userHabitId', 'user_habit_id', 'userHabit_Id']);
+  result.userHabitId = state.userHabitId;
   result.userHabitId = result.userHabitId ? String(result.userHabitId) : result.userHabitId;
-  const rawHabitId = firstDefined(state, ['habitId', 'habit_id', 'habit_Id']);
-  if (rawHabitId !== undefined) {
-    result.habitId = normalizeHabitId(rawHabitId);
+  if (state.habitId !== undefined) {
+    result.habitId = normalizeHabitId(state.habitId);
   }
-  result.policyVersionId = firstDefined(state, ['policyVersionId', 'policy_version_id']) || result.policyVersionId;
   return result;
 }
 

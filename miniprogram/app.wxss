@@ -5,16 +5,24 @@
    ============================================ */
 page {
     /* ================= 1. 基础背景与文字 (高对比、极清透) ================= */
-    --bg-body: #F4F6F8; /* 极其通透的珍珠灰底色 */
-    --bg-card: #FFFFFF;
+    --color-bg-page: #F4F6F8; /* 页面背景 */
+    --color-bg-card: #FFFFFF; /* 卡片、弹窗、列表背景 */
+    --bg-body: var(--color-bg-page); /* 极其通透的珍珠灰底色 */
+    --bg-card: var(--color-bg-card);
     
-    --ink-title: #141618; /* 标题黑，强对比 */
-    --ink-main:  #50565C; /* 正文灰 */
-    --text-sub:  #8B959E; /* 辅助灰 */
+    --color-text-main: #141618; /* 页面标题、核心信息 */
+    --color-text-secondary: #50565C; /* 正文、说明文字 */
+    --color-text-muted: #8B959E; /* 弱提示、未选中态 */
+    --color-disabled-text: #AEB8C2; /* 禁用、未来日期、非活跃说明 */
+    --ink-title: var(--color-text-main); /* 标题黑，强对比 */
+    --ink-main: var(--color-text-secondary); /* 正文灰 */
+    --text-sub: var(--color-text-muted); /* 辅助灰 */
 
     /* ================= 2. 五大高饱和主题色 (主色 + 极淡背景色) ================= */
-    --c-primary: #38A385; /* 翠微绿 (主色/木) */
-    --c-primary-light: #E2F2ED;
+    --color-primary: #38A385; /* 品牌主色、主按钮、选中态、完成态 */
+    --color-primary-soft: #E2F2ED; /* 主色浅底、绿色图标背景 */
+    --c-primary: var(--color-primary); /* 翠微绿 (主色/木) */
+    --c-primary-light: var(--color-primary-soft);
     
     --c-coral:   #F0655B; /* 妃子红 (火) */
     --c-coral-light: #FDE8E7;
@@ -22,6 +30,9 @@ page {
     
     --c-amber:   #F2A93B; /* 栀子黄 (土) */
     --c-amber-light: #FEF3E1;
+    --color-warning: var(--c-amber);
+    --color-success: var(--color-primary);
+    --color-disabled-bg: var(--color-bg-page);
     
     --c-lake:    #5A8CB6; /* 晴山蓝 (水) */
     --c-lake-light: #E7F0F6;
@@ -44,6 +55,7 @@ page {
   --page-padding: 24px;        /* 页面左右安全边距 */
   --gap-list: 14px;            /* 列表类间距 */
   --gap-module: 24px;          /* 模块间距 */
+  --nav-mask-height: calc(160rpx + 10px); /* 顶部导航遮挡高度 */
   
   /* 五、字号阶梯 */
   --text-giant: 48px;          /* 巨型数字/时辰 */
@@ -58,13 +70,17 @@ page {
   
   /* 兼容旧变量（逐步迁移） */
   --bg-primary: var(--bg-body);
-  --text-primary: var(--ink-title);
-  --text-secondary: var(--ink-main);
-  --text-tertiary: var(--text-sub);
+  --text-primary: var(--color-text-main);
+  --text-secondary: var(--color-text-secondary);
+  --text-tertiary: var(--color-text-muted);
   --primary: var(--c-primary);
   --accent: var(--c-coral);
   
-  --border-light: rgba(0, 0, 0, 0.04);
+  --color-border: rgba(0, 0, 0, 0.05);
+  --color-border-light: rgba(0, 0, 0, 0.04);
+  --color-mask-soft: rgba(0, 0, 0, 0.3);
+  --color-mask-strong: rgba(0, 0, 0, 0.5);
+  --border-light: var(--color-border-light);
   --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.02);
   --shadow-nav: 0 8px 32px rgba(0, 0, 0, 0.04);
   --safe-bottom: env(safe-area-inset-bottom, 20px);

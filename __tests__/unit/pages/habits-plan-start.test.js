@@ -79,7 +79,7 @@ describe('修习策略弹窗计划开始时间', () => {
       title: '八段锦',
       category: '运动类',
       default_duration: 15,
-      strategy: { duration: 15, freq_category: 'everyday', plan_start_date: '2026-05-09' }
+      strategy: { duration: 15, frequencyType: 'daily', frequencyConfig: { intervalDays: 1 }, startDate: '2026-05-09' }
     };
 
     page.openEditStrategyModal(baseHabit);
@@ -91,7 +91,7 @@ describe('修习策略弹窗计划开始时间', () => {
 
     page.openEditStrategyModal({
       ...baseHabit,
-      strategy: { ...baseHabit.strategy, plan_start_date: '2026-05-01' }
+      strategy: { ...baseHabit.strategy, startDate: '2026-05-01' }
     });
     expect(page.data.planStartType).toBe('custom');
     expect(page.data.planStartDate).toBe('today');
@@ -105,7 +105,7 @@ describe('修习策略弹窗计划开始时间', () => {
       title: '八段锦',
       category: '运动类',
       default_duration: 15,
-      strategy: { duration: 15, freq_category: 'everyday', plan_start_date: '2026-05-10' }
+      strategy: { duration: 15, frequencyType: 'daily', frequencyConfig: { intervalDays: 1 }, startDate: '2026-05-10' }
     };
 
     page.openEditStrategyModal(baseHabit);
@@ -117,7 +117,7 @@ describe('修习策略弹窗计划开始时间', () => {
 
     page.openEditStrategyModal({
       ...baseHabit,
-      strategy: { ...baseHabit.strategy, plan_start_date: '2026-05-18' }
+      strategy: { ...baseHabit.strategy, startDate: '2026-05-18' }
     });
     expect(page.data.planStartType).toBe('custom');
     expect(page.data.planStartDate).toBe('custom');
@@ -159,6 +159,25 @@ describe('修习策略弹窗计划开始时间', () => {
 
     expect(page.data.planStartDatePickerTempValue).toBe('2026-05-18');
     expect(page.data.planStartDatePickerValue).toEqual([10, 4, 17]);
+  });
+
+  test('选择日期滚动时同步更新 picker 索引用于选中态样式', () => {
+    page.openAddStrategyModal({
+      _id: 'habit-1',
+      title: '八段锦',
+      category: '运动类',
+      default_duration: 15
+    });
+    page.openPlanStartDatePicker();
+
+    page.onPlanStartDatePickerChange({
+      detail: {
+        value: [10, 6, 29]
+      }
+    });
+
+    expect(page.data.planStartDatePickerValue).toEqual([10, 6, 29]);
+    expect(page.data.planStartDatePickerTempValue).toBe('2026-07-30');
   });
 
   test('关闭开始日期选择器时销毁 picker-view，下次重新按当前日期创建', () => {

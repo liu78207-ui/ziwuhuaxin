@@ -54,6 +54,7 @@ function createMockCloud(initialCollections, wxContext = { OPENID: 'openid_1' })
     init: jest.fn(),
     getWXContext: jest.fn(() => wxContext),
     database: jest.fn(() => ({
+      command: { remove: jest.fn(() => ({ $remove: true })) },
       collection: jest.fn(collectionApi)
     }))
   }), { virtual: true })
@@ -83,7 +84,7 @@ describe('strategy change sync cloud functions', () => {
       date: '2026-06-02',
       action: 'checkin',
       hasPolicyChangedToday: true,
-      lockedReason: 'strategy_changed_after_checkin',
+      lockReason: 'strategy_changed_after_checkin',
       clientSequence: 1
     }, {})
 
@@ -94,9 +95,11 @@ describe('strategy change sync cloud functions', () => {
       date: '2026-06-02',
       status: 'checked',
       hasPolicyChangedToday: true,
-      lockedReason: 'strategy_changed_after_checkin',
       lockReason: 'strategy_changed_after_checkin'
     }))
+    expect(collections.daily_checkin_states[0].lockedReason).toBeUndefined()
+    expect(collections.daily_checkin_states[0].syncStatus).toBeUndefined()
+    expect(collections.checkin_operations[0].syncStatus).toBeUndefined()
   })
 
   test('syncHabit updatePolicy upserts strategy-changed daily state', async () => {
@@ -140,7 +143,7 @@ describe('strategy change sync cloud functions', () => {
         date: '2026-06-02',
         status: 'unchecked',
         hasPolicyChangedToday: true,
-        lockedReason: 'strategy_changed_without_checkin'
+        lockReason: 'strategy_changed_without_checkin'
       }
     }, {})
 
@@ -157,8 +160,9 @@ describe('strategy change sync cloud functions', () => {
       date: '2026-06-02',
       status: 'unchecked',
       hasPolicyChangedToday: true,
-      lockedReason: 'strategy_changed_without_checkin',
       lockReason: 'strategy_changed_without_checkin'
     }))
+    expect(collections.daily_checkin_states[0].lockedReason).toBeUndefined()
+    expect(collections.daily_checkin_states[0].syncStatus).toBeUndefined()
   })
 })

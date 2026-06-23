@@ -20,14 +20,14 @@
   right: 0;
   background-color: var(--bg-primary);
   z-index: 100;
-  padding: 100rpx 48rpx 0;
+  padding: 0 48rpx;
+  min-height: var(--nav-mask-height);
 }
 
 /* ============================================
    导航栏标题
    ============================================ */
 .nav-header {
-  padding-bottom: 24rpx;
   display: flex;
   justify-content: flex-start;
   align-items: center;
@@ -48,7 +48,7 @@
 .tabs-top {
   display: flex;
   gap: 48rpx;
-  margin-bottom: 20rpx;
+  margin-bottom: 0;
   padding-bottom: 12rpx;
 }
 
@@ -83,9 +83,13 @@
    习惯列表
    ============================================ */
 .habit-list {
-  flex: 1;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   overflow-y: auto;
-  padding: 290rpx 48rpx 200rpx;
+  padding: 270rpx 48rpx 200rpx;
   box-sizing: border-box;
 }
 
@@ -470,14 +474,14 @@
 
 .item-value {
   font-size: 15px;
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
   text-align: right;
   line-height: 1;
 }
 
 .item-value.placeholder {
   font-size: 15px;
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
 }
 
 /* 保存按钮 */
@@ -514,6 +518,103 @@
 .btn-save.disabled:active {
   transform: none;
   box-shadow: none;
+}
+
+/* ============================================
+   删除习惯确认弹窗
+   ============================================ */
+.delete-habit-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100001;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.delete-habit-modal.show {
+  opacity: 1;
+  visibility: visible;
+}
+
+.delete-habit-modal-content {
+  width: calc(100% - 96rpx);
+  min-height: 420rpx;
+  background-color: var(--bg-card);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  transform: scale(0.9);
+  transition: transform 0.3s ease;
+}
+
+.delete-habit-modal.show .delete-habit-modal-content {
+  transform: scale(1);
+}
+
+.delete-habit-modal-header {
+  padding: 74rpx 56rpx 30rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.delete-habit-modal-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.delete-habit-modal-body {
+  padding: 0 68rpx 70rpx;
+}
+
+.delete-habit-modal-text {
+  display: block;
+  width: 100%;
+  font-size: 32rpx;
+  line-height: 1.45;
+  font-weight: 400;
+  color: var(--text-sub);
+  text-align: center;
+}
+
+.delete-habit-modal-footer {
+  display: flex;
+  border-top: 1px solid var(--border-light);
+}
+
+.delete-habit-modal-btn {
+  flex: 1;
+  height: 104rpx;
+  line-height: 104rpx;
+  border-radius: 0;
+  font-size: 32rpx;
+  font-weight: 600;
+  border: none;
+  padding: 0;
+  background-color: transparent;
+}
+
+.delete-habit-modal-btn::after {
+  border: none;
+}
+
+.delete-habit-modal-cancel {
+  color: var(--text-primary);
+  border-right: 1px solid var(--border-light);
+}
+
+.delete-habit-modal-confirm {
+  color: var(--color-danger);
 }
 
 /* ============================================
@@ -565,7 +666,7 @@
 
 .picker-close {
   font-size: 28rpx;
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
   width: 62rpx;
   height: 62rpx;
   border-radius: 50%;
@@ -578,7 +679,7 @@
 
 .picker-cancel {
   font-size: 28rpx;
-  color: var(--text-tertiary);
+  color: var(--color-text-muted);
 }
 
 .picker-title {
@@ -726,7 +827,7 @@
 
 .plan-start-hint {
   font-size: 24rpx;
-  color: #666;
+  color: var(--color-text-secondary);
   line-height: 1.5;
   padding-left: 64rpx;
   font-weight: 300;
@@ -793,7 +894,7 @@
   height: 120rpx;
   text-align: center;
   font-size: 32rpx;
-  color: var(--text-primary);
+  color: var(--color-text-muted);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -801,6 +902,8 @@
 
 .date-picker-item.selected {
   font-size: 36rpx;
+  color: var(--color-text-main);
+  font-weight: 500;
 }
 
 .picker-footer {
@@ -899,7 +1002,7 @@
 .action-sheet-cancel {
   text-align: center;
   font-size: 32rpx;
-  color: var(--text-main);
+  color: var(--color-text-main);
   font-weight: 500;
   padding: 32rpx 40rpx;
   margin-top: 16rpx;

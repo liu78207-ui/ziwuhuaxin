@@ -11,6 +11,9 @@
 // 这里先验证 buildPeriod 等纯函数
 
 const reportService = require('../../../miniprogram/services/reportService')
+const storageService = require('../../../miniprogram/services/storageService')
+const habitService = require('../../../miniprogram/services/habitService')
+const timeService = require('../../../miniprogram/services/timeService')
 
 describe('reportService', () => {
   describe('buildPeriod', () => {
@@ -69,6 +72,68 @@ describe('reportService', () => {
     test('fetchDailyStates 返回数组', () => {
       const states = reportService.fetchDailyStates('2026-05-01', '2026-05-07')
       expect(Array.isArray(states)).toBe(true)
+    })
+
+    test('同一次年报构建不会按习惯数重复读取 storage', async () => {
+      const userHabits = [
+        {
+          userHabitId: 'uh_perf_1',
+          habitId: 'h_perf_1',
+          name: '性能习惯一',
+          themeClass: 't-green',
+          status: 'active',
+          createdAt: '2026-01-01'
+        },
+        {
+          userHabitId: 'uh_perf_2',
+          habitId: 'h_perf_2',
+          name: '性能习惯二',
+          themeClass: 't-red',
+          status: 'active',
+          createdAt: '2026-01-01'
+        }
+      ]
+      const policyVersions = userHabits.map(habit => ({
+        policyVersionId: `pv_${habit.userHabitId}`,
+        userHabitId: habit.userHabitId,
+        habitId: habit.habitId,
+        frequencyType: 'daily',
+        frequencyConfig: {},
+        effectiveStartDate: '2026-01-01',
+        effectiveEndDate: null
+      }))
+      const dailyStates = [
+        {
+          stateId: 'state_uh_perf_1_2026-01-01',
+          userHabitId: 'uh_perf_1',
+          habitId: 'h_perf_1',
+          date: '2026-01-01',
+          status: 'checked'
+        }
+      ]
+
+      const habitsSpy = jest.spyOn(storageService, 'getMyHabitsWithMigration').mockReturnValue(userHabits)
+      const policiesSpy = jest.spyOn(storageService, 'getPolicyVersions').mockReturnValue(policyVersions)
+      const statesSpy = jest.spyOn(storageService, 'getDailyCheckinStates').mockReturnValue(dailyStates)
+      const policiesByUserHabitSpy = jest.spyOn(storageService, 'getPolicyVersionsByUserHabitId')
+      const builtInSpy = jest.spyOn(habitService, 'getBuiltInHabits').mockReturnValue([])
+      const todaySpy = jest.spyOn(timeService, 'getTodayKey').mockReturnValue('2026-12-31')
+
+      const report = await reportService.getYearlyReport('2026')
+
+      expect(report.habitReports).toHaveLength(2)
+      expect(habitsSpy).toHaveBeenCalledTimes(1)
+      expect(policiesSpy).toHaveBeenCalledTimes(1)
+      expect(statesSpy).toHaveBeenCalledTimes(1)
+      expect(builtInSpy).toHaveBeenCalledTimes(1)
+      expect(policiesByUserHabitSpy).not.toHaveBeenCalled()
+
+      habitsSpy.mockRestore()
+      policiesSpy.mockRestore()
+      statesSpy.mockRestore()
+      policiesByUserHabitSpy.mockRestore()
+      builtInSpy.mockRestore()
+      todaySpy.mockRestore()
     })
   })
 })

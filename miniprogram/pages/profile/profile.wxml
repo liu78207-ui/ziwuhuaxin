@@ -3,7 +3,7 @@
 
 <view class="page-wrapper">
   <!-- 导航栏标题 -->
-  <view class="nav-header">
+  <view class="nav-header" style="{{navTitleStyle}}">
     <text class="nav-title">归藏</text>
   </view>
 
@@ -37,6 +37,7 @@
       bindblur="onNicknameSubmit"
       bindconfirm="onNicknameSubmit"
       placeholder="点击设置昵称"
+      placeholder-class="pv-name-placeholder"
       confirm-type="done"
       maxlength="24"
       cursor-spacing="160"
@@ -44,17 +45,17 @@
       disabled="{{isProfileSaving || isLoggingIn}}"
     />
     <view wx:else class="pv-name pv-login-name" bindtap="onLogin">{{userInfo.nickName}}</view>
-    
+
     <view class="pv-tag">早鸟作息</view>
 
     <!-- 菜单列表 -->
     <view class="pv-list">
-      <view class="pv-list-row" bindtap="viewHistory">
-        <text>我的勋章</text>
-        <text class="pv-list-arrow">›</text>
-      </view>
       <view class="pv-list-row" bindtap="viewSettings">
         <text>偏好设置</text>
+        <text class="pv-list-arrow">›</text>
+      </view>
+      <view class="pv-list-row {{isClearingCache ? 'is-disabled' : ''}}" bindtap="onClearCacheTap">
+        <text>清空缓存</text>
         <text class="pv-list-arrow">›</text>
       </view>
     </view>
@@ -63,6 +64,42 @@
       <view class="pv-list-row" bindtap="viewAbout">
         <text>关于我们</text>
         <text class="pv-list-arrow">›</text>
+      </view>
+      <view class="pv-list-row" bindtap="viewContact">
+        <text>联系我们</text>
+        <text class="pv-list-arrow">›</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 清空缓存确认弹窗 -->
+  <view class="contact-modal {{showClearCacheModal ? 'show' : ''}}" catchtap="closeClearCacheModal">
+    <view class="contact-modal-content clear-cache-modal-content" catchtap="preventBubble">
+      <view class="clear-cache-modal-header">
+        <text class="contact-modal-title clear-cache-modal-title">清空缓存</text>
+      </view>
+      <view class="clear-cache-modal-body">
+        <text class="clear-cache-modal-text">仅清除当前设备本地缓存，不会删除云端数据。清理前未同步的离线操作可能丢失，确认继续吗？</text>
+      </view>
+      <view class="clear-cache-modal-footer">
+        <button class="clear-cache-modal-btn clear-cache-modal-cancel" bindtap="closeClearCacheModal" disabled="{{isClearingCache}}">取消</button>
+        <button class="clear-cache-modal-btn clear-cache-modal-confirm" bindtap="confirmClearCache" loading="{{isClearingCache}}" disabled="{{isClearingCache}}">确定</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 联系我们弹窗 -->
+  <view class="contact-modal {{showContactModal ? 'show' : ''}}" catchtap="closeContactModal">
+    <view class="contact-modal-content" catchtap="preventBubble">
+      <view class="contact-modal-header">
+        <text class="contact-modal-title">联系我们</text>
+        <view class="contact-close-btn" catchtap="closeContactModal">
+          <text class="contact-close-icon">✕</text>
+        </view>
+      </view>
+      <view class="contact-modal-body">
+        <image class="contact-qrcode" src="{{contactQrcodeUrl}}" mode="aspectFit" lazy-load></image>
+        <text class="contact-tip">欢迎反馈使用问题和感受</text>
       </view>
     </view>
   </view>

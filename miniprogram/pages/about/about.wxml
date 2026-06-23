@@ -1,0 +1,73 @@
+<!--pages/about/about.wxml-->
+<!-- 关于我们页面 -->
+
+<view class="page-wrapper">
+  <view class="nav-back" style="{{navBackStyle}}" bindtap="goBack">
+    <view class="nav-back-icon"></view>
+  </view>
+
+  <view class="nav-header" style="background-color: rgba(244, 246, 248, {{navBgOpacity}});">
+    <view class="nav-title-wrap" style="{{navTitleStyle}}">
+      <text class="nav-title">关于子午花信</text>
+    </view>
+  </view>
+
+  <scroll-view class="content-scroll" scroll-y="true" bindscroll="onAboutScroll">
+    <view class="about-content">
+      <view class="about-section">
+        <text class="section-index">01</text>
+        <text class="section-title">把东方智慧带回日常</text>
+
+        <view class="section-paragraph">
+          <text>子午花信，是一款融合东方生活智慧的习惯记录工具。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>我们关注的，不只是一次打卡是否完成，而是一个人</text>
+          <text class="text-emphasis">如何在日常生活里，重新建立与身体的连接。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>在高节奏、高消耗的生活中，很多身体变化在日复一日中慢慢累积。</text>
+          <text class="text-emphasis">子午花信希望把这些容易被忽略的日常养护，重新变得可见。</text>
+        </view>
+      </view>
+
+      <view class="about-section">
+        <text class="section-index">02</text>
+        <text class="section-title">从一个简单动作开始</text>
+
+        <view class="section-paragraph">
+          <text>站桩、八段锦、太极拳、艾灸、刮痧、泡脚、揉腹、梳头……这些动作并不复杂，却承载着东方生活智慧中很重要的一部分：</text>
+          <text class="text-emphasis">顺应节律，重视日常。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>子午花信不是一个强调连续打卡和完成度的工具，也不是医疗诊断或疾病治疗产品。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>它更像一位安静的习惯记录助手，陪你从一个个简单动作开始，把照顾身体这件事慢慢放回生活里。</text>
+        </view>
+      </view>
+
+      <view class="about-section about-section-last">
+        <text class="section-index">03</text>
+        <text class="section-title">写给身体的书信</text>
+
+        <view class="section-paragraph">
+          <text>我们相信，长期记录不是冰冷的数据，也不只是完成一次打卡。它更像一封封写给身体的书信。记录今天做过的养护，也记录身体细微而真实的回应。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>子午有时，花开有信。</text>
+          <text class="text-emphasis">「子午」代表时间与节律。「花信」代表细微、真实、准时到来的身体回应。</text>
+        </view>
+
+        <view class="section-paragraph">
+          <text>愿你从一次简单的记录开始，把东方生活智慧融进日常，慢慢找回自己的节奏。</text>
+        </view>
+      </view>
+    </view>
+  </scroll-view>
+</view>
