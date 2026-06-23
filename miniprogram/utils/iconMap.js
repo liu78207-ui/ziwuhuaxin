@@ -12,6 +12,8 @@ const HABIT_ICONS = {
   '睡前泡脚': { file: 'habit-shuiqian-paojiao.png', theme: 't-red' },
 
   // 🟢 木属性 / 疏肝理气 - 绿色 (t-green)
+  '点穴': { file: 'habit-dianxue.png', theme: 't-green' },
+  '舞蹈': { file: 'habit-wudao.png', theme: 't-green' },
   '站桩': { file: 'habit-zhanzhuang.png', theme: 't-green' },
   '刮痧': { file: 'habit-guasha.png', theme: 't-green' },
   '揉腹': { file: 'habit-roufu.png', theme: 't-green' },
@@ -19,6 +21,8 @@ const HABIT_ICONS = {
 
   // 🟡 土属性 / 健脾强身 - 黄色 (t-yellow)
   '八段锦': { file: 'habit-baduanjin.png', theme: 't-yellow' },
+  '健体': { file: 'habit-jianti.png', theme: 't-yellow' },
+  '易筋经': { file: 'habit-yijinjing.png', theme: 't-yellow' },
   '五禽戏': { file: 'habit-wuqinxi.png', theme: 't-yellow' },
   '推拿': { file: 'habit-tuina.png', theme: 't-yellow' },
   '梳头': { file: 'habit-shutou.png', theme: 't-yellow' },

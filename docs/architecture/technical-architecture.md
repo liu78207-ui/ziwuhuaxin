@@ -259,7 +259,7 @@ cloudfunctions/
   defaultDuration, defaultFrequency, sortOrder, enabled
 }
 ```
-说明：固定 21 个内置习惯，不允许用户自由创建新 habitId。
+说明：固定 25 个内置习惯，不允许用户自由创建新 habitId。
 
 `userHabit`
 ```js

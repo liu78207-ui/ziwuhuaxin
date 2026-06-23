@@ -131,15 +131,9 @@ function mergeTodayHabitsByHabitId(todayHabits, todayStates) {
   return Array.from(groups.values())
 }
 
-function sortTodayHabitsByLifecycle(habits) {
-  return habits.slice().sort((a, b) => {
-    const createdA = a.createdAt || ''
-    const createdB = b.createdAt || ''
-    if (createdA !== createdB) {
-      return createdA < createdB ? -1 : 1
-    }
-    return String(a.userHabitId || '').localeCompare(String(b.userHabitId || ''))
-  })
+function compareHabitName(aName, bName) {
+  const nameCompare = String(aName || '').localeCompare(String(bName || ''), 'zh-CN')
+  return nameCompare
 }
 
 /**
@@ -171,12 +165,10 @@ async function getHomeViewModel() {
   const practiceDaysByHabitId = buildPracticeDaysByHabitId(allHabits, allDailyStates)
   const builtInHabitById = new Map()
 
-  const mergedTodayHabits = sortTodayHabitsByLifecycle(
-    mergeTodayHabitsByHabitId(todayHabits, todayStates)
-  )
+  const mergedTodayHabits = mergeTodayHabitsByHabitId(todayHabits, todayStates)
 
   // 构建 taskList
-  const taskList = mergedTodayHabits.map((habit, index) => {
+  const taskList = mergedTodayHabits.map((habit) => {
     const state = todayStatesByUserHabitId.get(habit.userHabitId)
     const isDone = state && state.status === 'checked'
     const habitId = String(habit.habitId)
@@ -199,13 +191,20 @@ async function getHomeViewModel() {
       duration: habit.duration,
       isChecked: isDone,
       streak: practiceDays,
-      bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length],
+      bgColor: '',
       iconUrl: getIconUrl(name),
       themeClass: getThemeClass(category),
       emoji: getEmojiByCategory(category),
       meta: `${habit.duration}分钟`
     }
-  })
+  }).sort((a, b) => {
+    const nameCompare = compareHabitName(a.title, b.title)
+    if (nameCompare !== 0) return nameCompare
+    return String(a._id || '').localeCompare(String(b._id || ''))
+  }).map((task, index) => ({
+    ...task,
+    bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length]
+  }))
 
   const totalCount = taskList.length
   const checkedCount = taskList.filter(t => t.isChecked).length

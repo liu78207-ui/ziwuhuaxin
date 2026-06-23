@@ -196,6 +196,17 @@ describe('migrateV1Data cloud function', () => {
           freq_type: 'daily',
           freq_rules: 1,
           plan_start_date: '2026-05-01'
+        },
+        {
+          _id: 'strategy_yijinjing',
+          _openid: 'openid_1',
+          habit_id: 'legacy_yijinjing',
+          habit_title: '易筋经',
+          category: '运动类',
+          duration: 20,
+          freq_type: 'daily',
+          freq_rules: 1,
+          plan_start_date: '2026-05-01'
         }
       ],
       user_strategy_versions: [
@@ -222,6 +233,14 @@ describe('migrateV1Data cloud function', () => {
           duration: 30,
           freq_type: 'daily',
           start_date: '2026-05-01'
+        },
+        {
+          _id: 'version_yijinjing',
+          _openid: 'openid_1',
+          habit_id: '25',
+          duration: 20,
+          freq_type: 'daily',
+          start_date: '2026-05-01'
         }
       ],
       checkin_logs: [
@@ -245,6 +264,13 @@ describe('migrateV1Data cloud function', () => {
           habit_id: 'h003',
           checkin_date: '2026-05-03',
           created_at: '2026-05-03T01:20:00.000Z'
+        },
+        {
+          _id: 'log_yijinjing',
+          _openid: 'openid_1',
+          habit_id: '25',
+          checkin_date: '2026-05-03',
+          created_at: '2026-05-03T01:30:00.000Z'
         }
       ]
     })
@@ -253,15 +279,18 @@ describe('migrateV1Data cloud function', () => {
     const result = await main({}, {})
 
     expect(result.success).toBe(true)
-    expect(collections.user_habits.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
-    expect(collections.habit_policy_versions.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
-    expect(collections.checkin_operations.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
-    expect(collections.daily_checkin_states.map(item => item.habitId).sort()).toEqual(['1', '2', '3'])
+    expect(collections.user_habits.map(item => item.habitId).sort()).toEqual(['1', '2', '25', '3'])
+    expect(collections.habit_policy_versions.map(item => item.habitId).sort()).toEqual(['1', '2', '25', '3'])
+    expect(collections.checkin_operations.map(item => item.habitId).sort()).toEqual(['1', '2', '25', '3'])
+    expect(collections.daily_checkin_states.map(item => item.habitId).sort()).toEqual(['1', '2', '25', '3'])
     expect(collections.user_habits.find(item => item.userHabitId === 'uh_strategy_baduanjin')).toEqual(
       expect.objectContaining({ habitId: '3', title: '八段锦' })
     )
     expect(collections.user_habits.find(item => item.userHabitId === 'uh_strategy_zhanzhuang')).toEqual(
       expect.objectContaining({ habitId: '2', title: '站桩' })
+    )
+    expect(collections.user_habits.find(item => item.userHabitId === 'uh_strategy_yijinjing')).toEqual(
+      expect.objectContaining({ habitId: '25', title: '易筋经' })
     )
   })
 

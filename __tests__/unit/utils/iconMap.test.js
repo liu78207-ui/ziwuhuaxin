@@ -25,11 +25,15 @@ describe('iconMap 工具函数测试', () => {
       const result = iconMap.getIconConfig('站桩');
       expect(result.themeClass).toBe('t-green');
       expect(iconMap.getIconConfig('经络拍打').themeClass).toBe('t-green');
+      expect(iconMap.getIconConfig('点穴').themeClass).toBe('t-green');
+      expect(iconMap.getIconConfig('舞蹈').themeClass).toBe('t-green');
     });
 
     test('应该为土属性习惯返回t-yellow主题', () => {
       const result = iconMap.getIconConfig('八段锦');
       expect(result.themeClass).toBe('t-yellow');
+      expect(iconMap.getIconConfig('健体').themeClass).toBe('t-yellow');
+      expect(iconMap.getIconConfig('易筋经').themeClass).toBe('t-yellow');
     });
 
     test('应该为水属性习惯返回t-blue主题', () => {
@@ -50,8 +54,8 @@ describe('iconMap 工具函数测试', () => {
     test('应该支持所有预定义的习惯', () => {
       const habits = [
         '金刚功', '快走', '艾灸', '睡前泡脚',
-        '站桩', '跳绳', '刮痧', '揉腹',
-        '八段锦', '五禽戏', '跑步', '推拿', '梳头',
+        '点穴', '舞蹈', '站桩', '跳绳', '刮痧', '揉腹',
+        '八段锦', '健体', '易筋经', '五禽戏', '跑步', '推拿', '梳头',
         '太极拳', '游泳', '拔罐', '晨起温水',
         '瑜伽', '普拉提', '经络拍打', '叩齿'
       ];
@@ -85,6 +89,10 @@ describe('iconMap 工具函数测试', () => {
       expect(iconMap.getThemeClass('跑步')).toBe('t-red');
       expect(iconMap.getThemeClass('跳绳')).toBe('t-red');
       expect(iconMap.getThemeClass('经络拍打')).toBe('t-green');
+      expect(iconMap.getThemeClass('点穴')).toBe('t-green');
+      expect(iconMap.getThemeClass('舞蹈')).toBe('t-green');
+      expect(iconMap.getThemeClass('健体')).toBe('t-yellow');
+      expect(iconMap.getThemeClass('易筋经')).toBe('t-yellow');
     });
 
     test('未知习惯应该返回默认主题t-blue', () => {

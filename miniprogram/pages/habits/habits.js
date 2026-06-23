@@ -116,6 +116,9 @@ Page({
       { _id: '9', title: '游泳', category: '运动类', description: '全身运动，增强心肺', default_duration: 45 },
       { _id: '10', title: '跑步', category: '运动类', description: '有氧运动，释放压力', default_duration: 30 },
       { _id: '11', title: '跳绳', category: '运动类', description: '简单高效，燃脂塑形', default_duration: 15 },
+      { _id: '23', title: '舞蹈', category: '运动类', description: '舒展身体，愉悦身心', default_duration: 30 },
+      { _id: '24', title: '健体', category: '运动类', description: '综合训练，强健体魄', default_duration: 20 },
+      { _id: '25', title: '易筋经', category: '运动类', description: '传统功法，强筋健骨', default_duration: 20 },
 
       // 理疗类
       { _id: '12', title: '艾灸', category: '理疗类', description: '温阳散寒，提升免疫力', default_duration: 30 },
@@ -123,6 +126,7 @@ Page({
       { _id: '14', title: '拔罐', category: '理疗类', description: '疏通经络，祛湿排毒', default_duration: 15 },
       { _id: '15', title: '推拿', category: '理疗类', description: '放松肌肉，缓解疲劳', default_duration: 30 },
       { _id: '16', title: '经络拍打', category: '理疗类', description: '疏通经络，促进循环', default_duration: 15 },
+      { _id: '22', title: '点穴', category: '理疗类', description: '按压穴位，疏通经络', default_duration: 15 },
 
       // 起居类
       { _id: '17', title: '晨起温水', category: '起居类', description: '清肠排毒，唤醒身体', default_duration: 5 },

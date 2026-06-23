@@ -194,7 +194,7 @@ V1 落地：
 
 产品化标准：
 
-- 首批内置习惯数量为 21 个。
+- 首批内置习惯数量为 25 个。
 - 分类为运动类、理疗类、起居类。
 - 默认目标分钟数范围为 5 到 45 分钟；当前选择器可支持 5、10、15、20、30、45、60、90、120 分钟。
 - 推荐频次默认均为每天。
@@ -211,23 +211,27 @@ V1 落地：
 | 2 | 3 | 八段锦 | 运动类 | 15 | 每天 | `/assets/icons/habit-baduanjin.png` | `t-yellow` | 2 |
 | 3 | 14 | 拔罐 | 理疗类 | 15 | 每天 | `/assets/icons/habit-baguan.png` | `t-blue` | 3 |
 | 4 | 17 | 晨起温水 | 起居类 | 5 | 每天 | `/assets/icons/habit-chenqi-wenshui.png` | `t-blue` | 4 |
-| 5 | 13 | 刮痧 | 理疗类 | 20 | 每天 | `/assets/icons/habit-guasha.png` | `t-green` | 5 |
-| 6 | 1 | 金刚功 | 运动类 | 15 | 每天 | `/assets/icons/habit-jinganggong.png` | `t-red` | 6 |
-| 7 | 16 | 经络拍打 | 理疗类 | 15 | 每天 | `/assets/icons/habit-jingluo-paida.png` | `t-green` | 7 |
-| 8 | 19 | 叩齿 | 起居类 | 5 | 每天 | `/assets/icons/habit-kouchi.png` | `t-purple` | 8 |
-| 9 | 6 | 快走 | 运动类 | 30 | 每天 | `/assets/icons/habit-kuaizou.png` | `t-red` | 9 |
-| 10 | 10 | 跑步 | 运动类 | 30 | 每天 | `/assets/icons/habit-paobu.png` | `t-red` | 10 |
-| 11 | 8 | 普拉提 | 运动类 | 40 | 每天 | `/assets/icons/habit-pulati.png` | `t-purple` | 11 |
-| 12 | 20 | 揉腹 | 起居类 | 10 | 每天 | `/assets/icons/habit-roufu.png` | `t-green` | 12 |
-| 13 | 18 | 梳头 | 起居类 | 5 | 每天 | `/assets/icons/habit-shutou.png` | `t-yellow` | 13 |
-| 14 | 21 | 睡前泡脚 | 起居类 | 20 | 每天 | `/assets/icons/habit-shuiqian-paojiao.png` | `t-red` | 14 |
-| 15 | 5 | 太极拳 | 运动类 | 30 | 每天 | `/assets/icons/habit-taijiquan.png` | `t-blue` | 15 |
-| 16 | 11 | 跳绳 | 运动类 | 15 | 每天 | `/assets/icons/habit-tiaosheng.png` | `t-red` | 16 |
-| 17 | 15 | 推拿 | 理疗类 | 30 | 每天 | `/assets/icons/habit-tuina.png` | `t-yellow` | 17 |
-| 18 | 4 | 五禽戏 | 运动类 | 20 | 每天 | `/assets/icons/habit-wuqinxi.png` | `t-yellow` | 18 |
-| 19 | 9 | 游泳 | 运动类 | 45 | 每天 | `/assets/icons/habit-youyong.png` | `t-blue` | 19 |
-| 20 | 7 | 瑜伽 | 运动类 | 45 | 每天 | `/assets/icons/habit-yujia.png` | `t-purple` | 20 |
-| 21 | 2 | 站桩 | 运动类 | 20 | 每天 | `/assets/icons/habit-zhanzhuang.png` | `t-green` | 21 |
+| 5 | 22 | 点穴 | 理疗类 | 15 | 每天 | `/assets/icons/habit-dianxue.png` | `t-green` | 5 |
+| 6 | 13 | 刮痧 | 理疗类 | 20 | 每天 | `/assets/icons/habit-guasha.png` | `t-green` | 6 |
+| 7 | 24 | 健体 | 运动类 | 20 | 每天 | `/assets/icons/habit-jianti.png` | `t-yellow` | 7 |
+| 8 | 1 | 金刚功 | 运动类 | 15 | 每天 | `/assets/icons/habit-jinganggong.png` | `t-red` | 8 |
+| 9 | 16 | 经络拍打 | 理疗类 | 15 | 每天 | `/assets/icons/habit-jingluo-paida.png` | `t-green` | 9 |
+| 10 | 19 | 叩齿 | 起居类 | 5 | 每天 | `/assets/icons/habit-kouchi.png` | `t-purple` | 10 |
+| 11 | 6 | 快走 | 运动类 | 30 | 每天 | `/assets/icons/habit-kuaizou.png` | `t-red` | 11 |
+| 12 | 10 | 跑步 | 运动类 | 30 | 每天 | `/assets/icons/habit-paobu.png` | `t-red` | 12 |
+| 13 | 8 | 普拉提 | 运动类 | 40 | 每天 | `/assets/icons/habit-pulati.png` | `t-purple` | 13 |
+| 14 | 20 | 揉腹 | 起居类 | 10 | 每天 | `/assets/icons/habit-roufu.png` | `t-green` | 14 |
+| 15 | 18 | 梳头 | 起居类 | 5 | 每天 | `/assets/icons/habit-shutou.png` | `t-yellow` | 15 |
+| 16 | 21 | 睡前泡脚 | 起居类 | 20 | 每天 | `/assets/icons/habit-shuiqian-paojiao.png` | `t-red` | 16 |
+| 17 | 5 | 太极拳 | 运动类 | 30 | 每天 | `/assets/icons/habit-taijiquan.png` | `t-blue` | 17 |
+| 18 | 11 | 跳绳 | 运动类 | 15 | 每天 | `/assets/icons/habit-tiaosheng.png` | `t-red` | 18 |
+| 19 | 15 | 推拿 | 理疗类 | 30 | 每天 | `/assets/icons/habit-tuina.png` | `t-yellow` | 19 |
+| 20 | 4 | 五禽戏 | 运动类 | 20 | 每天 | `/assets/icons/habit-wuqinxi.png` | `t-yellow` | 20 |
+| 21 | 23 | 舞蹈 | 运动类 | 30 | 每天 | `/assets/icons/habit-wudao.png` | `t-green` | 21 |
+| 22 | 25 | 易筋经 | 运动类 | 20 | 每天 | `/assets/icons/habit-yijinjing.png` | `t-yellow` | 22 |
+| 23 | 9 | 游泳 | 运动类 | 45 | 每天 | `/assets/icons/habit-youyong.png` | `t-blue` | 23 |
+| 24 | 7 | 瑜伽 | 运动类 | 45 | 每天 | `/assets/icons/habit-yujia.png` | `t-purple` | 24 |
+| 25 | 2 | 站桩 | 运动类 | 20 | 每天 | `/assets/icons/habit-zhanzhuang.png` | `t-green` | 25 |
 
 ### 5.2 添加习惯
 

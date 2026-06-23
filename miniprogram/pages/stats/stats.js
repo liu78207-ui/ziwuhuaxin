@@ -388,6 +388,19 @@ Page({
     return habit.name || habit.title || habit.habit_title || habit.habitTitle || '';
   },
 
+  compareHabitDisplayName(a, b) {
+    const nameCompare = String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN');
+    if (nameCompare !== 0) return nameCompare;
+    return String(a.habitId || '').localeCompare(String(b.habitId || ''));
+  },
+
+  compareHabitCheckinCountDesc(a, b) {
+    const countA = Number(a.practiceCount ?? a.totalDays ?? a.daysCount ?? 0);
+    const countB = Number(b.practiceCount ?? b.totalDays ?? b.daysCount ?? 0);
+    if (countA !== countB) return countB - countA;
+    return this.compareHabitDisplayName(a, b);
+  },
+
   getHabitVisual(habit) {
     const habitName = this.getHabitDisplayName(habit);
     let iconUrl = habit.iconUrl || habit.icon_url;
@@ -568,7 +581,8 @@ Page({
     this.setData({
       habitMatrix: report.habitReports
         .filter(item => this.shouldShowHabitReport(item))
-        .map(item => this.mapWeekHabitReport(item)),
+        .map(item => this.mapWeekHabitReport(item))
+        .sort((a, b) => this.compareHabitDisplayName(a, b)),
       monthHabits: [],
       yearHabits: [],
       stats: report.stats
@@ -596,7 +610,8 @@ Page({
     this.setData({
       monthHabits: report.habitReports
         .filter(item => this.shouldShowHabitReport(item))
-        .map(item => this.mapMonthHabitReport(item, year, month, daysInMonth, startWeekday)),
+        .map(item => this.mapMonthHabitReport(item, year, month, daysInMonth, startWeekday))
+        .sort((a, b) => this.compareHabitCheckinCountDesc(a, b)),
       habitMatrix: [],
       yearHabits: [],
       stats: report.stats
@@ -617,7 +632,8 @@ Page({
     this.setData({
       yearHabits: report.habitReports
         .filter(item => this.shouldShowHabitReport(item))
-        .map(item => this.mapYearHabitReport(item, year)),
+        .map(item => this.mapYearHabitReport(item, year))
+        .sort((a, b) => this.compareHabitCheckinCountDesc(a, b)),
       habitMatrix: [],
       monthHabits: [],
       stats: report.stats

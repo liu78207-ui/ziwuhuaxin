@@ -1,6 +1,6 @@
 /**
  * habitLibrary.js
- * 21个内置习惯常量定义
+ * 25个内置习惯常量定义
  *
  * 字段映射（旧字段 -> 新模型规范）：
  *   _id            -> habitId
@@ -9,7 +9,7 @@
  *   category       -> category（保持不变）
  *   description    -> description（保持不变）
  *
- * habitId 固定为字符串 '1' 到 '21'，不可变，不重排。
+ * habitId 固定为字符串 '1' 到 '25'，不可变，不重排。
  */
 
 const { habitThemes } = require('./habitThemes.js')
@@ -249,6 +249,50 @@ const HABIT_LIBRARY = [
     defaultFrequency: 'daily',
     defaultTheme: habitThemes.daily,
     sortOrder: 21,
+    enabled: true
+  },
+  {
+    habitId: '22',
+    name: '点穴',
+    category: '理疗类',
+    description: '按压穴位，疏通经络',
+    defaultDuration: 15,
+    defaultFrequency: 'daily',
+    defaultTheme: habitThemes.therapy,
+    sortOrder: 22,
+    enabled: true
+  },
+  {
+    habitId: '23',
+    name: '舞蹈',
+    category: '运动类',
+    description: '舒展身体，愉悦身心',
+    defaultDuration: 30,
+    defaultFrequency: 'daily',
+    defaultTheme: habitThemes.sports,
+    sortOrder: 23,
+    enabled: true
+  },
+  {
+    habitId: '24',
+    name: '健体',
+    category: '运动类',
+    description: '综合训练，强健体魄',
+    defaultDuration: 20,
+    defaultFrequency: 'daily',
+    defaultTheme: habitThemes.sports,
+    sortOrder: 24,
+    enabled: true
+  },
+  {
+    habitId: '25',
+    name: '易筋经',
+    category: '运动类',
+    description: '传统功法，强筋健骨',
+    defaultDuration: 20,
+    defaultFrequency: 'daily',
+    defaultTheme: habitThemes.sports,
+    sortOrder: 25,
     enabled: true
   }
 ]

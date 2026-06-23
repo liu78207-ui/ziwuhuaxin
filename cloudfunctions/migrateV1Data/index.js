@@ -53,7 +53,11 @@ const BUILT_IN_HABIT_BY_NAME = {
   '梳头': '18',
   '叩齿': '19',
   '揉腹': '20',
-  '睡前泡脚': '21'
+  '睡前泡脚': '21',
+  '点穴': '22',
+  '舞蹈': '23',
+  '健体': '24',
+  '易筋经': '25'
 };
 const LEGACY_HABIT_ID_ALIASES = {
   h001: '1',
@@ -154,7 +158,7 @@ function normalizeAliasKey(value) {
 
 function normalizeBuiltInHabitId(record) {
   const rawHabitId = String(getValue(record, ['habitId', 'habit_id', 'habit_Id'], '') || '').trim();
-  if (/^(?:[1-9]|1[0-9]|2[0-1])$/.test(rawHabitId)) {
+  if (/^(?:[1-9]|1[0-9]|2[0-5])$/.test(rawHabitId)) {
     return rawHabitId;
   }
 

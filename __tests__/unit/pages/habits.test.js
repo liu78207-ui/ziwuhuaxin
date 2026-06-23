@@ -30,7 +30,11 @@ describe('修习页面 (habits) 测试', () => {
     { _id: '1', title: '金刚功', category: '运动类', description: '道家养生功法', default_duration: 15 },
     { _id: '2', title: '站桩', category: '运动类', description: '静心养气', default_duration: 20 },
     { _id: '3', title: '八段锦', category: '运动类', description: '传统养生功法', default_duration: 15 },
+    { _id: '23', title: '舞蹈', category: '运动类', description: '舒展身体，愉悦身心', default_duration: 30, themeClass: 't-green' },
+    { _id: '24', title: '健体', category: '运动类', description: '综合训练，强健体魄', default_duration: 20, themeClass: 't-yellow' },
+    { _id: '25', title: '易筋经', category: '运动类', description: '传统功法，强筋健骨', default_duration: 20, themeClass: 't-yellow' },
     { _id: '12', title: '艾灸', category: '理疗类', description: '温阳散寒', default_duration: 30 },
+    { _id: '22', title: '点穴', category: '理疗类', description: '按压穴位，疏通经络', default_duration: 15, themeClass: 't-green' },
     { _id: '13', title: '刮痧', category: '理疗类', description: '活血化瘀', default_duration: 20 },
     { _id: '17', title: '晨起温水', category: '起居类', description: '清肠排毒', default_duration: 5 },
     { _id: '18', title: '梳头', category: '起居类', description: '疏通头部经络', default_duration: 5 }
@@ -222,12 +226,16 @@ describe('修习页面 (habits) 测试', () => {
 
       expect(pageConfig.data.currentTab).toBe(1);
       expect(pageConfig.data.filteredHabits.every(h => h.category === '运动类')).toBe(true);
+      expect(pageConfig.data.filteredHabits.map(h => h.title)).toEqual(
+        expect.arrayContaining(['舞蹈', '健体', '易筋经'])
+      );
     });
 
     test('切换到理疗类应该只显示理疗习惯', () => {
       pageConfig.switchTab({ currentTarget: { dataset: { index: 2 } } });
 
       expect(pageConfig.data.filteredHabits.every(h => h.category === '理疗类')).toBe(true);
+      expect(pageConfig.data.filteredHabits.map(h => h.title)).toContain('点穴');
     });
 
     test('切换到起居类应该只显示起居习惯', () => {

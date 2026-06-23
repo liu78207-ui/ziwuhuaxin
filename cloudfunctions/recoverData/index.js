@@ -25,7 +25,11 @@ const BUILT_IN_HABITS = {
   '18': { name: '梳头', category: '起居类', targetMinutes: 5 },
   '19': { name: '叩齿', category: '起居类', targetMinutes: 5 },
   '20': { name: '揉腹', category: '起居类', targetMinutes: 10 },
-  '21': { name: '睡前泡脚', category: '起居类', targetMinutes: 20 }
+  '21': { name: '睡前泡脚', category: '起居类', targetMinutes: 20 },
+  '22': { name: '点穴', category: '理疗类', targetMinutes: 15 },
+  '23': { name: '舞蹈', category: '运动类', targetMinutes: 30 },
+  '24': { name: '健体', category: '运动类', targetMinutes: 20 },
+  '25': { name: '易筋经', category: '运动类', targetMinutes: 20 }
 };
 function pad2(value) {
   return String(value).padStart(2, '0');
@@ -66,7 +70,7 @@ function pickDefined(source, keys) {
 
 function normalizeHabitId(value) {
   const raw = String(value || '').trim();
-  if (/^(?:[1-9]|1[0-9]|2[0-1])$/.test(raw)) return raw;
+  if (/^(?:[1-9]|1[0-9]|2[0-5])$/.test(raw)) return raw;
   return raw;
 }
 

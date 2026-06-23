@@ -50,7 +50,7 @@ function emitHabitUpdated(action, payload = {}) {
 // ==================== 内置习惯 ====================
 
 /**
- * 获取所有内置习惯（21个固定定义）
+ * 获取所有内置习惯（25个固定定义）
  * @returns {BuiltInHabit[]}
  */
 function getBuiltInHabits() {

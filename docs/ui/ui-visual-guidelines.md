@@ -130,11 +130,15 @@
 | 跳绳 | `habit-tiaosheng.png` | `t-red` |
 | 艾灸 | `habit-aijiu.png` | `t-red` |
 | 睡前泡脚 | `habit-shuiqian-paojiao.png` | `t-red` |
+| 点穴 | `habit-dianxue.png` | `t-green` |
+| 舞蹈 | `habit-wudao.png` | `t-green` |
 | 站桩 | `habit-zhanzhuang.png` | `t-green` |
 | 刮痧 | `habit-guasha.png` | `t-green` |
 | 揉腹 | `habit-roufu.png` | `t-green` |
 | 经络拍打 | `habit-jingluo-paida.png` | `t-green` |
 | 八段锦 | `habit-baduanjin.png` | `t-yellow` |
+| 健体 | `habit-jianti.png` | `t-yellow` |
+| 易筋经 | `habit-yijinjing.png` | `t-yellow` |
 | 五禽戏 | `habit-wuqinxi.png` | `t-yellow` |
 | 推拿 | `habit-tuina.png` | `t-yellow` |
 | 梳头 | `habit-shutou.png` | `t-yellow` |

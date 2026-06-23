@@ -98,7 +98,7 @@
 
 迁移规则：
 
-- `habitId`：优先取旧 `strategy.habit_id` / `habit_id` / `habitId`，但不得原样保留旧测试或 legacy ID；必须归一化为内置习惯 ID 字符串 `'1'` 到 `'21'`。已知旧 ID 如 `h001` / `h_001` -> `'1'`，`h002` / `h_002` -> `'3'`，`h003` / `h_003` -> `'2'`，也可按旧习惯名称兜底映射。
+- `habitId`：优先取旧 `strategy.habit_id` / `habit_id` / `habitId`，但不得原样保留旧测试或 legacy ID；必须归一化为内置习惯 ID 字符串 `'1'` 到 `'25'`。已知旧 ID 如 `h001` / `h_001` -> `'1'`，`h002` / `h_002` -> `'3'`，`h003` / `h_003` -> `'2'`，也可按旧习惯名称兜底映射。
 - `userHabitId`：生成稳定迁移 ID，建议格式为 `uh_${openid}_${habitId}_${createdAtHash}`。
 - `createdAt`：优先 `createdAt`，其次 `plan_start_date`，最后使用迁移时间。
 - `deletedAt`：优先 `deletedAt`，其次 `deleted_at`。

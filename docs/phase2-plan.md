@@ -13,7 +13,7 @@
 **分层归属**：`models/` + `constants/`
 
 **核心约束**：
-- `builtInHabit.habitId`：固定 21 个，不可变，作为内置习惯唯一标识
+- `builtInHabit.habitId`：固定 25 个，不可变，作为内置习惯唯一标识
 - `userHabit.userHabitId`：独立字段，不以 `habitId` 替代用户习惯实例
 - 同一 `habitId` 可以有多个活跃的 `userHabit`（删除后重加生成新实例）
 - `policyVersion` 必须归属 `userHabitId`，不得只靠 `habitId` 归属
@@ -43,7 +43,7 @@
 ## C. 文件修改顺序
 
 ```
-Step 1: habitLibrary.js  (21个内置习惯常量，从 habits.js 现有数据提取)
+Step 1: habitLibrary.js  (25个内置习惯常量，从 habits.js 现有数据提取)
 Step 2: habitThemes.js   (主题色常量)
 
 Step 3: builtInHabit.js  (模型 + 校验函数)
@@ -51,10 +51,10 @@ Step 4: userHabit.js      (模型 + 校验函数)
 Step 5: policyVersion.js (模型 + 校验函数)
 ```
 
-**21个内置习惯来源**：从 `pages/habits/habits.js` 第79-106行的 `allHabits` 数组提取值，保持习惯 ID 不变。
+**25个内置习惯来源**：从 `pages/habits/habits.js` 的 `allHabits` 数组提取值，保持既有习惯 ID 不变，新增习惯追加 ID。
 
 **字段映射（旧字段 -> 新模型规范）**：
-- `_id` -> `habitId`（内置习惯唯一标识，字符串 '1'-'21'）
+- `_id` -> `habitId`（内置习惯唯一标识，字符串 '1'-'25'）
 - `title` -> `name`
 - `default_duration` -> `defaultDuration`
 - `category` -> `category`（保持不变）
@@ -102,7 +102,7 @@ defaultFrequency, defaultTheme, sortOrder, enabled
 ## E. 风险分析
 
 - **低风险**：纯新增文件，不涉及旧数据迁移
-- 不改 `pages/habits/habits.js` 中硬编码的 21 个习惯
+- 不改 `pages/habits/habits.js` 中硬编码的 25 个习惯
 - 不涉及打卡链路、sync、报表、DailyCheckinState
 - 不修改云端数据库结构
 
@@ -112,7 +112,7 @@ defaultFrequency, defaultTheme, sortOrder, enabled
 
 ### 最小测试标准（每步完成后验证）
 1. 5个新文件都能 `require` 无报错
-2. `habitLibrary` 保留 21 个固定 `habitId`（'1'-'21'）
+2. `habitLibrary` 保留 25 个固定 `habitId`（'1'-'25'）
 3. `habitThemes` 提供稳定 theme key（sports/therapy/daily）
 4. `userHabit` model 包含独立 `userHabitId` 字段（非 `habitId`）
 5. `policyVersion` model 包含 `policyVersionId` 与必填 `userHabitId`
@@ -139,7 +139,7 @@ defaultFrequency, defaultTheme, sortOrder, enabled
 
 | 标准 | 验证方式 |
 |------|----------|
-| builtInHabit 模型覆盖全部 21 个内置习惯 | 代码审查 |
+| builtInHabit 模型覆盖全部 25 个内置习惯 | 代码审查 |
 | habitThemes.js 提供稳定 theme key | 代码审查 |
 | userHabit 模型有独立 userHabitId 字段 | 代码审查 |
 | policyVersion 模型关联 userHabitId（必填） | 代码审查 |

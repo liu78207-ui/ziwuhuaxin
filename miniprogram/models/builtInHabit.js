@@ -2,7 +2,7 @@
  * builtInHabit.js
  * 内置习惯模型
  *
- * builtInHabit 是固定 21 个的内置习惯定义，habitId 不可变。
+ * builtInHabit 是固定 25 个的内置习惯定义，habitId 不可变。
  * 用于：
  * - 习惯库展示
  * - 用户添加习惯时引用

@@ -715,6 +715,60 @@ describe('stats page V1 report links', () => {
     expect(yearReport.practiceCount).toBe(3);
   });
 
+  test('周报按习惯名排序，月报和年报按打卡次数降序', async () => {
+    const makeReport = ({ habitId, name, doneCount, checkinDays, practiceCount }) => ({
+      habitId,
+      habit: {
+        habitId,
+        name,
+        category: '运动类',
+        themeClass: 't-green'
+      },
+      days: [
+        {
+          date: '2026-05-11',
+          status: doneCount > 0 ? 'checked' : 'unchecked',
+          checked: doneCount > 0,
+          isChecked: doneCount > 0,
+          isDue: true,
+          shouldShow: true,
+          countsInDueDenominator: true,
+          countsInDenominator: true,
+          countsAsDone: doneCount > 0
+        }
+      ],
+      dueCount: 1,
+      doneCount,
+      checkinDays,
+      practiceCount,
+      hasVisibleState: true
+    });
+
+    const reports = [
+      makeReport({ habitId: '20', name: '揉腹', doneCount: 2, checkinDays: 2, practiceCount: 2 }),
+      makeReport({ habitId: '3', name: '八段锦', doneCount: 1, checkinDays: 1, practiceCount: 1 }),
+      makeReport({ habitId: '13', name: '刮痧', doneCount: 3, checkinDays: 3, practiceCount: 3 })
+    ];
+    const mockReportService = {
+      getWeeklyReport: jest.fn(async () => ({ habitReports: reports, stats: {} })),
+      getMonthlyReport: jest.fn(async () => ({ habitReports: reports, stats: {} })),
+      getYearlyReport: jest.fn(async () => ({ habitReports: reports, stats: {} }))
+    };
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentWeekStart = weekStartTimestamp(5, 11);
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 4;
+
+    await page.loadWeekData();
+    expect(page.data.habitMatrix.map(item => item.name)).toEqual(['八段锦', '刮痧', '揉腹']);
+
+    await page.loadMonthData();
+    expect(page.data.monthHabits.map(item => item.name)).toEqual(['刮痧', '揉腹', '八段锦']);
+
+    await page.loadYearData();
+    expect(page.data.yearHabits.map(item => item.name)).toEqual(['刮痧', '揉腹', '八段锦']);
+  });
+
   test('快速切换报表时旧请求不能覆盖最后一次 tab 数据', async () => {
     let resolveMonthReport;
     const monthPromise = new Promise(resolve => {
@@ -1170,7 +1224,11 @@ describe('stats page V1 report links', () => {
       '12': 't-red',  // 艾灸
       '14': 't-blue', // 拔罐
       '16': 't-green', // 经络拍打
-      '17': 't-blue'  // 晨起温水
+      '17': 't-blue', // 晨起温水
+      '22': 't-green', // 点穴
+      '23': 't-green', // 舞蹈
+      '24': 't-yellow', // 健体
+      '25': 't-yellow' // 易筋经
     };
 
     const habits = [
@@ -1181,7 +1239,11 @@ describe('stats page V1 report links', () => {
       { habitId: '12', name: '艾灸', category: '理疗类', themeClass: 't-blue' },
       { habitId: '14', name: '拔罐', category: '理疗类', themeClass: 't-blue' },
       { habitId: '16', name: '经络拍打', category: '理疗类', themeClass: 't-blue' },
-      { habitId: '17', name: '晨起温水', category: '起居类', themeClass: 't-blue' }
+      { habitId: '17', name: '晨起温水', category: '起居类', themeClass: 't-blue' },
+      { habitId: '22', name: '点穴', category: '理疗类', themeClass: 't-blue' },
+      { habitId: '23', name: '舞蹈', category: '运动类', themeClass: 't-blue' },
+      { habitId: '24', name: '健体', category: '运动类', themeClass: 't-blue' },
+      { habitId: '25', name: '易筋经', category: '运动类', themeClass: 't-blue' }
     ].map(h => makeUserHabit({
       ...h,
       userHabitId: `uh_${h.habitId}`,

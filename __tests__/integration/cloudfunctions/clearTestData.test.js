@@ -160,7 +160,7 @@ describe('clearTestData cloud function', () => {
 
   test('targetOpenid dryRun only counts data owned by the specified openid', async () => {
     const users = createCollection('users', { total: 1 });
-    const userHabits = createCollection('user_habits', { total: 21 });
+    const userHabits = createCollection('user_habits', { total: 25 });
     const habits = createCollection('habits', { total: 2 });
     const { main } = loadClearTestData({
       collections: {
@@ -182,7 +182,7 @@ describe('clearTestData cloud function', () => {
       targetOpenid: targetOpenidPayload.targetOpenid
     });
     expect(result.details.users.matched).toBe(1);
-    expect(result.details.user_habits.matched).toBe(21);
+    expect(result.details.user_habits.matched).toBe(25);
     expect(result.details.habits.matched).toBe(2);
     expect(users.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });
     expect(userHabits.where).toHaveBeenCalledWith({ _openid: targetOpenidPayload.targetOpenid });

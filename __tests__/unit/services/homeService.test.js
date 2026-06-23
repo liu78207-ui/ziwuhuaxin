@@ -193,7 +193,7 @@ describe('homeService.getHomeViewModel', () => {
     expect(vm.taskList[0].streak).toBe(1)
   })
 
-  test('已打卡习惯仅修改时长后首页卡片保持生命周期顺序', async () => {
+  test('首页习惯按名称首字母排序', async () => {
     mockData.todayHabits = [
       {
         userHabitId: 'uh_late',
@@ -227,7 +227,7 @@ describe('homeService.getHomeViewModel', () => {
     const homeService = require('../../../miniprogram/services/homeService')
     const vm = await homeService.getHomeViewModel()
 
-    expect(vm.taskList.map(item => item._id)).toEqual(['uh_early', 'uh_late'])
+    expect(vm.taskList.map(item => item.title)).toEqual(['八段锦', '揉腹'])
     expect(vm.taskList.find(item => item._id === 'uh_late').meta).toBe('45分钟')
   })
 })

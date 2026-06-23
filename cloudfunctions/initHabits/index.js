@@ -17,6 +17,9 @@ const HABITS_DATA = [
   { title: '游泳', category: '运动类', icon_url: '', description: '全身运动，增强心肺', default_duration: 45 },
   { title: '跑步', category: '运动类', icon_url: '', description: '有氧运动，释放压力', default_duration: 30 },
   { title: '跳绳', category: '运动类', icon_url: '', description: '简单高效，燃脂塑形', default_duration: 15 },
+  { title: '舞蹈', category: '运动类', icon_url: '/assets/icons/habit-wudao.png', description: '舒展身体，愉悦身心', default_duration: 30, habit_id: '23', theme_class: 't-green' },
+  { title: '健体', category: '运动类', icon_url: '/assets/icons/habit-jianti.png', description: '综合训练，强健体魄', default_duration: 20, habit_id: '24', theme_class: 't-yellow' },
+  { title: '易筋经', category: '运动类', icon_url: '/assets/icons/habit-yijinjing.png', description: '传统功法，强筋健骨', default_duration: 20, habit_id: '25', theme_class: 't-yellow' },
   
   // 理疗类
   { title: '艾灸', category: '理疗类', icon_url: '', description: '温阳散寒，提升免疫力', default_duration: 30 },
@@ -24,6 +27,7 @@ const HABITS_DATA = [
   { title: '拔罐', category: '理疗类', icon_url: '', description: '疏通经络，祛湿排毒', default_duration: 15 },
   { title: '推拿', category: '理疗类', icon_url: '', description: '放松肌肉，缓解疲劳', default_duration: 30 },
   { title: '经络拍打', category: '理疗类', icon_url: '', description: '疏通经络，促进循环', default_duration: 15 },
+  { title: '点穴', category: '理疗类', icon_url: '/assets/icons/habit-dianxue.png', description: '按压穴位，疏通经络', default_duration: 15, habit_id: '22', theme_class: 't-green' },
   
   // 起居类
   { title: '晨起温水', category: '起居类', icon_url: '', description: '清肠排毒，唤醒身体', default_duration: 5 },
@@ -37,24 +41,40 @@ exports.main = async (event, context) => {
   releaseLog('initHabits 开始执行');
   
   try {
-    // 使用批量添加
-    const tasks = HABITS_DATA.map(habit => {
-      return db.collection('habits').add({
-        data: {
-          ...habit,
-          created_at: new Date(),
-          updated_at: new Date()
-        }
-      });
-    });
-    
-    await Promise.all(tasks);
-    releaseLog('批量添加完成，数量:', HABITS_DATA.length);
+    const now = new Date();
+    let created = 0;
+    let updated = 0;
+
+    for (const habit of HABITS_DATA) {
+      const existing = await db.collection('habits').where({ title: habit.title }).get();
+      if (existing.data && existing.data.length > 0) {
+        await db.collection('habits').doc(existing.data[0]._id).update({
+          data: {
+            ...habit,
+            updated_at: now
+          }
+        });
+        updated += 1;
+      } else {
+        await db.collection('habits').add({
+          data: {
+            ...habit,
+            created_at: now,
+            updated_at: now
+          }
+        });
+        created += 1;
+      }
+    }
+
+    releaseLog('幂等初始化完成，新增:', created, '更新:', updated);
 
     return {
       success: true,
       message: 'habits 初始化成功',
-      count: HABITS_DATA.length
+      count: HABITS_DATA.length,
+      created,
+      updated
     };
 
   } catch (err) {

@@ -120,10 +120,12 @@ describe('recoverData cloud function', () => {
     createMockCloud({
       user_habits: [
         { _openid: 'openid_1', userHabitId: 'uh_1', habitId: '1' },
+        { _openid: 'openid_1', userHabitId: 'uh_25', habitId: '25' },
         { _openid: 'openid_2', userHabitId: 'uh_other', habitId: '2' }
       ],
       habit_policy_versions: [
         { _openid: 'openid_1', policyVersionId: 'pv_1', userHabitId: 'uh_1' },
+        { _openid: 'openid_1', policyVersionId: 'pv_25', userHabitId: 'uh_25' },
         { _openid: 'openid_2', policyVersionId: 'pv_other', userHabitId: 'uh_other' }
       ],
       daily_checkin_states: [
@@ -143,8 +145,17 @@ describe('recoverData cloud function', () => {
       name: '金刚功',
       category: '运动类',
       targetMinutes: 15
+    }, {
+      userHabitId: 'uh_25',
+      habitId: '25',
+      name: '易筋经',
+      category: '运动类',
+      targetMinutes: 20
     }])
-    expect(result.data.policyVersions).toEqual([{ policyVersionId: 'pv_1', userHabitId: 'uh_1' }])
+    expect(result.data.policyVersions).toEqual([
+      { policyVersionId: 'pv_1', userHabitId: 'uh_1' },
+      { policyVersionId: 'pv_25', userHabitId: 'uh_25' }
+    ])
     expect(result.data.dailyStates).toEqual([{ stateId: 'recent', userHabitId: 'uh_1', date: '2026-06-01' }])
   })
 
