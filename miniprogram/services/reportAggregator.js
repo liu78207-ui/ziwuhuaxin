@@ -497,12 +497,12 @@ function resolveStrategyChangeDayStatus(context) {
  * @param {Array} lockSnapshots - 锁定快照数组
  * @returns {Array} 每日裁决结果数组
  */
-function buildDayVerdicts(userHabit, policyVersions, dailyStates, startDate, endDate, todayKey, dateConfidence = 'high', lockSnapshots = []) {
-  const dates = buildDateRange(startDate, endDate)
-  const statesByDate = {}
+function buildDayVerdicts(userHabit, policyVersions, dailyStates, startDate, endDate, todayKey, dateConfidence = 'high', lockSnapshots = [], options = {}) {
+  const dates = options.dates || buildDateRange(startDate, endDate)
+  const statesByDate = options.statesByDate || {}
 
   // 按 date 索引 dailyState
-  if (dailyStates && Array.isArray(dailyStates)) {
+  if (!options.statesByDate && dailyStates && Array.isArray(dailyStates)) {
     dailyStates.forEach(state => {
       const key = `${state.userHabitId}_${state.date}`
       statesByDate[key] = state
@@ -756,7 +756,7 @@ function aggregateByHabitId(instanceReports) {
  * @param {Array} lockSnapshots
  * @returns {object}
  */
-function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, endDate, todayKey, dateConfidence = 'high', lockSnapshots = []) {
+function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, endDate, todayKey, dateConfidence = 'high', lockSnapshots = [], options = {}) {
   const dayVerdicts = buildDayVerdicts(
     userHabit,
     policyVersions,
@@ -765,7 +765,8 @@ function buildInstanceReport(userHabit, policyVersions, dailyStates, startDate, 
     endDate,
     todayKey,
     dateConfidence,
-    lockSnapshots
+    lockSnapshots,
+    options
   )
 
   const dueCount = calculateDueCount(dayVerdicts)

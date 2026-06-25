@@ -14,7 +14,28 @@ const reportAggregator = require('./reportAggregator')
 const storageService = require('./storageService')
 const habitService = require('./habitService')
 const timeService = require('./timeService')
+const eventBus = require('./eventBus')
 const dateUtils = require('../utils/dateUtils.js')
+
+const yearlyReportCache = {}
+const YEARLY_CACHE_EVENTS = [
+  'checkin:updated',
+  'habit:updated',
+  'report:updated',
+  'sync:updated',
+  'sync:recovered',
+  'cache:invalidated'
+]
+
+function clearYearlyReportCache() {
+  Object.keys(yearlyReportCache).forEach(key => {
+    delete yearlyReportCache[key]
+  })
+}
+
+YEARLY_CACHE_EVENTS.forEach(eventName => {
+  eventBus.on(eventName, clearYearlyReportCache)
+})
 
 // ==================== 周期构建 ====================
 
@@ -103,6 +124,15 @@ function groupByUserHabitId(items) {
   }, {})
 }
 
+function indexDailyStatesByUserHabitIdAndDate(items) {
+  return (items || []).reduce((result, item) => {
+    if (item && item.userHabitId && item.date) {
+      result[`${item.userHabitId}_${item.date}`] = item
+    }
+    return result
+  }, {})
+}
+
 function indexByHabitId(items) {
   return (items || []).reduce((result, item) => {
     if (item && item.habitId) {
@@ -128,6 +158,8 @@ function buildReportContext(startDate, endDate) {
     userHabits,
     policyVersions,
     dailyStates,
+    dates: dateUtils.buildDateRange(startDate, endDate),
+    dailyStatesByKey: indexDailyStatesByUserHabitIdAndDate(dailyStates),
     policyVersionsByUserHabitId: groupByUserHabitId(policyVersions),
     builtInByHabitId: indexByHabitId(builtInHabits)
   }
@@ -186,7 +218,7 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = 
 
   // 构建锁定快照
   const lockSnapshots = []
-  const dates = dateUtils.buildDateRange(startDate, endDate)
+  const dates = context?.dates || dateUtils.buildDateRange(startDate, endDate)
   dates.forEach(date => {
     const lock = resolveLockSnapshot(userHabit, policyVersions, date)
     if (lock) {
@@ -203,7 +235,11 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = 
     endDate,
     todayKey,
     'high',
-    lockSnapshots
+    lockSnapshots,
+    {
+      dates,
+      statesByDate: context?.dailyStatesByKey
+    }
   )
 
   // 补充 builtInHabit 信息
@@ -376,8 +412,9 @@ function resolveDisplayStatus(status, countsInDenominator, countsAsDone) {
  * @param {string} todayKey
  * @returns {object}
  */
-function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
-  const dates = dateUtils.buildDateRange(startDate, endDate)
+function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey, options = {}) {
+  const dates = options.dates || dateUtils.buildDateRange(startDate, endDate)
+  const includeInstances = options.includeInstances !== false
   const habitReports = aggregated.habitGroups.map(group => {
     const representative = group.instances.find(inst => !inst.deletedAt) || group.instances[0] || {}
     const habit = {
@@ -388,14 +425,26 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
       deletedAt: representative.deletedAt || null
     }
 
+    const instanceDayIndexes = group.instances.map(instance => {
+      const byDate = {}
+      ;(instance.days || []).forEach((day, index) => {
+        byDate[day.date] = { day, index }
+      })
+      return {
+        instance,
+        byDate,
+        latestPolicy: getLatestPolicy(instance._policyVersions || [])
+      }
+    })
+
     const days = dates.map(date => {
       const dayItems = group.instances
-        .map(instance => {
-          const index = instance.days.findIndex(day => day.date === date)
-          if (index < 0) return null
-          const day = instance.days[index]
+        .map((instance, instanceIndex) => {
+          const indexEntry = instanceDayIndexes[instanceIndex].byDate[date]
+          if (!indexEntry) return null
+          const { day, index } = indexEntry
           const verdict = instance._verdicts ? instance._verdicts[index] : null
-          const latestPolicy = getLatestPolicy(instance._policyVersions || [])
+          const latestPolicy = instanceDayIndexes[instanceIndex].latestPolicy
           return {
             date: day.date,
             status: day.status,
@@ -404,7 +453,6 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
             countsInDenominator: verdict ? verdict.contributesDenominator : (day.isDue || false),
             countsAsDone: verdict ? verdict.contributesNumerator : (day.status === 'checked'),
             isAfterDeletion: day.date > (instance.deletedAt || '9999-12-31'),
-            reason: verdict ? verdict.reason : null,
             themeClass: instance.theme || group.theme || ''
           }
         })
@@ -459,7 +507,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
         .map(day => day.date)
     ).size
 
-    return {
+    const report = {
       habitId: group.habitId,
       habit,
       days,
@@ -467,9 +515,14 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey) {
       doneCount,
       practiceCount,
       checkinDays,
-      hasVisibleState: days.some(day => day.shouldShow || day.countsInDenominator || day.countsAsDone),
-      instances: group.instances
+      hasVisibleState: days.some(day => day.shouldShow || day.countsInDenominator || day.countsAsDone)
     }
+
+    if (includeInstances) {
+      report.instances = group.instances
+    }
+
+    return report
   })
 
   // 计算全局 stats
@@ -512,8 +565,11 @@ async function getWeeklyReport(weekStart) {
   const todayKey = timeService.getTodayKey()
   const period = buildPeriod('weekly', weekStart)
 
-  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey)
-  return adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey)
+  const context = buildReportContext(period.startDate, period.endDate)
+  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey, context)
+  return adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey, {
+    dates: context.dates
+  })
 }
 
 /**
@@ -525,10 +581,13 @@ async function getMonthlyReport(month) {
   const todayKey = timeService.getTodayKey()
   const period = buildPeriod('monthly', month)
 
-  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey)
+  const context = buildReportContext(period.startDate, period.endDate)
+  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey, context)
 
   // 月报适配：转换为 stats.js 期望的格式
-  const adapted = adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey)
+  const adapted = adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey, {
+    dates: context.dates
+  })
 
   // 月报还需要 startWeekday 等信息，由 stats.js 在 mapMonthHabitReport 中计算
   return {
@@ -545,16 +604,42 @@ async function getMonthlyReport(month) {
 async function getYearlyReport(year) {
   const todayKey = timeService.getTodayKey()
   const period = buildPeriod('yearly', year)
+  const cacheKey = buildYearlyReportCacheKey(year, todayKey)
+  if (yearlyReportCache[cacheKey]) {
+    return yearlyReportCache[cacheKey]
+  }
 
-  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey)
+  const context = buildReportContext(period.startDate, period.endDate)
+  const aggregated = buildAggregatedReports(period.startDate, period.endDate, todayKey, context)
 
   // 年报适配：转换为 stats.js 期望的格式
-  const adapted = adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey)
+  const adapted = adaptToLegacyFormat(aggregated, period.startDate, period.endDate, todayKey, {
+    dates: context.dates,
+    includeInstances: false
+  })
 
-  return {
+  const report = {
     ...adapted,
     period // 包含 startDate, endDate, type, year
   }
+
+  yearlyReportCache[cacheKey] = report
+  return report
+}
+
+function buildYearlyReportCacheKey(year, todayKey) {
+  let meta = null
+  try {
+    meta = storageService.getItem('cacheMeta')
+  } catch (e) {
+    meta = null
+  }
+
+  const dataVersion = meta && meta.dataVersion !== undefined ? meta.dataVersion : 'none'
+  const reportVersion = meta && meta.reportVersion !== undefined ? meta.reportVersion : 'none'
+  const cacheVersion = meta && meta.cacheVersion !== undefined ? meta.cacheVersion : 'none'
+  const owner = meta && meta.openid ? meta.openid : 'local'
+  return [owner, year, todayKey, dataVersion, reportVersion, cacheVersion].join('|')
 }
 
 /**
@@ -635,5 +720,6 @@ module.exports = {
   getMonthlyReport,
   getYearlyReport,
   getHabitReport,
-  getTodayProgress
+  getTodayProgress,
+  clearYearlyReportCache
 }

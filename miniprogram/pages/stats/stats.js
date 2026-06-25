@@ -51,13 +51,17 @@ Page({
     currentWeekStart: null, // 褰撳墠鍛ㄥ紑濮嬫棩鏈?
     currentMonth: null, // 褰撳墠鏄剧ず鐨勬湀浠?(0-11)
     currentYear: null, // 褰撳墠鏄剧ず鐨勫勾浠?
-    navTitleStyle: ''
+    navTitleStyle: '',
+    yearLoading: false
   },
 
   unsubscribeSyncRecovered: null,
   unsubscribeSyncUpdated: null,
+  unsubscribeReportUpdated: null,
   syncRefreshTimer: null,
   reportLoadToken: 0,
+  yearRenderTimer: null,
+  yearRenderBatchSize: 6,
 
   // 杩斿洖涓婁竴椤?
   goBack() {
@@ -97,13 +101,14 @@ Page({
   },
 
   subscribeSyncEvents() {
-    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated) return;
+    if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated || this.unsubscribeReportUpdated) return;
 
     const refresh = () => {
       this.scheduleSyncRefresh();
     };
     this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
     this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
+    this.unsubscribeReportUpdated = eventBus.on('report:updated', refresh);
   },
 
   scheduleSyncRefresh() {
@@ -112,6 +117,9 @@ Page({
     }
     this.syncRefreshTimer = setTimeout(() => {
       this.syncRefreshTimer = null;
+      if (reportService && typeof reportService.clearYearlyReportCache === 'function') {
+        reportService.clearYearlyReportCache();
+      }
       this.loadRealData();
     }, 120);
   },
@@ -121,6 +129,7 @@ Page({
       clearTimeout(this.syncRefreshTimer);
       this.syncRefreshTimer = null;
     }
+    this.cancelYearRender();
     if (this.unsubscribeSyncRecovered) {
       this.unsubscribeSyncRecovered();
       this.unsubscribeSyncRecovered = null;
@@ -128,6 +137,10 @@ Page({
     if (this.unsubscribeSyncUpdated) {
       this.unsubscribeSyncUpdated();
       this.unsubscribeSyncUpdated = null;
+    }
+    if (this.unsubscribeReportUpdated) {
+      this.unsubscribeReportUpdated();
+      this.unsubscribeReportUpdated = null;
     }
   },
 
@@ -233,6 +246,7 @@ Page({
     if (!tab || tab === this.data.currentTab) {
       return;
     }
+    this.cancelYearRender();
     this.setData({ currentTab: tab });
     // 浣跨敤 wx.nextTick 纭繚 setData 瀹屾垚鍚庡啀鍔犺浇鏁版嵁
     wx.nextTick(() => {
@@ -329,6 +343,7 @@ Page({
         habitMatrix: [],
         monthHabits: [],
         yearHabits: [],
+        yearLoading: false,
         stats: {
           checkinRate: 0,
           totalCount: 0,
@@ -340,12 +355,20 @@ Page({
   },
 
   beginReportLoad() {
+    this.cancelYearRender();
     this.reportLoadToken += 1;
     return this.reportLoadToken;
   },
 
   isReportLoadCurrent(token) {
     return typeof token !== 'number' || token === this.reportLoadToken;
+  },
+
+  cancelYearRender() {
+    if (this.yearRenderTimer) {
+      clearTimeout(this.yearRenderTimer);
+      this.yearRenderTimer = null;
+    }
   },
 
   // 鑾峰彇褰撳墠鍛ㄧ殑鏃ユ湡鏁扮粍
@@ -585,6 +608,7 @@ Page({
         .sort((a, b) => this.compareHabitDisplayName(a, b)),
       monthHabits: [],
       yearHabits: [],
+      yearLoading: false,
       stats: report.stats
     });
   },
@@ -614,6 +638,7 @@ Page({
         .sort((a, b) => this.compareHabitCheckinCountDesc(a, b)),
       habitMatrix: [],
       yearHabits: [],
+      yearLoading: false,
       stats: report.stats
     });
   },
@@ -626,18 +651,65 @@ Page({
       return;
     }
 
+    this.cancelYearRender();
+    this.setData({
+      yearLoading: true,
+      yearHabits: [],
+      habitMatrix: [],
+      monthHabits: []
+    });
+
     const report = await reportService.getYearlyReport(String(year));
     if (!this.isReportLoadCurrent(token)) return;
 
+    const yearHabits = report.habitReports
+      .filter(item => this.shouldShowHabitReport(item))
+      .map(item => this.mapYearHabitReport(item, year))
+      .sort((a, b) => this.compareHabitCheckinCountDesc(a, b));
+
+    this.renderYearHabitsInBatches(yearHabits, report.stats, token);
+  },
+
+  renderYearHabitsInBatches(yearHabits, stats, token) {
+    if (!this.isReportLoadCurrent(token)) return;
+
+    const batchSize = this.data.currentTab === 'year'
+      ? (this.yearRenderBatchSize || 6)
+      : yearHabits.length;
+    const firstBatch = yearHabits.slice(0, batchSize);
+    let renderedCount = firstBatch.length;
+
     this.setData({
-      yearHabits: report.habitReports
-        .filter(item => this.shouldShowHabitReport(item))
-        .map(item => this.mapYearHabitReport(item, year))
-        .sort((a, b) => this.compareHabitCheckinCountDesc(a, b)),
+      yearHabits: firstBatch,
       habitMatrix: [],
       monthHabits: [],
-      stats: report.stats
+      stats,
+      yearLoading: renderedCount < yearHabits.length
     });
+
+    const renderNextBatch = () => {
+      if (!this.isReportLoadCurrent(token) || this.data.currentTab !== 'year') {
+        this.cancelYearRender();
+        return;
+      }
+
+      const nextCount = Math.min(renderedCount + batchSize, yearHabits.length);
+      renderedCount = nextCount;
+      this.setData({
+        yearHabits: yearHabits.slice(0, renderedCount),
+        yearLoading: renderedCount < yearHabits.length
+      });
+
+      if (renderedCount < yearHabits.length) {
+        this.yearRenderTimer = setTimeout(renderNextBatch, 16);
+      } else {
+        this.yearRenderTimer = null;
+      }
+    };
+
+    if (renderedCount < yearHabits.length) {
+      this.yearRenderTimer = setTimeout(renderNextBatch, 16);
+    }
   },
 
   onShareAppMessage() {

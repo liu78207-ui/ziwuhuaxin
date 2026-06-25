@@ -16,6 +16,19 @@ const habitService = require('../../../miniprogram/services/habitService')
 const timeService = require('../../../miniprogram/services/timeService')
 
 describe('reportService', () => {
+  beforeEach(() => {
+    if (typeof reportService.clearYearlyReportCache === 'function') {
+      reportService.clearYearlyReportCache()
+    }
+  })
+
+  afterEach(() => {
+    jest.restoreAllMocks()
+    if (typeof reportService.clearYearlyReportCache === 'function') {
+      reportService.clearYearlyReportCache()
+    }
+  })
+
   describe('buildPeriod', () => {
     test('构建周报周期', () => {
       const result = reportService.buildPeriod('weekly', '2026-05-06')
@@ -119,6 +132,13 @@ describe('reportService', () => {
       const builtInSpy = jest.spyOn(habitService, 'getBuiltInHabits').mockReturnValue([])
       const todaySpy = jest.spyOn(timeService, 'getTodayKey').mockReturnValue('2026-12-31')
 
+      const getItemSpy = jest.spyOn(storageService, 'getItem').mockReturnValue({
+        openid: 'test_openid',
+        dataVersion: 1,
+        reportVersion: 1,
+        cacheVersion: 1
+      })
+
       const report = await reportService.getYearlyReport('2026')
 
       expect(report.habitReports).toHaveLength(2)
@@ -127,13 +147,143 @@ describe('reportService', () => {
       expect(statesSpy).toHaveBeenCalledTimes(1)
       expect(builtInSpy).toHaveBeenCalledTimes(1)
       expect(policiesByUserHabitSpy).not.toHaveBeenCalled()
+      expect(getItemSpy).toHaveBeenCalledWith('cacheMeta')
+    })
 
-      habitsSpy.mockRestore()
-      policiesSpy.mockRestore()
-      statesSpy.mockRestore()
-      policiesByUserHabitSpy.mockRestore()
-      builtInSpy.mockRestore()
-      todaySpy.mockRestore()
+    test('年报返回给页面的结构不携带实例和裁决重字段', async () => {
+      const userHabits = [{
+        userHabitId: 'uh_light_1',
+        habitId: 'h_light_1',
+        name: '轻量年报',
+        themeClass: 't-green',
+        status: 'active',
+        createdAt: '2026-01-01'
+      }]
+      const policyVersions = [{
+        policyVersionId: 'pv_light_1',
+        userHabitId: 'uh_light_1',
+        habitId: 'h_light_1',
+        frequencyType: 'daily',
+        frequencyConfig: {},
+        effectiveStartDate: '2026-01-01',
+        effectiveEndDate: null
+      }]
+      const dailyStates = [{
+        stateId: 'state_light_1',
+        userHabitId: 'uh_light_1',
+        habitId: 'h_light_1',
+        date: '2026-01-01',
+        status: 'checked'
+      }]
+
+      jest.spyOn(storageService, 'getMyHabitsWithMigration').mockReturnValue(userHabits)
+      jest.spyOn(storageService, 'getPolicyVersions').mockReturnValue(policyVersions)
+      jest.spyOn(storageService, 'getDailyCheckinStates').mockReturnValue(dailyStates)
+      jest.spyOn(storageService, 'getItem').mockReturnValue({
+        openid: 'test_openid',
+        dataVersion: 1,
+        reportVersion: 1,
+        cacheVersion: 1
+      })
+      jest.spyOn(habitService, 'getBuiltInHabits').mockReturnValue([])
+      jest.spyOn(timeService, 'getTodayKey').mockReturnValue('2026-12-31')
+
+      const report = await reportService.getYearlyReport('2026')
+      const habitReport = report.habitReports[0]
+
+      expect(habitReport.instances).toBeUndefined()
+      expect(habitReport.days).toHaveLength(365)
+      expect(habitReport.days[0]).not.toHaveProperty('reason')
+      expect(habitReport.days[0]).not.toHaveProperty('policyVersion')
+      expect(habitReport.days[0]).not.toHaveProperty('dailyState')
+      expect(report.stats.totalCount).toBe(1)
+      expect(report.stats.checkinDays).toBe(1)
+    })
+
+    test('年报缓存命中时不重复读取报表依赖数据', async () => {
+      const userHabits = [{
+        userHabitId: 'uh_cache_1',
+        habitId: 'h_cache_1',
+        name: '缓存年报',
+        themeClass: 't-blue',
+        status: 'active',
+        createdAt: '2026-01-01'
+      }]
+      const policyVersions = [{
+        policyVersionId: 'pv_cache_1',
+        userHabitId: 'uh_cache_1',
+        habitId: 'h_cache_1',
+        frequencyType: 'daily',
+        frequencyConfig: {},
+        effectiveStartDate: '2026-01-01',
+        effectiveEndDate: null
+      }]
+
+      const habitsSpy = jest.spyOn(storageService, 'getMyHabitsWithMigration').mockReturnValue(userHabits)
+      const policiesSpy = jest.spyOn(storageService, 'getPolicyVersions').mockReturnValue(policyVersions)
+      const statesSpy = jest.spyOn(storageService, 'getDailyCheckinStates').mockReturnValue([])
+      jest.spyOn(storageService, 'getItem').mockReturnValue({
+        openid: 'test_openid',
+        dataVersion: 8,
+        reportVersion: 8,
+        cacheVersion: 1
+      })
+      jest.spyOn(habitService, 'getBuiltInHabits').mockReturnValue([])
+      jest.spyOn(timeService, 'getTodayKey').mockReturnValue('2026-12-31')
+
+      const first = await reportService.getYearlyReport('2026')
+      const second = await reportService.getYearlyReport('2026')
+
+      expect(second).toBe(first)
+      expect(habitsSpy).toHaveBeenCalledTimes(1)
+      expect(policiesSpy).toHaveBeenCalledTimes(1)
+      expect(statesSpy).toHaveBeenCalledTimes(1)
+    })
+
+    test('年报缓存随 dataVersion/reportVersion 变化失效', async () => {
+      const userHabits = [{
+        userHabitId: 'uh_cache_version_1',
+        habitId: 'h_cache_version_1',
+        name: '版本缓存年报',
+        themeClass: 't-purple',
+        status: 'active',
+        createdAt: '2026-01-01'
+      }]
+      const policyVersions = [{
+        policyVersionId: 'pv_cache_version_1',
+        userHabitId: 'uh_cache_version_1',
+        habitId: 'h_cache_version_1',
+        frequencyType: 'daily',
+        frequencyConfig: {},
+        effectiveStartDate: '2026-01-01',
+        effectiveEndDate: null
+      }]
+      let cacheMeta = {
+        openid: 'test_openid',
+        dataVersion: 1,
+        reportVersion: 1,
+        cacheVersion: 1
+      }
+
+      const habitsSpy = jest.spyOn(storageService, 'getMyHabitsWithMigration').mockReturnValue(userHabits)
+      const policiesSpy = jest.spyOn(storageService, 'getPolicyVersions').mockReturnValue(policyVersions)
+      const statesSpy = jest.spyOn(storageService, 'getDailyCheckinStates').mockReturnValue([])
+      jest.spyOn(storageService, 'getItem').mockImplementation(() => cacheMeta)
+      jest.spyOn(habitService, 'getBuiltInHabits').mockReturnValue([])
+      jest.spyOn(timeService, 'getTodayKey').mockReturnValue('2026-12-31')
+
+      const first = await reportService.getYearlyReport('2026')
+      cacheMeta = {
+        ...cacheMeta,
+        dataVersion: 2,
+        reportVersion: 2
+      }
+      const second = await reportService.getYearlyReport('2026')
+
+      expect(second).not.toBe(first)
+      expect(habitsSpy).toHaveBeenCalledTimes(2)
+      expect(policiesSpy).toHaveBeenCalledTimes(2)
+      expect(statesSpy).toHaveBeenCalledTimes(2)
     })
   })
 })

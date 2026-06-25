@@ -848,6 +848,119 @@ describe('stats page V1 report links', () => {
     expect(page.data.monthHabits).toHaveLength(0);
   });
 
+  test('年报先渲染首批卡片，再分批补齐剩余卡片', async () => {
+    jest.useFakeTimers();
+    const reports = Array.from({ length: 8 }, (_, index) => ({
+      habitId: `h_year_batch_${index}`,
+      habit: {
+        habitId: `h_year_batch_${index}`,
+        name: `年报习惯${index}`,
+        category: 'sports',
+        themeClass: 't-green'
+      },
+      days: [
+        {
+          date: '2026-01-01',
+          status: 'checked',
+          checked: true,
+          isChecked: true,
+          isDue: true,
+          shouldShow: true,
+          countsInDenominator: true,
+          countsAsDone: true
+        }
+      ],
+      dueCount: 1,
+      doneCount: index + 1,
+      checkinDays: index + 1,
+      practiceCount: index + 1,
+      hasVisibleState: true
+    }));
+    const mockReportService = {
+      getWeeklyReport: jest.fn(),
+      getMonthlyReport: jest.fn(),
+      getYearlyReport: jest.fn(async () => ({
+        habitReports: reports,
+        stats: { checkinRate: 100, totalCount: 36, checkinDays: 8, maxStreak: 8 }
+      })),
+      clearYearlyReportCache: jest.fn()
+    };
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentTab = 'year';
+    page.data.currentYear = 2026;
+    page.yearRenderBatchSize = 3;
+
+    await page.loadYearData(page.beginReportLoad());
+
+    expect(page.data.yearHabits).toHaveLength(3);
+    expect(page.data.yearLoading).toBe(true);
+
+    jest.advanceTimersByTime(16);
+    await Promise.resolve();
+    expect(page.data.yearHabits).toHaveLength(6);
+    expect(page.data.yearLoading).toBe(true);
+
+    jest.advanceTimersByTime(16);
+    await Promise.resolve();
+    expect(page.data.yearHabits).toHaveLength(8);
+    expect(page.data.yearLoading).toBe(false);
+  });
+
+  test('切出年报后未完成的分批渲染不能继续写入 yearHabits', async () => {
+    jest.useFakeTimers();
+    const reports = Array.from({ length: 8 }, (_, index) => ({
+      habitId: `h_year_cancel_${index}`,
+      habit: {
+        habitId: `h_year_cancel_${index}`,
+        name: `取消年报习惯${index}`,
+        category: 'sports',
+        themeClass: 't-green'
+      },
+      days: [
+        {
+          date: '2026-01-01',
+          status: 'checked',
+          checked: true,
+          isChecked: true,
+          isDue: true,
+          shouldShow: true,
+          countsInDenominator: true,
+          countsAsDone: true
+        }
+      ],
+      dueCount: 1,
+      doneCount: index + 1,
+      checkinDays: index + 1,
+      practiceCount: index + 1,
+      hasVisibleState: true
+    }));
+    const mockReportService = {
+      getWeeklyReport: jest.fn(async () => ({ habitReports: [], stats: {} })),
+      getMonthlyReport: jest.fn(async () => ({ habitReports: [], stats: {} })),
+      getYearlyReport: jest.fn(async () => ({
+        habitReports: reports,
+        stats: { checkinRate: 100, totalCount: 36, checkinDays: 8, maxStreak: 8 }
+      })),
+      clearYearlyReportCache: jest.fn()
+    };
+    const { page } = loadStatsPageWithV1({ mockReport: mockReportService });
+    page.data.currentTab = 'year';
+    page.data.currentYear = 2026;
+    page.data.currentMonth = 5;
+    page.yearRenderBatchSize = 3;
+
+    await page.loadYearData(page.beginReportLoad());
+    expect(page.data.yearHabits).toHaveLength(3);
+
+    page.switchTab({ currentTarget: { dataset: { tab: 'month' } } });
+    await Promise.resolve();
+    jest.advanceTimersByTime(64);
+    await Promise.resolve();
+
+    expect(page.data.currentTab).toBe('month');
+    expect(page.data.yearHabits).toHaveLength(0);
+  });
+
   test('连续 sync:updated 事件只触发一次防抖刷新', () => {
     jest.useFakeTimers();
     const { page } = loadStatsPageWithV1();
