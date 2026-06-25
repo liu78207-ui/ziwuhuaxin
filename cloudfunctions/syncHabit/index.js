@@ -48,6 +48,10 @@ function removeFieldValue() {
   return typeof _.remove === 'function' ? _.remove() : null;
 }
 
+function nullableFieldValue(value) {
+  return value === null ? removeFieldValue() : value;
+}
+
 function legacyLockedReasonFieldName() {
   return 'locked' + 'Reason';
 }
@@ -68,6 +72,7 @@ exports.main = async (event, context) => {
     startDate,
     effectiveStartDate,
     createdAt,
+    pinnedAt,
     // 以下字段用于 close 旧版本
     previousPolicyVersionId,
     previousEffectiveEndDate,
@@ -87,8 +92,8 @@ exports.main = async (event, context) => {
     return { success: false, code: 'MISSING_PARAMS', message: '缺少 userHabitId 或 habitId' };
   }
 
-  if (!action || !['addHabit', 'deleteHabit', 'updatePolicy'].includes(action)) {
-    return { success: false, code: 'INVALID_ACTION', message: 'action 必须为 addHabit、deleteHabit 或 updatePolicy' };
+  if (!action || !['addHabit', 'deleteHabit', 'updatePolicy', 'updatePinned'].includes(action)) {
+    return { success: false, code: 'INVALID_ACTION', message: 'action 必须为 addHabit、deleteHabit、updatePolicy 或 updatePinned' };
   }
 
   const serverTime = Date.now();
@@ -113,6 +118,7 @@ exports.main = async (event, context) => {
             data: cleanData({
               status: status || 'active',
               createdAt: habitCreatedAt,
+              pinnedAt,
               updatedAt: serverTime
             })
           });
@@ -128,6 +134,7 @@ exports.main = async (event, context) => {
             habitId: String(habitId),
             status: status || 'active',
             createdAt: createdAt || startDate || toDateStr(new Date()),
+            pinnedAt,
             updatedAt: serverTime
           })
         });
@@ -212,6 +219,22 @@ exports.main = async (event, context) => {
           });
         }
       }
+    } else if (action === 'updatePinned') {
+      const existingHabit = await db.collection('user_habits').where({
+        _openid: openid,
+        userHabitId: userHabitId
+      }).get();
+
+      if (!existingHabit.data || existingHabit.data.length === 0) {
+        return { success: false, code: 'USER_HABIT_NOT_FOUND', message: '未找到 userHabit' };
+      }
+
+      await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
+        data: {
+          pinnedAt: nullableFieldValue(pinnedAt || null),
+          updatedAt: serverTime
+        }
+      });
     }
 
     // ========== policyVersion 同步 ==========

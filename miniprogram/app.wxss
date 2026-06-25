@@ -153,6 +153,17 @@ page {
   -moz-osx-font-smoothing: grayscale;
 }
 
+scroll-view::-webkit-scrollbar,
+.content-scroll::-webkit-scrollbar,
+.habit-list::-webkit-scrollbar,
+.modal-body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+  color: transparent;
+  background: transparent;
+}
+
 /* ============================================
    现代黑体字重工具类
    ============================================ */

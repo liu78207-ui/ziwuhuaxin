@@ -253,6 +253,7 @@ function ensureMigrationCompleted() {
       userHabitId,
       status,
       deletedAt,
+      pinnedAt: habit.pinnedAt || null,
       latestPolicyVersionId: '',
       syncStatus: 1
     }
@@ -270,7 +271,8 @@ function ensureMigrationCompleted() {
         habitId: habit.habitId,
         status: habit.status,
         createdAt: normalizeToDateStr(habit.createdAt),
-        deletedAt: habit.deletedAt || null
+        deletedAt: habit.deletedAt || null,
+        pinnedAt: habit.pinnedAt || null
       }
     }
   })

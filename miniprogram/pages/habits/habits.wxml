@@ -23,7 +23,7 @@
   </view>
 
   <!-- 习惯列表 -->
-  <scroll-view class="habit-list" scroll-y>
+  <scroll-view class="habit-list" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
     <view class="list-card {{item.themeClass}}" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" bindlongpress="onHabitLongPress" data-habit="{{item}}">
       <!-- 左侧图标 -->
       <view class="lc-icon">
@@ -62,7 +62,7 @@
     <text class="sh-title">{{selectedHabit.title}}策略</text>
   </view>
 
-  <scroll-view class="modal-body" scroll-y>
+  <scroll-view class="modal-body" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
     <!-- 第一组：单次目标（必选项） -->
     <view class="setting-group">
       <view class="setting-item" bindtap="openDurationPicker">

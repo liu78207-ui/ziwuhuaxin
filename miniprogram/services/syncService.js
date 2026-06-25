@@ -53,7 +53,8 @@ const CLOUD_FUNCTION_MAP = {
   habit: {
     addHabit: 'syncHabit',
     deleteHabit: 'syncHabit',
-    updatePolicy: 'syncHabit'
+    updatePolicy: 'syncHabit',
+    updatePinned: 'syncHabit'
   }
 }
 
@@ -399,6 +400,7 @@ async function recoverFromCloud(options = {}) {
       iconUrl: h.iconUrl,
       status: h.status || 'active',
       createdAt: h.createdAt,
+      pinnedAt: h.pinnedAt || null,
       deletedAt: h.deletedAt,
       latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId)
     }))

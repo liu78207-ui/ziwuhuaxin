@@ -11,7 +11,7 @@
   </view>
 
   <!-- 内容区域 -->
-  <scroll-view class="content-scroll" scroll-y="true">
+  <scroll-view class="content-scroll" scroll-y="true" enhanced="{{true}}" show-scrollbar="{{false}}">
     <view class="policy-content">
       <block wx:for="{{contentBlocks}}" wx:key="index">
         <view class="policy-block policy-{{item.type}}">

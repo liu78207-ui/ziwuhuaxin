@@ -37,7 +37,8 @@ describe('habitService.buildHabitDisplayList', () => {
         userHabitId: 'uh_20',
         habitId: '20',
         status: 'active',
-        createdAt: '2026-05-01'
+        createdAt: '2026-05-01',
+        pinnedAt: '2026-06-01T08:00:00.000Z'
       }
     ]
     mockData.policyVersions = [
@@ -66,6 +67,7 @@ describe('habitService.buildHabitDisplayList', () => {
       startDate: '2026-05-01'
     })
     expect(habit.strategyText).toBe('每周二、四、六 · 45分钟')
+    expect(habit.pinnedAt).toBe('2026-06-01T08:00:00.000Z')
   })
 
   test('保留间隔天数策略的上次时长和天数', () => {

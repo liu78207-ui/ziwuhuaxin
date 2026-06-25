@@ -136,6 +136,34 @@ function compareHabitName(aName, bName) {
   return nameCompare
 }
 
+function compareOptionalTime(aTime, bTime) {
+  const aValue = String(aTime || '')
+  const bValue = String(bTime || '')
+  if (aValue && bValue && aValue !== bValue) {
+    return aValue.localeCompare(bValue)
+  }
+  if (aValue && !bValue) return -1
+  if (!aValue && bValue) return 1
+  return 0
+}
+
+function compareHomeTaskOrder(a, b) {
+  const aPinned = Boolean(a.pinnedAt)
+  const bPinned = Boolean(b.pinnedAt)
+  if (aPinned !== bPinned) {
+    return aPinned ? -1 : 1
+  }
+
+  const timeCompare = aPinned
+    ? compareOptionalTime(a.pinnedAt, b.pinnedAt)
+    : compareOptionalTime(a.createdAt, b.createdAt)
+  if (timeCompare !== 0) return timeCompare
+
+  const nameCompare = compareHabitName(a.title, b.title)
+  if (nameCompare !== 0) return nameCompare
+  return String(a._id || '').localeCompare(String(b._id || ''))
+}
+
 /**
  * 获取首页 ViewModel
  */
@@ -190,6 +218,9 @@ async function getHomeViewModel() {
       category,
       duration: habit.duration,
       isChecked: isDone,
+      isPinned: Boolean(habit.pinnedAt),
+      pinnedAt: habit.pinnedAt || null,
+      createdAt: habit.createdAt || '',
       streak: practiceDays,
       bgColor: '',
       iconUrl: getIconUrl(name),
@@ -197,11 +228,7 @@ async function getHomeViewModel() {
       emoji: getEmojiByCategory(category),
       meta: `${habit.duration}分钟`
     }
-  }).sort((a, b) => {
-    const nameCompare = compareHabitName(a.title, b.title)
-    if (nameCompare !== 0) return nameCompare
-    return String(a._id || '').localeCompare(String(b._id || ''))
-  }).map((task, index) => ({
+  }).sort(compareHomeTaskOrder).map((task, index) => ({
     ...task,
     bgColor: CIRCLE_COLORS[index % CIRCLE_COLORS.length]
   }))

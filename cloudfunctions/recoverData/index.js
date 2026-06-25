@@ -95,6 +95,7 @@ function slimUserHabit(habit) {
     'status',
     'createdAt',
     'updatedAt',
+    'pinnedAt',
     'deletedAt'
   ]);
   result.userHabitId = habit.userHabitId;

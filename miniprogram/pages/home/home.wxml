@@ -10,7 +10,7 @@
   </view>
 
   <!-- 内容区域 -->
-  <scroll-view class="content-scroll" scroll-y="true" bindscroll="onHomeScroll">
+  <scroll-view class="content-scroll" scroll-y="true" enhanced="{{true}}" show-scrollbar="{{false}}" bindscroll="onHomeScroll">
     <!-- 琉璃卡片头部 -->
     <view class="hero-card">
       <view class="hc-bg-glow"></view>

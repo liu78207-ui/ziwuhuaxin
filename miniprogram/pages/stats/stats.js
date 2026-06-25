@@ -103,12 +103,26 @@ Page({
   subscribeSyncEvents() {
     if (this.unsubscribeSyncRecovered || this.unsubscribeSyncUpdated || this.unsubscribeReportUpdated) return;
 
+    const refreshRecovered = () => {
+      this.refreshAfterRecovery();
+    };
     const refresh = () => {
       this.scheduleSyncRefresh();
     };
-    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refresh);
+    this.unsubscribeSyncRecovered = eventBus.on('sync:recovered', refreshRecovered);
     this.unsubscribeSyncUpdated = eventBus.on('sync:updated', refresh);
     this.unsubscribeReportUpdated = eventBus.on('report:updated', refresh);
+  },
+
+  refreshAfterRecovery() {
+    if (this.syncRefreshTimer) {
+      clearTimeout(this.syncRefreshTimer);
+      this.syncRefreshTimer = null;
+    }
+    if (reportService && typeof reportService.clearYearlyReportCache === 'function') {
+      reportService.clearYearlyReportCache();
+    }
+    this.loadRealData();
   },
 
   scheduleSyncRefresh() {

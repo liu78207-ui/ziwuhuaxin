@@ -25,6 +25,7 @@ const USER_HABIT_FIELDS = [
   'isDeleted',
   'createdAt',
   'updatedAt',
+  'pinnedAt',
   'deletedAt',
   'latestPolicyVersionId',
   'syncStatus'
@@ -105,6 +106,11 @@ function validateUserHabit(habit) {
     errors.push('deletedAt must be a string or null')
   }
 
+  // pinnedAt 可选，需为日期时间字符串
+  if (habit.pinnedAt !== undefined && habit.pinnedAt !== null && typeof habit.pinnedAt !== 'string') {
+    errors.push('pinnedAt must be a string or null')
+  }
+
   // latestPolicyVersionId 可选
   if (habit.latestPolicyVersionId !== undefined && typeof habit.latestPolicyVersionId !== 'string') {
     errors.push('latestPolicyVersionId must be a string')
@@ -153,6 +159,7 @@ function toViewModel(habit) {
     isDeleted: habit.isDeleted || false,
     createdAt: habit.createdAt || '',
     updatedAt: habit.updatedAt || '',
+    pinnedAt: habit.pinnedAt || null,
     deletedAt: habit.deletedAt || null,
     latestPolicyVersionId: habit.latestPolicyVersionId || '',
     syncStatus: habit.syncStatus !== undefined ? habit.syncStatus : 1

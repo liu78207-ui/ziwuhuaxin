@@ -71,4 +71,52 @@ describe('修习页面我的Tab', () => {
     expect(page.data.currentTab).toBe(1);
     expect(page.data.filteredHabits.map(h => h.title)).toEqual(['八段锦']);
   });
+
+  test('已添加习惯操作菜单提供置顶和取消置顶入口', () => {
+    const menus = [];
+    page.showCustomActionMenu = jest.fn((menu) => {
+      menus.push(menu);
+    });
+
+    page.openStrategyModal({
+      currentTarget: {
+        dataset: {
+          habit: {
+            _id: '1',
+            title: '八段锦',
+            category: '运动类',
+            hasStrategy: true,
+            strategy: { userHabitId: 'uh_1' }
+          }
+        }
+      }
+    });
+    page.openStrategyModal({
+      currentTarget: {
+        dataset: {
+          habit: {
+            _id: '2',
+            title: '站桩',
+            category: '运动类',
+            hasStrategy: true,
+            pinnedAt: '2026-06-01T08:00:00.000Z',
+            strategy: { userHabitId: 'uh_2' }
+          }
+        }
+      }
+    });
+
+    expect(menus[0].items.map(item => item.text)).toEqual(['修改策略', '置顶习惯', '删除习惯']);
+    expect(menus[1].items.map(item => item.text)).toEqual(['修改策略', '取消置顶', '删除习惯']);
+  });
+
+  test('修习列表不显示置顶心形图标', () => {
+    const wxml = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/habits/habits.wxml'),
+      'utf8'
+    );
+
+    expect(wxml).not.toContain('habit-pin-tag');
+    expect(wxml).not.toContain('habit-pin-icon');
+  });
 });

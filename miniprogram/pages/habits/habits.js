@@ -282,10 +282,12 @@ Page({
 
     // 如果习惯已添加，显示自定义操作菜单
     if (habit.hasStrategy) {
+      const pinned = Boolean(habit.pinnedAt);
       this.showCustomActionMenu({
         title: habit.title,
         items: [
           { text: '修改策略', type: 'primary' },
+          { text: pinned ? '取消置顶' : '置顶习惯', type: 'primary' },
           { text: '删除习惯', type: 'danger' }
         ],
         callback: (index) => {
@@ -293,6 +295,8 @@ Page({
             // 修改策略
             this.openEditStrategyModal(habit);
           } else if (index === 1) {
+            this.togglePinnedHabit(habit);
+          } else if (index === 2) {
             this.openDeleteHabitModal(habit);
           }
         }
@@ -337,6 +341,31 @@ Page({
       setTimeout(() => {
         callback(index);
       }, 300); // 等待弹窗动画完成
+    }
+  },
+
+  async togglePinnedHabit(habit) {
+    const userHabitId = habit.strategy && habit.strategy.userHabitId
+      ? String(habit.strategy.userHabitId)
+      : null;
+
+    if (!userHabitId) {
+      wx.showToast({ title: '操作失败', icon: 'none' });
+      return;
+    }
+
+    try {
+      if (habit.pinnedAt) {
+        await habitService.unpinHabit(userHabitId);
+        wx.showToast({ title: '已取消置顶', icon: 'success' });
+      } else {
+        await habitService.pinHabit(userHabitId);
+        wx.showToast({ title: '已置顶', icon: 'success' });
+      }
+      this.loadUserHabitsStatus();
+    } catch (e) {
+      console.error('habitService.togglePinnedHabit 失败:', e);
+      wx.showToast({ title: '操作失败', icon: 'none' });
     }
   },
 

@@ -18,7 +18,7 @@
   </view>
 
   <!-- 可滚动内容区域 -->
-  <scroll-view class="content-scroll" scroll-y>
+  <scroll-view class="content-scroll" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
     <!-- 日期切换控件 -->
     <view class="date-control">
       <text class="dc-arrow" bindtap="prevPeriod">‹</text>

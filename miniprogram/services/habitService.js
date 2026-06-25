@@ -47,6 +47,18 @@ function emitHabitUpdated(action, payload = {}) {
   })
 }
 
+function emitHabitPreferenceUpdated(action, habit) {
+  emitHabitUpdated(action, {
+    userHabitId: habit.userHabitId,
+    habitId: habit.habitId,
+    policyVersionId: habit.latestPolicyVersionId || ''
+  })
+}
+
+function getPinnedAtValue() {
+  return timeService.getNow().toISOString()
+}
+
 // ==================== 内置习惯 ====================
 
 /**
@@ -97,6 +109,7 @@ async function addHabit(habitId, policyInput) {
     habitId,
     status: 'active',
     createdAt: businessDate,
+    pinnedAt: null,
     deletedAt: null,
     latestPolicyVersionId: ''
   }
@@ -116,6 +129,7 @@ async function addHabit(habitId, policyInput) {
     habitId,
     status: 'active',
     createdAt: businessDate,
+    pinnedAt: null,
     deletedAt: null
   }
   storageService.setMigrationMeta(meta)
@@ -143,6 +157,7 @@ async function addHabit(habitId, policyInput) {
     userHabitId,
     habitId,
     createdAt: userHabit.createdAt,
+    pinnedAt: userHabit.pinnedAt,
     policyVersionId: policyVersion.policyVersionId,
     duration: policyVersion.duration,
     frequencyType: policyVersion.frequencyType,
@@ -242,6 +257,52 @@ async function softDeleteHabit(userHabitId) {
   })
 
   return true
+}
+
+async function updateHabitPinnedAt(userHabitId, pinnedAt) {
+  const habits = storageService.getMyHabitsWithMigration()
+  const index = habits.findIndex(h => h.userHabitId === userHabitId)
+
+  if (index < 0) {
+    throw new Error(`UserHabit not found: ${userHabitId}`)
+  }
+
+  const habit = habits[index]
+  if (habit.status !== 'active') {
+    throw new Error(`UserHabit is not active: ${userHabitId}`)
+  }
+
+  const nextHabit = {
+    ...habit,
+    pinnedAt: pinnedAt || null
+  }
+  habits[index] = nextHabit
+  storageService.setMyHabits(habits)
+
+  const meta = storageService.getMigrationMeta()
+  if (meta.userHabitInstances && meta.userHabitInstances[userHabitId]) {
+    meta.userHabitInstances[userHabitId].pinnedAt = nextHabit.pinnedAt
+    storageService.setMigrationMeta(meta)
+  }
+
+  syncService.pushWithDedup('habit', 'updatePinned', {
+    userHabitId,
+    habitId: habit.habitId,
+    pinnedAt: nextHabit.pinnedAt,
+    idempotencyKey: `habit_${userHabitId}_pinned_${nextHabit.pinnedAt || 'none'}`
+  })
+  schedulePendingAfterLocalWrite()
+  emitHabitPreferenceUpdated(nextHabit.pinnedAt ? 'pinHabit' : 'unpinHabit', nextHabit)
+
+  return nextHabit
+}
+
+async function pinHabit(userHabitId) {
+  return updateHabitPinnedAt(userHabitId, getPinnedAtValue())
+}
+
+async function unpinHabit(userHabitId) {
+  return updateHabitPinnedAt(userHabitId, null)
 }
 
 // ==================== 策略版本 ====================
@@ -542,6 +603,7 @@ async function getTodayHabits(date) {
         stateId: state ? state.stateId : null,
         status: habit.status,
         createdAt: habit.createdAt,
+        pinnedAt: habit.pinnedAt || null,
         deletedAt: habit.deletedAt || null
       }
     })
@@ -704,6 +766,7 @@ function buildHabitDisplayList(builtInHabits) {
       ...habit,
       hasStrategy: true,
       createdAt: userHabit.createdAt,
+      pinnedAt: userHabit.pinnedAt || null,
       strategy,
       strategyText
     }
@@ -777,6 +840,8 @@ module.exports = {
   getHabitByUserHabitId,
   getHabitsByHabitId,
   softDeleteHabit,
+  pinHabit,
+  unpinHabit,
 
   // 策略版本
   createPolicyVersion,

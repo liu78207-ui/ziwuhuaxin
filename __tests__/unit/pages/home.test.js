@@ -3,6 +3,9 @@
  * 测试时辰显示、任务列表、打卡功能等
  */
 
+const fs = require('fs');
+const path = require('path');
+
 // 模拟微信小程序API和页面方法
 global.wx = {
   switchTab: jest.fn(),
@@ -293,6 +296,17 @@ describe('首页 (home) 页面测试', () => {
       expect(wx.switchTab).toHaveBeenCalledWith(
         expect.objectContaining({ url: '/pages/habits/habits' })
       );
+    });
+  });
+
+  describe('首页置顶视觉测试', () => {
+    test('首页不显示置顶星标', () => {
+      const wxml = fs.readFileSync(
+        path.join(__dirname, '../../../miniprogram/pages/home/home.wxml'),
+        'utf8'
+      );
+
+      expect(wxml).not.toContain('pin-badge');
     });
   });
 

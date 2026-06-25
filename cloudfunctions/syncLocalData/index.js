@@ -83,6 +83,7 @@ exports.main = async (event, context) => {
         freq_rules: s.freq_rules,
         freq_category: s.freq_category || 'everyday',
         createdAt: s.plan_start_date,
+        pinnedAt: s.pinnedAt || s.pinned_at || null,
         plan_start_date: s.plan_start_date,
         deletedAt: s.deleted_at || null,
         strategyVersions: versionsByHabitId[habitId] || []

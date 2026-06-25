@@ -142,6 +142,46 @@ describe('habitService E2E - 揉腹 (habitId 20) 从明天开始', () => {
     expect(todayHabits).toHaveLength(0)
   })
 
+  test('置顶和取消置顶会更新 userHabit 并进入同步队列', async () => {
+    const userHabit = await habitService.addHabit('20', {
+      duration: 10,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-02'
+    })
+    syncService.pushWithDedup.mockClear()
+
+    const pinnedHabit = await habitService.pinHabit(userHabit.userHabitId)
+
+    expect(pinnedHabit.pinnedAt).toEqual(expect.any(String))
+    expect(mockStorage.myHabits.find(h => h.userHabitId === userHabit.userHabitId).pinnedAt).toBe(pinnedHabit.pinnedAt)
+    expect(mockStorage.migrationMeta.userHabitInstances[userHabit.userHabitId].pinnedAt).toBe(pinnedHabit.pinnedAt)
+    expect(syncService.pushWithDedup).toHaveBeenCalledWith(
+      'habit',
+      'updatePinned',
+      expect.objectContaining({
+        userHabitId: userHabit.userHabitId,
+        habitId: '20',
+        pinnedAt: pinnedHabit.pinnedAt
+      })
+    )
+
+    syncService.pushWithDedup.mockClear()
+    const unpinnedHabit = await habitService.unpinHabit(userHabit.userHabitId)
+
+    expect(unpinnedHabit.pinnedAt).toBeNull()
+    expect(mockStorage.myHabits.find(h => h.userHabitId === userHabit.userHabitId).pinnedAt).toBeNull()
+    expect(syncService.pushWithDedup).toHaveBeenCalledWith(
+      'habit',
+      'updatePinned',
+      expect.objectContaining({
+        userHabitId: userHabit.userHabitId,
+        habitId: '20',
+        pinnedAt: null
+      })
+    )
+  })
+
   test('端到端：从明天开始的策略，明天开始时进入「今日修习」', async () => {
     const userHabit = await habitService.addHabit('20', {
       duration: 10,

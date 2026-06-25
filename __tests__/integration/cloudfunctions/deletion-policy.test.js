@@ -245,4 +245,57 @@ describe('cloud deletion policy', () => {
       }
     }));
   });
+
+  test('syncHabit updatePinned updates and removes pinnedAt on userHabit', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [{
+        _id: 'doc_uh_20',
+        _openid: 'test_openid',
+        userHabitId: 'uh_20',
+        habitId: '20',
+        status: 'active'
+      }]
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const pinResult = await main({
+      action: 'updatePinned',
+      userHabitId: 'uh_20',
+      habitId: '20',
+      pinnedAt: '2026-06-01T08:00:00.000Z'
+    }, {});
+
+    expect(pinResult.success).toBe(true);
+    expect(calls.updates).toContainEqual(expect.objectContaining({
+      collection: 'user_habits',
+      id: 'doc_uh_20',
+      payload: {
+        data: expect.objectContaining({
+          pinnedAt: '2026-06-01T08:00:00.000Z',
+          updatedAt: expect.any(Number)
+        })
+      }
+    }));
+
+    calls.updates = [];
+    const unpinResult = await main({
+      action: 'updatePinned',
+      userHabitId: 'uh_20',
+      habitId: '20',
+      pinnedAt: null
+    }, {});
+
+    expect(unpinResult.success).toBe(true);
+    expect(calls.updates).toContainEqual(expect.objectContaining({
+      collection: 'user_habits',
+      id: 'doc_uh_20',
+      payload: {
+        data: expect.objectContaining({
+          pinnedAt: { $remove: true },
+          updatedAt: expect.any(Number)
+        })
+      }
+    }));
+  });
 });

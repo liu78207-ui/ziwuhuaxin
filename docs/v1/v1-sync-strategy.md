@@ -175,6 +175,8 @@ app.onLaunch / app.onShow
 - `userProfile`
 - `cacheMeta`
 
+其中 `userHabits` 必须保留 `pinnedAt`，用于清缓存或换设备后的首页置顶恢复。
+
 V1 恢复范围：
 
 - 用户习惯实例。
@@ -253,6 +255,8 @@ pending 项推荐字段：
 ```
 
 `habit/addHabit` pending payload 必须携带本地业务创建日 `createdAt`，并与策略 `startDate` / `effectiveStartDate` 分开同步。云端 `user_habits.createdAt` 表示习惯实例生命周期开始日，不能用未来/自定义计划开始日替代；`habit_policy_versions.startDate` / `effectiveStartDate` 才表示策略生效日。恢复数据时，观心页依赖 `user_habits.createdAt` 判断创建日前历史为 `not_required`。
+
+`habit/updatePinned` pending payload 用于同步首页置顶偏好，必须携带 `userHabitId`、`habitId` 和 `pinnedAt`。`pinnedAt` 有值表示置顶并作为置顶内部排序依据；`pinnedAt = null` 表示取消置顶。该字段属于用户展示偏好，不影响打卡状态、报表口径、策略版本或生命周期判断。
 
 重试规则：
 
@@ -513,6 +517,7 @@ V1 必须恢复：
 
 - `users` 中的基础用户资料。
 - `user_habits` 中当前和已删除的用户习惯实例。
+- `user_habits.pinnedAt` 首页置顶偏好。
 - `habit_policy_versions` 中当前和历史策略版本。
 - 最近 90 天 `daily_checkin_states`。
 - 删除当天、策略修改当天锁定状态。

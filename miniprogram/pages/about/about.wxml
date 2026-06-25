@@ -12,7 +12,7 @@
     </view>
   </view>
 
-  <scroll-view class="content-scroll" scroll-y="true" bindscroll="onAboutScroll">
+  <scroll-view class="content-scroll" scroll-y="true" enhanced="{{true}}" show-scrollbar="{{false}}" bindscroll="onAboutScroll">
     <view class="about-content">
       <view class="about-section">
         <text class="section-index">01</text>

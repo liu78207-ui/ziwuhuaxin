@@ -1,69 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="31" failures="0" errors="0" time="1.094">
-  <testsuite name="stats page V1 report links" errors="0" failures="0" skipped="0" timestamp="2026-06-23T06:35:55" time="0.971" tests="25">
-    <testcase classname="stats page V1 report links" name="deleted habit styles do not override checked cells to gray" time="0.003">
+<testsuites name="jest tests" tests="13" failures="0" errors="0" time="0.919">
+  <testsuite name="修习页面我的Tab" errors="0" failures="0" skipped="0" timestamp="2026-06-25T04:15:37" time="0.758" tests="6">
+    <testcase classname="修习页面我的Tab" name="第一个Tab文案为我的" time="0.067">
     </testcase>
-    <testcase classname="stats page V1 report links" name="checked report styles have theme color fallbacks" time="0.001">
+    <testcase classname="修习页面我的Tab" name="我的Tab只显示已添加且正在进行的习惯" time="0.007">
     </testcase>
-    <testcase classname="stats page V1 report links" name="report cells bind each habit theme class directly" time="0.001">
+    <testcase classname="修习页面我的Tab" name="分类Tab仍按分类展示全部可添加习惯" time="0.006">
     </testcase>
-    <testcase classname="stats page V1 report links" name="周报应修未完成使用主题描边，非应修和未来使用浅灰色块" time="0.002">
+    <testcase classname="修习页面我的Tab" name="我的Tab空状态提供添加入口" time="0.006">
     </testcase>
-    <testcase classname="stats page V1 report links" name="not_required/future/low_confidence/partial 在周报有显式样式" time="0.001">
+    <testcase classname="修习页面我的Tab" name="已添加习惯操作菜单提供置顶和取消置顶入口" time="0.006">
     </testcase>
-    <testcase classname="stats page V1 report links" name="canceled/not_required/future/low_confidence/partial 在月报 cell 有显式样式" time="0.001">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="周报映射保留业务 status，并使用 displayStatus 控制特殊取消浅灰视觉" time="0.184">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="月报映射保留 displayStatus，特殊取消日可绑定 not_required 样式" time="0.003">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="月报和年报卡片天数字段使用 checkinDays 而不是 doneCount" time="0.005">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="周报按习惯名排序，月报和年报按打卡次数降序" time="0.01">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="快速切换报表时旧请求不能覆盖最后一次 tab 数据" time="0.006">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="年报先渲染首批卡片，再分批补齐剩余卡片" time="0.015">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="切出年报后未完成的分批渲染不能继续写入 yearHabits" time="0.017">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="连续 sync:updated 事件只触发一次防抖刷新" time="0.005">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="点击当前报表 tab 不重复加载数据" time="0.004">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="周报映射保留策略修改命中当天的 unchecked 描边状态" time="0.007">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="月报映射保留策略修改命中当天的 unchecked 描边状态" time="0.008">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="deleted userHabit shows checked status in week report" time="0.005">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="week month and year reports keep deleted habit themeClass from V1 data" time="0.012">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="re-added active userHabit keeps themeClass in week month year reports" time="0.011">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="multiple therapy and life deleted habits keep week month year themeClass" time="0.154">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="known catalog habits use habit-specific themeClass even when stored as default blue" time="0.047">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="deleted checked habits normalize stale theme classes to valid report themes" time="0.021">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="same habitId deleted and re-added with different userHabitId shows correct lifecycle" time="0.008">
-    </testcase>
-    <testcase classname="stats page V1 report links" name="reportService weekly report returns correct habitReports structure" time="0.01">
+    <testcase classname="修习页面我的Tab" name="修习列表不显示置顶心形图标" time="0.005">
     </testcase>
   </testsuite>
-  <testsuite name="stats date display" errors="0" failures="0" skipped="0" timestamp="2026-06-23T06:35:56" time="0.052" tests="6">
-    <testcase classname="stats date display" name="week report shows Gregorian title and lunar range subtitle" time="0.003">
+  <testsuite name="homeService.getHomeViewModel" errors="0" failures="0" skipped="0" timestamp="2026-06-25T04:15:38" time="0.073" tests="7">
+    <testcase classname="homeService.getHomeViewModel" name="同日删除后重加同一 habitId，首页只显示一张 checked 卡片并指向已打卡实例" time="0.006">
     </testcase>
-    <testcase classname="stats date display" name="month report shows Gregorian month and lunar first-to-last-day range" time="0.002">
+    <testcase classname="homeService.getHomeViewModel" name="首页坚持天数按 habitId 跨生命周期自然日去重" time="0">
     </testcase>
-    <testcase classname="stats date display" name="year report shows Gregorian year and lunar year-spanning subtitle" time="0.003">
+    <testcase classname="homeService.getHomeViewModel" name="新用户首次添加并打卡时首页坚持天数为 1" time="0">
     </testcase>
-    <testcase classname="stats date display" name="onShow resets week report to the current week without changing report type" time="0.003">
+    <testcase classname="homeService.getHomeViewModel" name="首页坚持天数只读取每日最终状态，取消、未打卡、非应修和低可信日期不计入" time="0.001">
     </testcase>
-    <testcase classname="stats date display" name="onShow keeps month tab but resets it to the current month" time="0.002">
+    <testcase classname="homeService.getHomeViewModel" name="首页习惯默认按添加顺序排序" time="0.016">
     </testcase>
-    <testcase classname="stats date display" name="onShow keeps year tab but resets it to the current year" time="0.002">
+    <testcase classname="homeService.getHomeViewModel" name="首页置顶习惯排在未置顶习惯前，置顶内部按 pinnedAt 排序" time="0">
+    </testcase>
+    <testcase classname="homeService.getHomeViewModel" name="首页缺少时间字段时按名称和 userHabitId 稳定兜底排序" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

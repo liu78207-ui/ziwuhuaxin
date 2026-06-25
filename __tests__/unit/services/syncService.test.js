@@ -110,7 +110,8 @@ describe('syncService recoverFromCloud', () => {
             name: '八段锦',
             category: '运动类',
             targetMinutes: 15,
-            status: 'active'
+            status: 'active',
+            pinnedAt: '2026-06-01T08:00:00.000Z'
           }],
           policyVersions: [{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }],
           dailyStates: [{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }]
@@ -129,6 +130,7 @@ describe('syncService recoverFromCloud', () => {
       habitId: '3',
       name: '八段锦',
       targetMinutes: 15,
+      pinnedAt: '2026-06-01T08:00:00.000Z',
       latestPolicyVersionId: 'pv_001'
     })])
     expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }])
@@ -291,6 +293,40 @@ describe('syncService recoverFromCloud', () => {
         habitId: '20',
         policyVersionId: 'pv_habit_add',
         idempotencyKey: 'idem_habit_add'
+      })
+    })
+    expect(storage.pendingOperations[0].status).toBe('synced')
+  })
+
+  test('processQueue syncs pinnedAt updates through syncHabit', async () => {
+    storage.pendingOperations = [{
+      queueId: 'q_habit_pin',
+      entityType: 'habit',
+      action: 'updatePinned',
+      payload: {
+        userHabitId: 'uh_habit_pin',
+        habitId: '20',
+        pinnedAt: '2026-06-01T08:00:00.000Z'
+      },
+      idempotencyKey: 'idem_habit_pin',
+      status: 'pending',
+      retryCount: 0,
+      createdAt: '2026-06-16T00:00:00.000Z'
+    }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: { success: true }
+    })
+
+    await syncService.processQueue()
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
+      name: 'syncHabit',
+      data: expect.objectContaining({
+        action: 'updatePinned',
+        userHabitId: 'uh_habit_pin',
+        habitId: '20',
+        pinnedAt: '2026-06-01T08:00:00.000Z',
+        idempotencyKey: 'idem_habit_pin'
       })
     })
     expect(storage.pendingOperations[0].status).toBe('synced')
