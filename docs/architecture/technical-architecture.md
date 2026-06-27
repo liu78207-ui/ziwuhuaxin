@@ -265,10 +265,10 @@ cloudfunctions/
 ```js
 {
   userHabitId, _openid, habitId, status,
-  createdAt, updatedAt, pinnedAt, deletedAt
+  createdAt, addedAt, updatedAt, pinnedAt, deletedAt
 }
 ```
-重点：同一 `habitId` 多次添加必须生成不同 `userHabitId`。`createdAt` 是用户习惯实例的生命周期开始日；它必须由本地业务日期随 `addHabit` 同步到云端，不得用策略 `startDate` / `effectiveStartDate` 替代。`pinnedAt` 是首页置顶偏好，仅用于首页排序，不参与报表分母、分子、streak 或生命周期计算。
+重点：同一 `habitId` 多次添加必须生成不同 `userHabitId`。`createdAt` 是用户习惯实例的生命周期开始日；它必须由本地业务日期随 `addHabit` 同步到云端，不得用策略 `startDate` / `effectiveStartDate` 替代。`addedAt` 是用户添加实例的精确时间戳，仅用于首页未置顶习惯的添加顺序排序。`pinnedAt` 是首页置顶偏好，仅用于首页排序，不参与报表分母、分子、streak 或生命周期计算。
 
 `habitPolicyVersion`
 ```js
@@ -339,7 +339,7 @@ V1 云端字段保持精简：
 |---|---|---|---|---|---|
 | `users` | 用户初始化和资料 | `_openid`, `profile`, `createdAt` | `_openid` 唯一 | 仅本人/云函数 | 是 |
 | `built_in_habits` | 内置习惯云端管理，可选 | `habitId`, `enabled`, `sortOrder` | `habitId`, `enabled` | 只读或云函数读 | 可选 |
-| `user_habits` | 用户习惯实例 | `_openid`, `userHabitId`, `habitId`, `status`, `pinnedAt`, `deletedAt` | `_openid+userHabitId`, `_openid+habitId` | 按 openid 隔离 | 是 |
+| `user_habits` | 用户习惯实例 | `_openid`, `userHabitId`, `habitId`, `status`, `addedAt`, `pinnedAt`, `deletedAt` | `_openid+userHabitId`, `_openid+habitId` | 按 openid 隔离 | 是 |
 | `habit_policy_versions` | 策略版本 | `_openid`, `policyVersionId`, `userHabitId`, `effectiveStartDate` | `_openid+userHabitId+effectiveStartDate` | 按 openid 隔离 | 是 |
 | `checkin_operations` | 操作流水 | `_openid`, `operationId`, `idempotencyKey`, `userHabitId`, `date` | `idempotencyKey` 唯一，`_openid+date` | 云函数写 | 是 |
 | `daily_checkin_states` | 每日最终状态 | `_openid`, `stateId`, `userHabitId`, `date`, `status` | `_openid+userHabitId+date` 唯一 | 云函数写 | 是 |

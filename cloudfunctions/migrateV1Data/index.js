@@ -405,6 +405,7 @@ function buildUserHabit(openid, strategy, serverTime) {
     status,
     isDeleted: status === 'deleted',
     createdAt: startDate,
+    addedAt: getValue(strategy, ['addedAt', 'added_at'], null),
     pinnedAt: getValue(strategy, ['pinnedAt', 'pinned_at'], null),
     deletedAt: deletedAt ? toDateStr(deletedAt) : null,
     latestPolicyVersionId: '',

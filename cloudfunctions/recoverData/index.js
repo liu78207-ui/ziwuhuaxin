@@ -94,6 +94,7 @@ function slimUserHabit(habit) {
     'iconUrl',
     'status',
     'createdAt',
+    'addedAt',
     'updatedAt',
     'pinnedAt',
     'deletedAt'

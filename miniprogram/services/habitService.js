@@ -59,6 +59,10 @@ function getPinnedAtValue() {
   return timeService.getNow().toISOString()
 }
 
+function getAddedAtValue() {
+  return timeService.getNow().toISOString()
+}
+
 // ==================== 内置习惯 ====================
 
 /**
@@ -100,7 +104,7 @@ async function addHabit(habitId, policyInput) {
 
   // 3. 生成新的 userHabitId（不复用已删除的）
   const userHabitId = generateUserHabitId(habitId)
-  const now = new Date().toISOString()
+  const addedAt = getAddedAtValue()
   const businessDate = timeService.getBusinessDate()
 
   // 4. 创建 UserHabit 对象
@@ -109,6 +113,7 @@ async function addHabit(habitId, policyInput) {
     habitId,
     status: 'active',
     createdAt: businessDate,
+    addedAt,
     pinnedAt: null,
     deletedAt: null,
     latestPolicyVersionId: ''
@@ -129,6 +134,7 @@ async function addHabit(habitId, policyInput) {
     habitId,
     status: 'active',
     createdAt: businessDate,
+    addedAt,
     pinnedAt: null,
     deletedAt: null
   }
@@ -157,6 +163,7 @@ async function addHabit(habitId, policyInput) {
     userHabitId,
     habitId,
     createdAt: userHabit.createdAt,
+    addedAt: userHabit.addedAt,
     pinnedAt: userHabit.pinnedAt,
     policyVersionId: policyVersion.policyVersionId,
     duration: policyVersion.duration,
@@ -603,6 +610,7 @@ async function getTodayHabits(date) {
         stateId: state ? state.stateId : null,
         status: habit.status,
         createdAt: habit.createdAt,
+        addedAt: habit.addedAt || null,
         pinnedAt: habit.pinnedAt || null,
         deletedAt: habit.deletedAt || null
       }
@@ -766,6 +774,7 @@ function buildHabitDisplayList(builtInHabits) {
       ...habit,
       hasStrategy: true,
       createdAt: userHabit.createdAt,
+      addedAt: userHabit.addedAt || null,
       pinnedAt: userHabit.pinnedAt || null,
       strategy,
       strategyText

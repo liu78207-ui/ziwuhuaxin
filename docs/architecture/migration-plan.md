@@ -72,6 +72,7 @@
   targetMinutes,
   duration,
   createdAt,
+  addedAt,
   pinnedAt,
   plan_start_date,
   isDeleted,
@@ -90,6 +91,7 @@
   status,
   isDeleted,
   createdAt,
+  addedAt,
   updatedAt,
   pinnedAt,
   deletedAt,
@@ -103,6 +105,7 @@
 - `habitId`：优先取旧 `strategy.habit_id` / `habit_id` / `habitId`，但不得原样保留旧测试或 legacy ID；必须归一化为内置习惯 ID 字符串 `'1'` 到 `'25'`。已知旧 ID 如 `h001` / `h_001` -> `'1'`，`h002` / `h_002` -> `'3'`，`h003` / `h_003` -> `'2'`，也可按旧习惯名称兜底映射。
 - `userHabitId`：生成稳定迁移 ID，建议格式为 `uh_${openid}_${habitId}_${createdAtHash}`。
 - `createdAt`：优先 `createdAt`，其次 `plan_start_date`，最后使用迁移时间。
+- `addedAt`：优先保留 `addedAt` / `added_at`，缺失时为 `null`；仅作为首页未置顶习惯的添加顺序依据，不参与生命周期或报表。
 - `pinnedAt`：优先保留 `pinnedAt` / `pinned_at`，缺失时为 `null`；仅作为首页排序偏好，不参与生命周期或报表。
 - `deletedAt`：优先 `deletedAt`，其次 `deleted_at`。
 - `status`：未删除为 `active`，已删除为 `deleted`。

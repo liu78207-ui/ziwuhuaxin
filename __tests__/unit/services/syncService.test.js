@@ -111,6 +111,7 @@ describe('syncService recoverFromCloud', () => {
             category: '运动类',
             targetMinutes: 15,
             status: 'active',
+            addedAt: '2026-05-31T08:00:00.000Z',
             pinnedAt: '2026-06-01T08:00:00.000Z'
           }],
           policyVersions: [{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }],
@@ -130,11 +131,48 @@ describe('syncService recoverFromCloud', () => {
       habitId: '3',
       name: '八段锦',
       targetMinutes: 15,
+      addedAt: '2026-05-31T08:00:00.000Z',
       pinnedAt: '2026-06-01T08:00:00.000Z',
       latestPolicyVersionId: 'pv_001'
     })])
     expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }])
     expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }])
+  })
+
+  test('recoverFromCloud writes recovered habits in stable added order', async () => {
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: [
+            {
+              userHabitId: 'uh_new',
+              habitId: '20',
+              name: '八段锦',
+              status: 'active',
+              createdAt: '2026-05-12',
+              addedAt: '2026-05-12T09:00:00.000Z'
+            },
+            {
+              userHabitId: 'uh_3_1778572800000_wxyz',
+              habitId: '3',
+              name: '揉腹',
+              status: 'active',
+              createdAt: '2026-05-12'
+            }
+          ],
+          policyVersions: [],
+          dailyStates: []
+        }
+      }
+    })
+
+    await syncService.recoverFromCloud()
+
+    expect(storage.MyHabits.map(habit => habit.userHabitId)).toEqual([
+      'uh_3_1778572800000_wxyz',
+      'uh_new'
+    ])
   })
 
   test('bootstrapCloudData recovers empty local cache and emits recovery event', async () => {
@@ -269,6 +307,7 @@ describe('syncService recoverFromCloud', () => {
         userHabitId: 'uh_habit_add',
         habitId: '20',
         policyVersionId: 'pv_habit_add',
+        addedAt: '2026-06-16T08:00:00.000Z',
         duration: 10,
         frequencyType: 'daily',
         frequencyConfig: { intervalDays: 1 },
@@ -292,6 +331,7 @@ describe('syncService recoverFromCloud', () => {
         userHabitId: 'uh_habit_add',
         habitId: '20',
         policyVersionId: 'pv_habit_add',
+        addedAt: '2026-06-16T08:00:00.000Z',
         idempotencyKey: 'idem_habit_add'
       })
     })

@@ -231,7 +231,121 @@ describe('homeService.getHomeViewModel', () => {
     expect(vm.taskList.find(item => item._id === 'uh_late').meta).toBe('45分钟')
   })
 
-  test('首页置顶习惯排在未置顶习惯前，置顶内部按 pinnedAt 排序', async () => {
+  test('同一天添加多个习惯时按 addedAt 排序，不回退到名称排序', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_late',
+        habitId: '20',
+        name: '八段锦',
+        category: '起居类',
+        duration: 10,
+        status: 'active',
+        createdAt: '2026-05-12',
+        addedAt: '2026-05-12T09:00:00.000Z'
+      },
+      {
+        userHabitId: 'uh_early',
+        habitId: '3',
+        name: '揉腹',
+        category: '运动类',
+        duration: 15,
+        status: 'active',
+        createdAt: '2026-05-12',
+        addedAt: '2026-05-12T08:00:00.000Z'
+      }
+    ]
+    mockData.myHabits = mockData.todayHabits.map(h => ({
+      userHabitId: h.userHabitId,
+      habitId: h.habitId,
+      status: h.status,
+      createdAt: h.createdAt,
+      addedAt: h.addedAt
+    }))
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList.map(item => item._id)).toEqual(['uh_early', 'uh_late'])
+    expect(vm.taskList.map(item => item.title)).toEqual(['揉腹', '八段锦'])
+  })
+
+  test('旧数据缺少 addedAt 且 createdAt 相同时从 userHabitId 时间戳兜底排序', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_20_1800000000100_abcd',
+        habitId: '20',
+        name: '八段锦',
+        category: '起居类',
+        duration: 10,
+        status: 'active',
+        createdAt: '2026-05-12'
+      },
+      {
+        userHabitId: 'uh_3_1800000000000_wxyz',
+        habitId: '3',
+        name: '揉腹',
+        category: '运动类',
+        duration: 15,
+        status: 'active',
+        createdAt: '2026-05-12'
+      }
+    ]
+    mockData.myHabits = mockData.todayHabits.map(h => ({
+      userHabitId: h.userHabitId,
+      habitId: h.habitId,
+      status: h.status,
+      createdAt: h.createdAt
+    }))
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList.map(item => item._id)).toEqual([
+      'uh_3_1800000000000_wxyz',
+      'uh_20_1800000000100_abcd'
+    ])
+  })
+
+  test('混合新旧数据时先还原每条习惯的有效添加时间再排序', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_new',
+        habitId: '20',
+        name: '八段锦',
+        category: '起居类',
+        duration: 10,
+        status: 'active',
+        createdAt: '2026-05-12',
+        addedAt: '2026-05-12T09:00:00.000Z'
+      },
+      {
+        userHabitId: 'uh_3_1778572800000_wxyz',
+        habitId: '3',
+        name: '揉腹',
+        category: '运动类',
+        duration: 15,
+        status: 'active',
+        createdAt: '2026-05-12'
+      }
+    ]
+    mockData.myHabits = mockData.todayHabits.map(h => ({
+      userHabitId: h.userHabitId,
+      habitId: h.habitId,
+      status: h.status,
+      createdAt: h.createdAt,
+      addedAt: h.addedAt || null
+    }))
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList.map(item => item._id)).toEqual([
+      'uh_3_1778572800000_wxyz',
+      'uh_new'
+    ])
+  })
+
+  test('首页置顶习惯排在未置顶习惯前，置顶组内按添加时间排序', async () => {
     mockData.todayHabits = [
       {
         userHabitId: 'uh_regular',
@@ -250,6 +364,7 @@ describe('homeService.getHomeViewModel', () => {
         duration: 15,
         status: 'active',
         createdAt: '2026-05-03',
+        addedAt: '2026-05-03T09:00:00.000Z',
         pinnedAt: '2026-06-02T09:00:00.000Z'
       },
       {
@@ -260,6 +375,7 @@ describe('homeService.getHomeViewModel', () => {
         duration: 5,
         status: 'active',
         createdAt: '2026-05-04',
+        addedAt: '2026-05-03T08:00:00.000Z',
         pinnedAt: '2026-06-01T09:00:00.000Z'
       }
     ]
@@ -268,6 +384,7 @@ describe('homeService.getHomeViewModel', () => {
       habitId: h.habitId,
       status: h.status,
       createdAt: h.createdAt,
+      addedAt: h.addedAt || null,
       pinnedAt: h.pinnedAt || null
     }))
     mockData.dailyStates = []
@@ -280,7 +397,7 @@ describe('homeService.getHomeViewModel', () => {
     expect(vm.taskList[2].isPinned).toBe(false)
   })
 
-  test('首页缺少时间字段时按名称和 userHabitId 稳定兜底排序', async () => {
+  test('首页缺少时间字段且无法解析 userHabitId 时按原始列表顺序稳定兜底', async () => {
     mockData.todayHabits = [
       {
         userHabitId: 'uh_b',
@@ -308,6 +425,6 @@ describe('homeService.getHomeViewModel', () => {
     const homeService = require('../../../miniprogram/services/homeService')
     const vm = await homeService.getHomeViewModel()
 
-    expect(vm.taskList.map(item => item.title)).toEqual(['八段锦', '揉腹'])
+    expect(vm.taskList.map(item => item.title)).toEqual(['揉腹', '八段锦'])
   })
 })

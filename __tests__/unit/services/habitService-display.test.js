@@ -38,6 +38,7 @@ describe('habitService.buildHabitDisplayList', () => {
         habitId: '20',
         status: 'active',
         createdAt: '2026-05-01',
+        addedAt: '2026-05-01T08:00:00.000Z',
         pinnedAt: '2026-06-01T08:00:00.000Z'
       }
     ]
@@ -67,6 +68,7 @@ describe('habitService.buildHabitDisplayList', () => {
       startDate: '2026-05-01'
     })
     expect(habit.strategyText).toBe('每周二、四、六 · 45分钟')
+    expect(habit.addedAt).toBe('2026-05-01T08:00:00.000Z')
     expect(habit.pinnedAt).toBe('2026-06-01T08:00:00.000Z')
   })
 

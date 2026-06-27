@@ -236,7 +236,11 @@ function ensureMigrationCompleted() {
   const migratedHabits = rawHabits.map(habit => {
     if (habit.userHabitId) {
       // 已有 userHabitId，跳过（幂等）
-      return habit
+      return {
+        ...habit,
+        addedAt: habit.addedAt || habit.added_at || null,
+        pinnedAt: habit.pinnedAt || null
+      }
     }
     const userHabitId = generateUserHabitId(habit.habitId)
     const now = new Date().toISOString()
@@ -253,6 +257,7 @@ function ensureMigrationCompleted() {
       userHabitId,
       status,
       deletedAt,
+      addedAt: habit.addedAt || habit.added_at || null,
       pinnedAt: habit.pinnedAt || null,
       latestPolicyVersionId: '',
       syncStatus: 1
@@ -271,6 +276,7 @@ function ensureMigrationCompleted() {
         habitId: habit.habitId,
         status: habit.status,
         createdAt: normalizeToDateStr(habit.createdAt),
+        addedAt: habit.addedAt || null,
         deletedAt: habit.deletedAt || null,
         pinnedAt: habit.pinnedAt || null
       }

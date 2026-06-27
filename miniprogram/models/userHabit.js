@@ -24,6 +24,7 @@ const USER_HABIT_FIELDS = [
   'status',
   'isDeleted',
   'createdAt',
+  'addedAt',
   'updatedAt',
   'pinnedAt',
   'deletedAt',
@@ -96,6 +97,11 @@ function validateUserHabit(habit) {
     errors.push('createdAt must be a string')
   }
 
+  // addedAt 可选，需为日期时间字符串
+  if (habit.addedAt !== undefined && habit.addedAt !== null && typeof habit.addedAt !== 'string') {
+    errors.push('addedAt must be a string or null')
+  }
+
   // updatedAt 可选，需为日期字符串
   if (habit.updatedAt !== undefined && typeof habit.updatedAt !== 'string') {
     errors.push('updatedAt must be a string')
@@ -158,6 +164,7 @@ function toViewModel(habit) {
     status: habit.status || USER_HABIT_STATUS.active,
     isDeleted: habit.isDeleted || false,
     createdAt: habit.createdAt || '',
+    addedAt: habit.addedAt || null,
     updatedAt: habit.updatedAt || '',
     pinnedAt: habit.pinnedAt || null,
     deletedAt: habit.deletedAt || null,

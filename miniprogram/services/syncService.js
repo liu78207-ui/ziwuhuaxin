@@ -368,6 +368,43 @@ function cleanRecoveredObject(data) {
   }, {})
 }
 
+function extractTimestampFromUserHabitId(userHabitId) {
+  const value = String(userHabitId || '')
+  const match = value.match(/^uh_(?:.+_)?(\d{12,})_[a-z0-9]+$/i)
+  return match ? Number(match[1]) : null
+}
+
+function parseOrderTime(value) {
+  if (!value) return null
+  const parsed = Date.parse(String(value))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function resolveRecoveredHabitOrderTime(habit) {
+  const addedAtTime = parseOrderTime(habit.addedAt)
+  if (addedAtTime !== null) return addedAtTime
+
+  const idTime = extractTimestampFromUserHabitId(habit.userHabitId)
+  if (idTime !== null) return idTime
+
+  return parseOrderTime(habit.createdAt)
+}
+
+function compareRecoveredHabitOrder(a, b) {
+  const aTime = resolveRecoveredHabitOrderTime(a)
+  const bTime = resolveRecoveredHabitOrderTime(b)
+  if (aTime !== null && bTime !== null && aTime !== bTime) {
+    return aTime - bTime
+  }
+  if (aTime !== null && bTime === null) return -1
+  if (aTime === null && bTime !== null) return 1
+
+  const sourceCompare = (a.sourceIndex || 0) - (b.sourceIndex || 0)
+  if (sourceCompare !== 0) return sourceCompare
+
+  return String(a.userHabitId || '').localeCompare(String(b.userHabitId || ''))
+}
+
 function resolveLatestPolicyVersionId(policyVersions, userHabitId) {
   const policies = Array.isArray(policyVersions) ? policyVersions : []
   const active = policies.find(pv =>
@@ -390,7 +427,7 @@ async function recoverFromCloud(options = {}) {
 
   // 恢复 userHabits -> MyHabits
   if (userHabits && Array.isArray(userHabits)) {
-    const migratedHabits = userHabits.map(h => cleanRecoveredObject({
+    const migratedHabits = userHabits.map((h, sourceIndex) => cleanRecoveredObject({
       userHabitId: h.userHabitId,
       habitId: h.habitId,
       name: h.name || h.title || h.habitTitle,
@@ -400,10 +437,14 @@ async function recoverFromCloud(options = {}) {
       iconUrl: h.iconUrl,
       status: h.status || 'active',
       createdAt: h.createdAt,
+      addedAt: h.addedAt || null,
       pinnedAt: h.pinnedAt || null,
       deletedAt: h.deletedAt,
-      latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId)
+      latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId),
+      sourceIndex
     }))
+      .sort(compareRecoveredHabitOrder)
+      .map(({ sourceIndex, ...habit }) => habit)
     storageService.setMyHabits(migratedHabits)
   }
 

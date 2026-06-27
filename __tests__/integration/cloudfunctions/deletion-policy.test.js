@@ -211,6 +211,7 @@ describe('cloud deletion policy', () => {
       userHabitId: 'uh_20',
       habitId: '20',
       createdAt: '2026-06-02',
+      addedAt: '2026-06-02T08:00:00.000Z',
       policyVersionId: 'pv_20',
       duration: 10,
       frequencyType: 'daily',
@@ -226,7 +227,8 @@ describe('cloud deletion policy', () => {
         data: expect.objectContaining({
           userHabitId: 'uh_20',
           habitId: '20',
-          createdAt: '2026-06-02'
+          createdAt: '2026-06-02',
+          addedAt: '2026-06-02T08:00:00.000Z'
         })
       }
     }));

@@ -131,20 +131,26 @@ function mergeTodayHabitsByHabitId(todayHabits, todayStates) {
   return Array.from(groups.values())
 }
 
-function compareHabitName(aName, bName) {
-  const nameCompare = String(aName || '').localeCompare(String(bName || ''), 'zh-CN')
-  return nameCompare
+function extractTimestampFromUserHabitId(userHabitId) {
+  const value = String(userHabitId || '')
+  const match = value.match(/^uh_(?:.+_)?(\d{12,})_[a-z0-9]+$/i)
+  return match ? Number(match[1]) : null
 }
 
-function compareOptionalTime(aTime, bTime) {
-  const aValue = String(aTime || '')
-  const bValue = String(bTime || '')
-  if (aValue && bValue && aValue !== bValue) {
-    return aValue.localeCompare(bValue)
-  }
-  if (aValue && !bValue) return -1
-  if (!aValue && bValue) return 1
-  return 0
+function parseOrderTime(value) {
+  if (!value) return null
+  const parsed = Date.parse(String(value))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function resolveHomeOrderTime(task) {
+  const addedAtTime = parseOrderTime(task.addedAt)
+  if (addedAtTime !== null) return addedAtTime
+
+  const idTime = extractTimestampFromUserHabitId(task._id)
+  if (idTime !== null) return idTime
+
+  return parseOrderTime(task.createdAt)
 }
 
 function compareHomeTaskOrder(a, b) {
@@ -154,13 +160,17 @@ function compareHomeTaskOrder(a, b) {
     return aPinned ? -1 : 1
   }
 
-  const timeCompare = aPinned
-    ? compareOptionalTime(a.pinnedAt, b.pinnedAt)
-    : compareOptionalTime(a.createdAt, b.createdAt)
-  if (timeCompare !== 0) return timeCompare
+  const aTime = resolveHomeOrderTime(a)
+  const bTime = resolveHomeOrderTime(b)
+  if (aTime !== null && bTime !== null && aTime !== bTime) {
+    return aTime - bTime
+  }
+  if (aTime !== null && bTime === null) return -1
+  if (aTime === null && bTime !== null) return 1
 
-  const nameCompare = compareHabitName(a.title, b.title)
-  if (nameCompare !== 0) return nameCompare
+  const sourceCompare = (a.sourceIndex || 0) - (b.sourceIndex || 0)
+  if (sourceCompare !== 0) return sourceCompare
+
   return String(a._id || '').localeCompare(String(b._id || ''))
 }
 
@@ -196,7 +206,7 @@ async function getHomeViewModel() {
   const mergedTodayHabits = mergeTodayHabitsByHabitId(todayHabits, todayStates)
 
   // 构建 taskList
-  const taskList = mergedTodayHabits.map((habit) => {
+  const taskList = mergedTodayHabits.map((habit, sourceIndex) => {
     const state = todayStatesByUserHabitId.get(habit.userHabitId)
     const isDone = state && state.status === 'checked'
     const habitId = String(habit.habitId)
@@ -214,6 +224,7 @@ async function getHomeViewModel() {
     return {
       _id: habit.userHabitId,
       habitId: habit.habitId,
+      sourceIndex,
       title: name,
       category,
       duration: habit.duration,
@@ -221,6 +232,7 @@ async function getHomeViewModel() {
       isPinned: Boolean(habit.pinnedAt),
       pinnedAt: habit.pinnedAt || null,
       createdAt: habit.createdAt || '',
+      addedAt: habit.addedAt || null,
       streak: practiceDays,
       bgColor: '',
       iconUrl: getIconUrl(name),

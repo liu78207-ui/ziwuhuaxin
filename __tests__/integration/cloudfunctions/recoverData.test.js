@@ -57,6 +57,7 @@ describe('recoverData cloud function', () => {
         _openid: 'openid_1',
         userHabitId: 'uh_1',
         name: 'Habit One',
+        addedAt: '2026-05-31T08:00:00.000Z',
         pinnedAt: '2026-06-01T08:00:00.000Z',
         legacyStrategyId: 'legacy_noise',
         migrationVersion: 1
@@ -84,6 +85,7 @@ describe('recoverData cloud function', () => {
     expect(result.data.userHabits[0]).toEqual({
       userHabitId: 'uh_1',
       name: 'Habit One',
+      addedAt: '2026-05-31T08:00:00.000Z',
       pinnedAt: '2026-06-01T08:00:00.000Z'
     })
     expect(result.data.userHabits[0]._openid).toBeUndefined()

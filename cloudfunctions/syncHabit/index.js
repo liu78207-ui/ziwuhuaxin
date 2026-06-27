@@ -72,6 +72,7 @@ exports.main = async (event, context) => {
     startDate,
     effectiveStartDate,
     createdAt,
+    addedAt,
     pinnedAt,
     // 以下字段用于 close 旧版本
     previousPolicyVersionId,
@@ -112,12 +113,14 @@ exports.main = async (event, context) => {
         // 已存在，检查状态是否已为目标状态
         const existing = existingHabit.data[0];
         const habitCreatedAt = createdAt || existing.createdAt || startDate || toDateStr(new Date());
-        if (existing.status !== (status || 'active') || !existing.createdAt) {
+        const habitAddedAt = addedAt || existing.addedAt || null;
+        if (existing.status !== (status || 'active') || !existing.createdAt || (addedAt && !existing.addedAt)) {
           // 状态不一致，需要更新
           await db.collection('user_habits').doc(existing._id).update({
             data: cleanData({
               status: status || 'active',
               createdAt: habitCreatedAt,
+              addedAt: habitAddedAt,
               pinnedAt,
               updatedAt: serverTime
             })
@@ -134,6 +137,7 @@ exports.main = async (event, context) => {
             habitId: String(habitId),
             status: status || 'active',
             createdAt: createdAt || startDate || toDateStr(new Date()),
+            addedAt: addedAt || null,
             pinnedAt,
             updatedAt: serverTime
           })
