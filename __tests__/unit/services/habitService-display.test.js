@@ -108,4 +108,148 @@ describe('habitService.buildHabitDisplayList', () => {
     })
     expect(habit.strategyText).toBe('每4天 · 30分钟')
   })
+
+  test('展示列表追加 active 自定义修习且不混入官方分类', () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        themeClass: 't-purple',
+        status: 'active',
+        createdAt: '2026-06-11'
+      }
+    ]
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_custom_1',
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_1',
+        duration: 20,
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-11',
+        effectiveEndDate: null
+      }
+    ]
+
+    const habitService = require('../../../miniprogram/services/habitService')
+    const habits = habitService.buildHabitDisplayList([
+      { _id: '20', title: '揉腹', category: '起居类', default_duration: 10 }
+    ])
+
+    expect(habits).toHaveLength(2)
+    expect(habits[0]).toMatchObject({
+      _id: '20',
+      source: 'system',
+      hasStrategy: false
+    })
+    expect(habits[1]).toMatchObject({
+      _id: 'custom_1',
+      userHabitId: 'uh_custom_1',
+      source: 'custom',
+      title: '早睡',
+      name: '早睡',
+      category: '自定义',
+      themeClass: 't-purple',
+      iconUrl: '/assets/icons/habit-zidingyi.png',
+      hasStrategy: true,
+      strategyText: '每天 · 20分钟'
+    })
+  })
+
+  test('停用后的自定义修习仍作为库条目展示但不复用旧策略', () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_custom_old',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        themeClass: 't-purple',
+        status: 'deleted',
+        createdAt: '2026-06-01',
+        addedAt: '2026-06-01T08:00:00.000Z',
+        deletedAt: '2026-06-10'
+      }
+    ]
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_custom_old',
+        userHabitId: 'uh_custom_old',
+        habitId: 'custom_1',
+        duration: 20,
+        frequencyType: 'daily',
+        frequencyConfig: { intervalDays: 1 },
+        startDate: '2026-06-01',
+        effectiveEndDate: '2026-06-10'
+      }
+    ]
+
+    const habitService = require('../../../miniprogram/services/habitService')
+    const habits = habitService.buildHabitDisplayList([])
+
+    expect(habits).toHaveLength(1)
+    expect(habits[0]).toMatchObject({
+      _id: 'custom_1',
+      userHabitId: '',
+      source: 'custom',
+      title: '早睡',
+      hasStrategy: false,
+      strategy: null,
+      strategyText: '',
+      deletedAt: '2026-06-10'
+    })
+  })
+
+  test('同一自定义目录存在新旧生命周期时优先展示 active 实例', () => {
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_custom_old',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        status: 'deleted',
+        createdAt: '2026-06-01',
+        addedAt: '2026-06-01T08:00:00.000Z',
+        deletedAt: '2026-06-10'
+      },
+      {
+        userHabitId: 'uh_custom_new',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        status: 'active',
+        createdAt: '2026-06-11',
+        addedAt: '2026-06-11T08:00:00.000Z'
+      }
+    ]
+    mockData.policyVersions = [
+      {
+        policyVersionId: 'pv_custom_new',
+        userHabitId: 'uh_custom_new',
+        habitId: 'custom_1',
+        duration: 30,
+        frequencyType: 'weekly',
+        frequencyConfig: { weekdays: [1, 3] },
+        startDate: '2026-06-11',
+        effectiveEndDate: null
+      }
+    ]
+
+    const habitService = require('../../../miniprogram/services/habitService')
+    const habits = habitService.buildHabitDisplayList([])
+
+    expect(habits).toHaveLength(1)
+    expect(habits[0]).toMatchObject({
+      _id: 'custom_1',
+      userHabitId: 'uh_custom_new',
+      hasStrategy: true,
+      strategyText: '每周一、三 · 30分钟'
+    })
+  })
 })

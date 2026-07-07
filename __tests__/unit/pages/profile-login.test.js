@@ -19,6 +19,10 @@ jest.mock('../../../miniprogram/services/userService', () => ({
   logout: jest.fn()
 }))
 
+jest.mock('../../../miniprogram/services/cacheService', () => ({
+  clearLocalUserCacheAndRecover: jest.fn()
+}))
+
 jest.mock('../../../miniprogram/utils/share.js', () => ({
   enableShareMenu: jest.fn(),
   appMessage: jest.fn(),
@@ -28,11 +32,13 @@ jest.mock('../../../miniprogram/utils/share.js', () => ({
 describe('profile page login flow', () => {
   let page
   let userService
+  let cacheService
 
   beforeEach(() => {
     jest.resetModules()
     Page.mockClear()
     userService = require('../../../miniprogram/services/userService')
+    cacheService = require('../../../miniprogram/services/cacheService')
     require('../../../miniprogram/pages/profile/profile.js')
     page = Page.mock.results[0].value
   })
@@ -119,5 +125,35 @@ describe('profile page login flow', () => {
 
     expect(userService.saveUserInfo).toHaveBeenCalledWith({ nickName: '新名' })
     expect(page.data.isProfileSaving).toBe(false)
+  })
+
+  test('confirmClearCache skips pre-clear sync and forces cloud recovery', async () => {
+    page.setData = jest.fn(function(data) {
+      Object.assign(this.data, data)
+    })
+    page.refreshViewModel = jest.fn()
+    page.data.isClearingCache = false
+    cacheService.clearLocalUserCacheAndRecover.mockResolvedValue({
+      success: true,
+      cleared: true,
+      restored: true,
+      skippedPreClearSync: true,
+      failedKeys: [],
+      recoveryError: ''
+    })
+
+    await page.confirmClearCache()
+
+    expect(cacheService.clearLocalUserCacheAndRecover).toHaveBeenCalledWith({
+      dailyStateDays: 90,
+      skipPreClearSync: true
+    })
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '已恢复云端',
+      icon: 'none'
+    })
+    expect(page.refreshViewModel).toHaveBeenCalled()
+    expect(page.data.isClearingCache).toBe(false)
+    expect(page.data.showClearCacheModal).toBe(false)
   })
 })

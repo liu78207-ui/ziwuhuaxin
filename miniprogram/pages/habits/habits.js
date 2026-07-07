@@ -4,9 +4,11 @@ const habitService = require('../../services/habitService');
 const eventBus = require('../../services/eventBus');
 const { getNavTitleStyle } = require('../../utils/navLayout');
 
+const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
+
 Page({
   data: {
-    categories: ['我的', '运动类', '理疗类', '起居类'],
+    categories: ['我的', '运动', '理疗', '起居', '自定义'],
     currentTab: 0,
     habits: [],
     filteredHabits: [],
@@ -64,6 +66,9 @@ Page({
     planStartDateCustom: '', // 自定义日期选择器的值
     planStartHint: '', // 提示信息
     isEditingStrategy: false,
+    isCustomHabitModal: false,
+    customHabitName: '',
+    customHabitNameError: '',
     planStartNeedsReselect: false,
     isSavingStrategy: false,
 
@@ -74,8 +79,15 @@ Page({
     actionMenuCallback: null,
     showDeleteHabitModal: false,
     pendingDeleteHabit: null,
-    deleteHabitModalContent: '',
+    deleteHabitModalTitleText: '',
+    deleteHabitModalHintText: '',
     isDeletingHabit: false,
+    showRenameChoiceModal: false,
+    pendingRenameChoice: null,
+    renameChoiceContent: '',
+    renameChoicePrimaryText: '仅改名称',
+    renameChoiceTodayChecked: false,
+    isConfirmingRenameChoice: false,
     navTitleStyle: ''
   },
 
@@ -84,6 +96,7 @@ Page({
   unsubscribeSyncUpdated: null,
   unsubscribeHabitUpdated: null,
   refreshTimer: null,
+  modalCloseTimer: null,
   isPageVisible: false,
 
   goBack() {
@@ -164,6 +177,7 @@ Page({
       clearTimeout(this.refreshTimer);
       this.refreshTimer = null;
     }
+    this.clearModalCloseTimer();
   },
 
   onHide() {
@@ -231,8 +245,9 @@ Page({
 
   // 加载用户已添加的习惯状态
   loadUserHabitsStatus() {
+    habitService.cleanupNamelessCustomHabits();
     // 使用 habitService.buildHabitDisplayList 构建展示列表
-    const habits = habitService.buildHabitDisplayList(this.data.habits);
+    const habits = habitService.buildHabitDisplayList(this.getBaseHabitDefinitions());
 
     this.setData({
       habits: habits,
@@ -240,6 +255,10 @@ Page({
     });
 
     console.log('已更新习惯状态:', habits.filter(h => h.hasStrategy).length, '个已添加');
+  },
+
+  getBaseHabitDefinitions(habits = this.data.habits) {
+    return habits.filter(habit => habit && habit.source !== 'custom' && !habit.isCustomAddCard);
   },
 
   scheduleUserHabitsStatusRefresh(delay = 160) {
@@ -251,6 +270,17 @@ Page({
       this.refreshTimer = null;
       this.loadUserHabitsStatus();
     }, delay);
+  },
+
+  clearModalCloseTimer() {
+    if (this.modalCloseTimer) {
+      clearTimeout(this.modalCloseTimer);
+      this.modalCloseTimer = null;
+    }
+  },
+
+  prepareOpenModal() {
+    this.clearModalCloseTimer();
   },
 
   switchTab(e) {
@@ -270,30 +300,99 @@ Page({
 
   filterHabits(habits, tabIndex) {
     if (tabIndex === 0) {
-      return habits.filter(h => h.hasStrategy);
+      return habits
+        .filter(h => h.hasStrategy)
+        .map(h => this.withCustomDisplayMeta(h))
+        .sort((a, b) => this.compareHabitsByDisplayName(a, b));
+    }
+    if (tabIndex === 4) {
+      const customHabits = habits
+        .filter(h => h.source === 'custom')
+        .map(h => this.withCustomDisplayMeta(h))
+        .sort((a, b) => this.compareHabitsByDisplayName(a, b));
+      return customHabits.concat(this.buildCustomAddCard());
     }
     const categoryMap = { 1: '运动类', 2: '理疗类', 3: '起居类' };
     const category = categoryMap[tabIndex];
     return habits.filter(h => h.category === category);
   },
 
+  buildCustomAddCard() {
+    return {
+      _id: 'custom-add-card',
+      isCustomAddCard: true,
+      source: 'custom',
+      title: '',
+      category: '自定义',
+      themeClass: 't-purple'
+    };
+  },
+
+  getCustomDisplayInitial(habit) {
+    const text = String((habit && (habit.title || habit.name || habit.habitTitle || habit.habit_title)) || '').trim();
+    return text ? text.charAt(0) : '习';
+  },
+
+  getHabitDisplayTitle(habit) {
+    return String((habit && (habit.title || habit.name || habit.habitTitle || habit.habit_title)) || '').trim();
+  },
+
+  withCustomDisplayMeta(habit) {
+    if (!habit || habit.isCustomAddCard || habit.source !== 'custom') {
+      return habit;
+    }
+    const displayTitle = this.getHabitDisplayTitle(habit);
+    return {
+      ...habit,
+      title: displayTitle,
+      name: habit.name || displayTitle,
+      iconUrl: habit.iconUrl || CUSTOM_ICON_URL,
+      displayInitial: habit.displayInitial || this.getCustomDisplayInitial({ title: displayTitle })
+    };
+  },
+
+  getHabitSortKey(habit) {
+    return this.getHabitDisplayTitle(habit) || '';
+  },
+
+  getHabitStableSortId(habit) {
+    return String((habit && (habit._id || habit.habitId || habit.userHabitId)) || '');
+  },
+
+  compareHabitsByDisplayName(a, b) {
+    const nameCompare = this.getHabitSortKey(a).localeCompare(this.getHabitSortKey(b), 'zh-CN-u-co-pinyin');
+    if (nameCompare !== 0) {
+      return nameCompare;
+    }
+    return this.getHabitStableSortId(a).localeCompare(this.getHabitStableSortId(b), 'zh-CN-u-co-pinyin');
+  },
+
   openStrategyModal(e) {
     const habit = e.currentTarget.dataset.habit;
+
+    if (habit && habit.isCustomAddCard) {
+      this.openAddCustomHabitModal();
+      return;
+    }
 
     // 如果习惯已添加，显示自定义操作菜单
     if (habit.hasStrategy) {
       const pinned = Boolean(habit.pinnedAt);
+      const isCustom = habit.source === 'custom';
       this.showCustomActionMenu({
         title: habit.title,
         items: [
-          { text: '修改策略', type: 'primary' },
+          { text: isCustom ? '编辑习惯' : '编辑策略', type: 'primary' },
           { text: pinned ? '取消置顶' : '置顶习惯', type: 'primary' },
-          { text: '删除习惯', type: 'danger' }
+          { text: isCustom ? '停用习惯' : '删除习惯', type: 'danger' }
         ],
         callback: (index) => {
           if (index === 0) {
-            // 修改策略
-            this.openEditStrategyModal(habit);
+            if (isCustom) {
+              this.openEditCustomHabitModal(habit);
+            } else {
+              this.openEditStrategyModal(habit);
+            }
           } else if (index === 1) {
             this.togglePinnedHabit(habit);
           } else if (index === 2) {
@@ -304,7 +403,12 @@ Page({
       return;
     }
 
-    // 未添加的习惯，直接打开添加弹窗
+    if (habit && habit.source === 'custom') {
+      this.openReactivateCustomHabitModal(habit);
+      return;
+    }
+
+    // 未添加的官方习惯，直接打开添加弹窗
     this.openAddStrategyModal(habit);
   },
 
@@ -370,10 +474,15 @@ Page({
   },
 
   openDeleteHabitModal(habit) {
+    const isCustom = habit.source === 'custom';
+    const habitTitle = habit.title || habit.name || habit.habitTitle || '该习惯';
     this.setData({
       showDeleteHabitModal: true,
       pendingDeleteHabit: habit,
-      deleteHabitModalContent: `确定要删除「${habit.title}」吗？ 历史打卡数据将保留`
+      deleteHabitModalTitleText: isCustom
+        ? `确定要停用「${habitTitle}」吗？`
+        : `确定要删除「${habitTitle}」吗？`,
+      deleteHabitModalHintText: '历史打卡数据将保留'
     });
   },
 
@@ -384,7 +493,8 @@ Page({
     this.setData({
       showDeleteHabitModal: false,
       pendingDeleteHabit: null,
-      deleteHabitModalContent: ''
+      deleteHabitModalTitleText: '',
+      deleteHabitModalHintText: ''
     });
   },
 
@@ -400,7 +510,8 @@ Page({
       this.setData({
         showDeleteHabitModal: false,
         pendingDeleteHabit: null,
-        deleteHabitModalContent: ''
+        deleteHabitModalTitleText: '',
+        deleteHabitModalHintText: ''
       });
     } finally {
       this.setData({ isDeletingHabit: false });
@@ -414,10 +525,17 @@ Page({
   // 长按 habit - 快速修改（仅对已添加的习惯）
   onHabitLongPress(e) {
     const habit = e.currentTarget.dataset.habit;
+    if (habit && habit.isCustomAddCard) {
+      return;
+    }
 
     // 只有已添加的习惯才响应长按
     if (habit.hasStrategy) {
-      this.openEditStrategyModal(habit);
+      if (habit.source === 'custom') {
+        this.openEditCustomHabitModal(habit);
+      } else {
+        this.openEditStrategyModal(habit);
+      }
     } else {
       // 未添加的习惯，提示单击添加
       wx.showToast({
@@ -430,6 +548,7 @@ Page({
 
   // 打开添加策略弹窗
   openAddStrategyModal(habit) {
+    this.prepareOpenModal();
     // 重置 weekdays 的选中状态
     const weekdays = this.data.weekdays.map(day => ({ ...day, checked: false }));
 
@@ -459,12 +578,72 @@ Page({
       isEditingStrategy: false,
       planStartNeedsReselect: false,
       isSavingStrategy: false,
+      isCustomHabitModal: false,
+      customHabitName: '',
+      customHabitNameError: '',
       minPlanStartDate: today
+    });
+  },
+
+  openAddCustomHabitModal() {
+    this.prepareOpenModal();
+    const weekdays = this.data.weekdays.map(day => ({ ...day, checked: false }));
+    const today = this.getTodayDate();
+
+    this.setData({
+      showModal: true,
+      selectedHabit: {
+        _id: '',
+        source: 'custom',
+        title: '自定义修习',
+        category: '自定义',
+        default_duration: 20,
+        iconUrl: CUSTOM_ICON_URL,
+        themeClass: 't-purple',
+        emoji: '养'
+      },
+      selectedDuration: 20,
+      freqCategory: 'everyday',
+      dailyFreqType: 'everyday',
+      dailyInterval: 2,
+      selectedWeekdays: [],
+      selectedWeekdaysText: '选择星期',
+      weekdays,
+      planStartType: 'custom',
+      planStartDate: 'today',
+      planStartDateCustom: '',
+      planStartHint: '',
+      isEditingStrategy: false,
+      isCustomHabitModal: true,
+      customHabitName: '',
+      customHabitNameError: '',
+      planStartNeedsReselect: false,
+      isSavingStrategy: false,
+      minPlanStartDate: today
+    });
+  },
+
+  openReactivateCustomHabitModal(habit) {
+    this.openAddCustomHabitModal();
+    this.setData({
+      selectedHabit: {
+        ...habit,
+        source: 'custom',
+        category: '自定义',
+        default_duration: habit.default_duration || 20,
+        iconUrl: habit.iconUrl || CUSTOM_ICON_URL,
+        themeClass: habit.themeClass || 't-purple',
+        emoji: habit.emoji || '养'
+      },
+      selectedDuration: habit.default_duration || 20,
+      customHabitName: this.getHabitDisplayTitle(habit),
+      customHabitNameError: ''
     });
   },
 
   // 打开修改策略弹窗
   openEditStrategyModal(habit) {
+    this.prepareOpenModal();
     // 从当前 habit 中读取已有策略
     const strategy = this.normalizeStrategyForEdit(habit);
     const freqCategory = strategy.frequencyCategory || 'everyday';
@@ -533,9 +712,21 @@ Page({
       planStartDateCustom: planStartDateCustom,
       planStartHint: isNotStarted ? this.generatePlanStartHint(savedPlanStartDate) : '',
       isEditingStrategy: true,
+      isCustomHabitModal: false,
+      customHabitName: '',
+      customHabitNameError: '',
       planStartNeedsReselect: isNotStarted,
       isSavingStrategy: false,
       minPlanStartDate: minDate
+    });
+  },
+
+  openEditCustomHabitModal(habit) {
+    this.openEditStrategyModal(habit);
+    this.setData({
+      isCustomHabitModal: true,
+      customHabitName: habit.title || habit.name || '',
+      customHabitNameError: ''
     });
   },
 
@@ -604,18 +795,130 @@ Page({
     });
 
     wx.showToast({
-      title: '已取消',
+      title: habit.source === 'custom' ? '已停用' : '已删除',
       icon: 'success'
     });
   },
 
    closeModal() {
+    this.clearModalCloseTimer();
     this.setData({
       showModal: false,
-      isEditingStrategy: false,
-      planStartNeedsReselect: false,
-      isSavingStrategy: false
+      isSavingStrategy: false,
+      showRenameChoiceModal: false,
+      isConfirmingRenameChoice: false
     });
+    this.modalCloseTimer = setTimeout(() => {
+      this.modalCloseTimer = null;
+      if (this.data.showModal) return;
+      this.setData({
+      isEditingStrategy: false,
+      isCustomHabitModal: false,
+      selectedHabit: null,
+      customHabitName: '',
+      customHabitNameError: '',
+      planStartNeedsReselect: false,
+      pendingRenameChoice: null,
+      renameChoiceContent: '',
+      renameChoicePrimaryText: '仅改名称',
+      renameChoiceTodayChecked: false,
+      isConfirmingRenameChoice: false
+      });
+    }, 300);
+  },
+
+  onCustomHabitNameInput(e) {
+    const value = e.detail ? e.detail.value : '';
+    this.setData({
+      customHabitName: value,
+      customHabitNameError: ''
+    });
+  },
+
+  normalizeCustomHabitName(value) {
+    return String(value || '')
+      .replace(/[\r\n\t]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 12);
+  },
+
+  validateCustomHabitName() {
+    if (!this.data.isCustomHabitModal) {
+      return '';
+    }
+    const name = this.normalizeCustomHabitName(this.data.customHabitName);
+    if (name.length < 2) {
+      this.setData({ customHabitNameError: '请输入 2-12 个字的修习名称' });
+      wx.showToast({ title: '请输入修习名称', icon: 'none' });
+      return '';
+    }
+    return name;
+  },
+
+  getCustomHabitNameConflict(name, excludeUserHabitId) {
+    if (typeof habitService.findCustomHabitByName !== 'function') {
+      return null;
+    }
+    return habitService.findCustomHabitByName(name, { excludeUserHabitId });
+  },
+
+  isCustomNameChanged(habit, nextName) {
+    const oldName = habitService.normalizeCustomHabitName
+      ? habitService.normalizeCustomHabitName(this.getHabitDisplayTitle(habit))
+      : this.normalizeCustomHabitName(this.getHabitDisplayTitle(habit));
+    const normalizedNextName = habitService.normalizeCustomHabitName
+      ? habitService.normalizeCustomHabitName(nextName)
+      : this.normalizeCustomHabitName(nextName);
+    return oldName !== normalizedNextName;
+  },
+
+  openRenameChoiceModal(context) {
+    const isReactivateRename = context && context.renameChoiceType === 'reactivate';
+    this.setData({
+      showRenameChoiceModal: true,
+      pendingRenameChoice: context,
+      renameChoiceTodayChecked: false,
+      renameChoiceContent: isReactivateRename
+        ? '沿用原习惯会保留历史归属。\n作为新习惯会重新记录，原历史保留。'
+        : '仅改名称连续记录不变。\n作为新习惯会重新记录，原历史保留。',
+      renameChoicePrimaryText: isReactivateRename ? '沿用原习惯' : '仅改名称',
+      isSavingStrategy: false,
+      isConfirmingRenameChoice: false
+    });
+  },
+
+  closeRenameChoiceModal() {
+    if (this.data.isConfirmingRenameChoice) return;
+    this.setData({
+      showRenameChoiceModal: false,
+      pendingRenameChoice: null,
+      renameChoiceContent: '',
+      renameChoicePrimaryText: '仅改名称',
+      renameChoiceTodayChecked: false,
+      isConfirmingRenameChoice: false
+    });
+  },
+
+  confirmRenameOnly() {
+    const renameDecision = this.data.pendingRenameChoice && this.data.pendingRenameChoice.renameChoiceType === 'reactivate'
+      ? 'reuseExisting'
+      : 'renameOnly';
+    this.continueRenameChoiceSave(renameDecision);
+  },
+
+  confirmRenameAsNewHabit() {
+    this.continueRenameChoiceSave('asNew');
+  },
+
+  async continueRenameChoiceSave(renameDecision) {
+    if (this.data.isConfirmingRenameChoice || !this.data.pendingRenameChoice) {
+      return;
+    }
+    this.setData({
+      isConfirmingRenameChoice: true
+    });
+    await this.saveStrategy({ renameDecision, renameContext: this.data.pendingRenameChoice });
   },
 
   onDurationChange(e) {
@@ -828,13 +1131,19 @@ Page({
     this.closeWeekdayPicker();
   },
 
-  async saveStrategy() {
+  async saveStrategy(options = {}) {
     if (this.data.isSavingStrategy) {
       return;
     }
+    const renameDecision = options && options.renameDecision;
+    const renameContext = options && options.renameContext;
 
-    const habit = this.data.selectedHabit;
+    const habit = renameContext ? renameContext.habit : this.data.selectedHabit;
     const { freqCategory, dailyInterval, selectedWeekdays } = this.data;
+    const customHabitName = renameContext ? renameContext.customHabitName : this.validateCustomHabitName();
+    if (this.data.isCustomHabitModal && !customHabitName) {
+      return;
+    }
 
     if (this.data.planStartNeedsReselect) {
       wx.showToast({
@@ -883,12 +1192,90 @@ Page({
       frequencyConfig: frequencyType === 'weekly' ? { weekdays: frequencyRules } : { intervalDays: frequencyRules },
       startDate: planStartDate
     }
+    const originalHabitDisplayId = habit._id;
 
     // 1. 调用 habitService：新增用 addHabit，修改用 updateHabitPolicy
     let userHabitId;
     let strategy;
+    let shouldRebuildDisplayFromService = false;
     try {
-      if (isEdit) {
+      if (this.data.isCustomHabitModal && isEdit) {
+        const nameChanged = this.isCustomNameChanged(habit, customHabitName);
+        if (nameChanged && !renameDecision) {
+          const conflict = this.getCustomHabitNameConflict(customHabitName, existingUserHabitId);
+          if (conflict && conflict.status === 'active') {
+            this.setData({ isSavingStrategy: false });
+            wx.showToast({ title: '已存在同名自定义习惯', icon: 'none' });
+            return;
+          }
+          this.openRenameChoiceModal({
+            habit,
+            existingUserHabitId,
+            customHabitName,
+            policyInput,
+            conflict
+          });
+          return;
+        }
+
+        if (nameChanged && renameDecision === 'asNew') {
+          const userHabit = await habitService.renameCustomHabitAsNew(existingUserHabitId, {
+            name: customHabitName
+          }, policyInput);
+          userHabitId = userHabit.userHabitId;
+          habit._id = userHabit.habitId;
+          habit.title = userHabit.name;
+          habit.name = userHabit.name;
+          habit.category = userHabit.category;
+          habit.source = userHabit.source;
+          habit.themeClass = userHabit.themeClass;
+          habit.emoji = '养';
+          console.log('habitService.renameCustomHabitAsNew 完成:', userHabitId);
+        } else {
+          if (nameChanged || renameDecision === 'renameOnly') {
+            await habitService.updateCustomHabitMeta(existingUserHabitId, {
+              name: customHabitName
+            });
+          }
+          const userHabit = await habitService.updateHabitPolicy(existingUserHabitId, policyInput)
+          userHabitId = userHabit.userHabitId
+          console.log('habitService.updateCustomHabitMeta/updateHabitPolicy 完成:', userHabitId)
+        }
+      } else if (this.data.isCustomHabitModal) {
+        const existingCustomHabitId = renameContext && renameContext.existingCustomHabitId
+          ? String(renameContext.existingCustomHabitId)
+          : habit._id && String(habit._id).indexOf('custom_') === 0
+          ? String(habit._id)
+          : ''
+        const isReactivatingCustomHabit = Boolean(existingCustomHabitId)
+        const reactivatedNameChanged = isReactivatingCustomHabit && this.isCustomNameChanged(habit, customHabitName)
+        if (reactivatedNameChanged && !renameDecision) {
+          this.openRenameChoiceModal({
+            habit,
+            existingCustomHabitId,
+            customHabitName,
+            policyInput,
+            renameChoiceType: 'reactivate'
+          });
+          return;
+        }
+        shouldRebuildDisplayFromService = Boolean(existingCustomHabitId)
+        const shouldCreateNewCustomHabit = isReactivatingCustomHabit && renameDecision === 'asNew'
+        const addCustom = existingCustomHabitId && !shouldCreateNewCustomHabit
+          ? habitService.addCustomHabitInstance.bind(habitService, existingCustomHabitId)
+          : habitService.addCustomHabit
+        const userHabit = await addCustom({
+          name: customHabitName
+        }, policyInput)
+        userHabitId = userHabit.userHabitId
+        habit._id = userHabit.habitId
+        habit.title = userHabit.name
+        habit.category = userHabit.category
+        habit.source = userHabit.source
+        habit.themeClass = userHabit.themeClass
+        habit.emoji = '养'
+        console.log('habitService.addCustomHabit 完成:', userHabitId)
+      } else if (isEdit) {
         const userHabit = await habitService.updateHabitPolicy(existingUserHabitId, policyInput)
         userHabitId = userHabit.userHabitId
         console.log('habitService.updateHabitPolicy 完成:', userHabitId)
@@ -899,8 +1286,8 @@ Page({
       }
       strategy = {
         userHabitId,
-        habitTitle: habit.title,
-        category: habit.category,
+        habitTitle: this.data.isCustomHabitModal ? customHabitName : habit.title,
+        category: this.data.isCustomHabitModal ? '自定义' : habit.category,
         duration: this.data.selectedDuration || habit.default_duration || 30,
         frequencyType,
         frequencyConfig: frequencyType === 'weekly' ? { weekdays: frequencyRules } : { intervalDays: frequencyRules },
@@ -908,7 +1295,27 @@ Page({
       };
     } catch (e) {
       console.error('保存策略失败:', e);
-      this.setData({ isSavingStrategy: false });
+      this.setData({
+        isSavingStrategy: false,
+        isConfirmingRenameChoice: false
+      });
+      const message = e && e.message ? e.message : '';
+      if (message === 'CUSTOM_HABIT_NAME_DUPLICATED_ACTIVE') {
+        wx.showToast({ title: '已存在同名自定义习惯', icon: 'none' });
+        return;
+      }
+      if (message === 'CUSTOM_HABIT_NAME_EXISTS_DELETED') {
+        wx.showToast({ title: '自定义库已存在', icon: 'none' });
+        return;
+      }
+      if (message === 'CUSTOM_HABIT_LIBRARY_LIMIT_REACHED') {
+        wx.showToast({ title: '自定义习惯已满 12 个', icon: 'none' });
+        return;
+      }
+      if (message === 'CUSTOM_ACTIVE_HABIT_LIMIT_REACHED') {
+        wx.showToast({ title: '自定义最多启用 5 个', icon: 'none' });
+        return;
+      }
       wx.showToast({
         title: '保存失败',
         icon: 'none'
@@ -921,10 +1328,19 @@ Page({
     const strategyText = `${freqText} · ${strategy.duration}分钟`;
 
     // 更新习惯列表显示状态
-    const habits = this.data.habits.map(h => {
-      if (h._id === habit._id) {
+    const habits = shouldRebuildDisplayFromService
+      ? habitService.buildHabitDisplayList(this.getBaseHabitDefinitions())
+      : this.data.habits.map(h => {
+      if (h._id === originalHabitDisplayId || h._id === habit._id) {
         return {
           ...h,
+          title: this.data.isCustomHabitModal ? customHabitName : h.title,
+          name: this.data.isCustomHabitModal ? customHabitName : h.name,
+          source: this.data.isCustomHabitModal ? 'custom' : h.source,
+          category: this.data.isCustomHabitModal ? '自定义' : h.category,
+          iconUrl: this.data.isCustomHabitModal ? CUSTOM_ICON_URL : h.iconUrl,
+          themeClass: this.data.isCustomHabitModal ? 't-purple' : h.themeClass,
+          emoji: this.data.isCustomHabitModal ? '养' : h.emoji,
           hasStrategy: true,
           strategy: strategy,
           strategyText: strategyText
@@ -932,18 +1348,43 @@ Page({
       }
       return h;
     });
+    const nextHabits = shouldRebuildDisplayFromService || habits.some(h => h._id === habit._id)
+      ? habits
+      : habits.concat({
+        _id: habit._id,
+        source: 'custom',
+        title: customHabitName,
+        name: customHabitName,
+        category: '自定义',
+        description: '自定义修习',
+        default_duration: this.data.selectedDuration || 20,
+        iconUrl: CUSTOM_ICON_URL,
+        themeClass: 't-purple',
+        displayInitial: this.getCustomDisplayInitial({ title: customHabitName }),
+        hasStrategy: true,
+        strategy,
+        strategyText
+      });
 
     this.setData({
-      habits,
-      filteredHabits: this.filterHabits(habits, this.data.currentTab)
+      showRenameChoiceModal: false,
+      pendingRenameChoice: null,
+      renameChoiceContent: '',
+      renameChoicePrimaryText: '仅改名称',
+      renameChoiceTodayChecked: false,
+      isConfirmingRenameChoice: false,
+      habits: nextHabits,
+      filteredHabits: this.filterHabits(nextHabits, this.data.currentTab)
     });
 
     wx.showToast({
-      title: '保存成功',
+      title: this.data.isCustomHabitModal && !isEdit ? '添加成功' : '保存成功',
       icon: 'success'
     });
     this.closeModal();
-    this.scheduleUserHabitsStatusRefresh(300);
+    if (!shouldRebuildDisplayFromService) {
+      this.scheduleUserHabitsStatusRefresh(300);
+    }
   },
 
   // 更新星期选择文本

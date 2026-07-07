@@ -119,6 +119,40 @@ describe('recoverData cloud function', () => {
     }))
   })
 
+  test('preserves custom habit metadata for cache recovery', async () => {
+    createMockCloud({
+      user_habits: [{
+        _id: 'uh_custom_1',
+        _openid: 'openid_1',
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        remark: '十点前',
+        themeClass: 't-purple',
+        iconUrl: ''
+      }],
+      habit_policy_versions: [],
+      daily_checkin_states: []
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({}, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.userHabits[0]).toEqual(expect.objectContaining({
+      userHabitId: 'uh_custom_1',
+      habitId: 'custom_1',
+      source: 'custom',
+      name: '早睡',
+      category: '自定义',
+      remark: '十点前',
+      themeClass: 't-purple'
+    }))
+    expect(result.data.userHabits[0]._openid).toBeUndefined()
+  })
+
   test('returns only current openid data and recent 90 days daily states by default', async () => {
     jest.spyOn(Date, 'now').mockReturnValue(new Date('2026-06-16T00:00:00.000Z').getTime())
     createMockCloud({

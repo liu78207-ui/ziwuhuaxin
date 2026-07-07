@@ -39,6 +39,7 @@ V1 报表必须来自以下三类核心数据：
 报表可以辅助读取：
 
 - `builtInHabit`：补充习惯名称、分类、图标、主题。
+- 自定义 `userHabit` 元信息：当 `source = custom` 或 `habitId` 为 `custom_...` 时，名称、分类、主题和备注以该用户自己的 `userHabit` / `user_habits` 字段为准。
 - 锁定状态或锁定快照：处理删除当天、策略修改当天、低可信日期等特殊口径。
 - `cacheMeta` / `reportVersion`：判断报表缓存是否有效。
 
@@ -49,6 +50,14 @@ V1 报表必须来自以下三类核心数据：
 - `checkin_operations` 原始流水的简单累计结果。
 - 页面临时状态。
 - 习惯名称或 `habitId` 聚合后的粗粒度记录。
+
+自定义修习的 `habitId` 是用户私有目录 ID，仅用于把同一个自定义修习的多个生命周期聚合展示；它不得替代 `userHabitId` 做生命周期计算，也不得写入官方内置习惯库。
+
+自定义修习停用后，custom `habitId` 对应的用户私有目录条目仍可保留在自定义习惯库中；再次启用时必须生成新的 `userHabitId`，旧 `userHabitId` 保持删除状态并继续作为历史报表事实源之一。
+
+自定义修习名称变化必须区分两种意图：仅修改名称时原 `userHabitId` 和历史报表连续记录保持不变；作为新习惯时旧 `userHabitId` 软删除，新名称创建新的 custom `habitId` / `userHabitId`，旧历史继续归属旧名称。
+
+空名 custom 属于未上线测试污染数据，不进入报表展示；清理时可删除其本地和云端关联策略、状态和操作记录。
 
 `checkin_operations` 只用于同步、审计、冲突排查和生成 `dailyCheckinState`。首页和报表优先读取 `dailyCheckinState`。
 

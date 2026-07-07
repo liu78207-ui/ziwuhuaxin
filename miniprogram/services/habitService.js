@@ -7,13 +7,28 @@
  */
 
 const { getBuiltInHabit, getAllBuiltInHabits, isValidBuiltInHabitId } = require('../constants/habitLibrary')
-const { generateUserHabitId, generatePolicyVersionId } = require('../constants/idPrefixes')
+const { generateCustomHabitId, generateUserHabitId, generatePolicyVersionId } = require('../constants/idPrefixes')
 const storageService = require('./storageService')
 const timeService = require('./timeService')
 const syncService = require('./syncService')
+const cloudService = require('./cloudService')
 const eventBus = require('./eventBus')
 const reportAggregator = require('./reportAggregator')
 const { DAILY_STATE_STATUS, createDailyCheckinState } = require('../models/dailyCheckinState')
+
+const HABIT_SOURCE = {
+  system: 'system',
+  custom: 'custom'
+}
+
+const CUSTOM_CATEGORY = '自定义'
+const CUSTOM_THEME_CLASS = 't-purple'
+const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png'
+const CUSTOM_DEFAULT_DURATION = 20
+const CUSTOM_NAME_MIN_LENGTH = 2
+const CUSTOM_NAME_MAX_LENGTH = 12
+const CUSTOM_HABIT_LIBRARY_LIMIT = 12
+const CUSTOM_ACTIVE_HABIT_LIMIT = 5
 
 function schedulePendingAfterLocalWrite() {
   if (typeof syncService.requestProcessQueue === 'function') {
@@ -61,6 +76,168 @@ function getPinnedAtValue() {
 
 function getAddedAtValue() {
   return timeService.getNow().toISOString()
+}
+
+function normalizeCustomHabitName(value) {
+  return String(value || '')
+    .replace(/[\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, CUSTOM_NAME_MAX_LENGTH)
+}
+
+function getCustomHabitRawName(userHabit) {
+  return userHabit?.name || userHabit?.title || userHabit?.habitTitle || userHabit?.habit_title || ''
+}
+
+function getCustomHabitNormalizedName(userHabit) {
+  return normalizeCustomHabitName(getCustomHabitRawName(userHabit))
+}
+
+function hasValidCustomHabitName(userHabit) {
+  return getCustomHabitNormalizedName(userHabit).length > 0
+}
+
+function validateCustomHabitName(value) {
+  const name = normalizeCustomHabitName(value)
+  if (name.length < CUSTOM_NAME_MIN_LENGTH) {
+    throw new Error('CUSTOM_HABIT_NAME_TOO_SHORT')
+  }
+  if (name.length > CUSTOM_NAME_MAX_LENGTH) {
+    throw new Error('CUSTOM_HABIT_NAME_TOO_LONG')
+  }
+  return name
+}
+
+function normalizeCustomRemark(value) {
+  return String(value || '')
+    .replace(/[\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40)
+}
+
+function isCustomHabit(userHabit) {
+  return userHabit && (userHabit.source === HABIT_SOURCE.custom || String(userHabit.habitId || '').indexOf('custom_') === 0)
+}
+
+function getHabitDisplayMeta(userHabit) {
+  if (!userHabit) {
+    return {
+      source: HABIT_SOURCE.system,
+      name: '',
+      category: '',
+      themeClass: 't-blue',
+      iconUrl: '',
+      emoji: '养'
+    }
+  }
+
+  if (isCustomHabit(userHabit)) {
+    return {
+      source: HABIT_SOURCE.custom,
+      name: getCustomHabitNormalizedName(userHabit),
+      category: userHabit.category || CUSTOM_CATEGORY,
+      themeClass: userHabit.themeClass || CUSTOM_THEME_CLASS,
+      iconUrl: userHabit.iconUrl || CUSTOM_ICON_URL,
+      emoji: userHabit.emoji || '养',
+      remark: userHabit.remark || ''
+    }
+  }
+
+  const builtIn = getBuiltInHabitDef(userHabit.habitId) || {}
+  return {
+    source: userHabit.source || HABIT_SOURCE.system,
+    name: builtIn.name || userHabit.name || userHabit.title || userHabit.habitTitle || userHabit.habit_title || '',
+    category: builtIn.category || userHabit.category || '',
+    themeClass: userHabit.themeClass || builtIn.themeClass || '',
+    iconUrl: userHabit.iconUrl || '',
+    emoji: userHabit.emoji || ''
+  }
+}
+
+function findCustomHabitByName(name, options = {}) {
+  const normalizedName = normalizeCustomHabitName(name)
+  if (!normalizedName) return null
+
+  const excludeUserHabitId = options.excludeUserHabitId || ''
+  const habits = storageService.getMyHabitsWithMigration()
+    .filter(habit => {
+      if (!isCustomHabit(habit)) return false
+      if (excludeUserHabitId && habit.userHabitId === excludeUserHabitId) return false
+      return getCustomHabitNormalizedName(habit) === normalizedName
+    })
+
+  const active = habits.find(habit => habit.status === 'active') || null
+  if (active) {
+    return {
+      status: 'active',
+      habit: active,
+      habitId: active.habitId,
+      userHabitId: active.userHabitId,
+      name: normalizedName
+    }
+  }
+
+  const deleted = habits
+    .filter(habit => habit.status === 'deleted')
+    .sort((a, b) => String(b.addedAt || b.createdAt || '').localeCompare(String(a.addedAt || a.createdAt || '')))[0] || null
+
+  if (deleted) {
+    return {
+      status: 'deleted',
+      habit: deleted,
+      habitId: deleted.habitId,
+      userHabitId: deleted.userHabitId,
+      name: normalizedName
+    }
+  }
+
+  return null
+}
+
+function ensureNoActiveCustomHabitName(name, options = {}) {
+  const match = findCustomHabitByName(name, options)
+  if (match && match.status === 'active') {
+    throw new Error('CUSTOM_HABIT_NAME_DUPLICATED_ACTIVE')
+  }
+  return match
+}
+
+function getCustomHabitLimitSnapshot(options = {}) {
+  const excludeActiveUserHabitId = options.excludeActiveUserHabitId || ''
+  const habits = storageService.getMyHabitsWithMigration()
+  const libraryHabitIds = new Set()
+  let activeCount = 0
+
+  habits.forEach(habit => {
+    if (!isCustomHabit(habit) || !hasValidCustomHabitName(habit)) return
+    if (habit.habitId) {
+      libraryHabitIds.add(String(habit.habitId))
+    }
+    if (habit.status === 'active' && habit.userHabitId !== excludeActiveUserHabitId) {
+      activeCount += 1
+    }
+  })
+
+  return {
+    libraryCount: libraryHabitIds.size,
+    activeCount,
+    libraryHabitIds
+  }
+}
+
+function assertCustomHabitLimitForCreate(habitId, options = {}) {
+  const targetHabitId = String(habitId || '')
+  const snapshot = getCustomHabitLimitSnapshot(options)
+  const willCreateLibraryEntry = targetHabitId && !snapshot.libraryHabitIds.has(targetHabitId)
+
+  if (willCreateLibraryEntry && snapshot.libraryCount >= CUSTOM_HABIT_LIBRARY_LIMIT) {
+    throw new Error('CUSTOM_HABIT_LIBRARY_LIMIT_REACHED')
+  }
+  if (snapshot.activeCount >= CUSTOM_ACTIVE_HABIT_LIMIT) {
+    throw new Error('CUSTOM_ACTIVE_HABIT_LIMIT_REACHED')
+  }
 }
 
 // ==================== 内置习惯 ====================
@@ -111,6 +288,7 @@ async function addHabit(habitId, policyInput) {
   const userHabit = {
     userHabitId,
     habitId,
+    source: HABIT_SOURCE.system,
     status: 'active',
     createdAt: businessDate,
     addedAt,
@@ -132,6 +310,7 @@ async function addHabit(habitId, policyInput) {
   meta.userHabitInstances[userHabitId] = {
     userHabitId,
     habitId,
+    source: HABIT_SOURCE.system,
     status: 'active',
     createdAt: businessDate,
     addedAt,
@@ -162,6 +341,7 @@ async function addHabit(habitId, policyInput) {
   syncService.pushWithDedup('habit', 'addHabit', {
     userHabitId,
     habitId,
+    source: HABIT_SOURCE.system,
     createdAt: userHabit.createdAt,
     addedAt: userHabit.addedAt,
     pinnedAt: userHabit.pinnedAt,
@@ -180,6 +360,287 @@ async function addHabit(habitId, policyInput) {
   })
 
   return userHabit
+}
+
+/**
+ * 添加自定义习惯（生成 custom habitId 和新的 userHabitId）
+ * @param {object} metaInput - { name, remark? }
+ * @param {object} policyInput - 策略配置
+ * @returns {Promise<UserHabit>}
+ */
+async function addCustomHabitInstance(habitId, metaInput = {}, policyInput = {}) {
+  if (!habitId || String(habitId).indexOf('custom_') !== 0) {
+    throw new Error(`Invalid custom habitId: ${habitId}`)
+  }
+
+  const name = validateCustomHabitName(metaInput.name)
+  const nameMatch = ensureNoActiveCustomHabitName(name)
+  if (nameMatch && nameMatch.status === 'active') {
+    throw new Error('CUSTOM_HABIT_NAME_DUPLICATED_ACTIVE')
+  }
+  assertCustomHabitLimitForCreate(habitId, {
+    excludeActiveUserHabitId: metaInput.excludeActiveUserHabitId || ''
+  })
+  const remark = normalizeCustomRemark(metaInput.remark)
+  const userHabitId = generateUserHabitId(habitId)
+  const addedAt = getAddedAtValue()
+  const businessDate = timeService.getBusinessDate()
+
+  const duration = policyInput.duration || CUSTOM_DEFAULT_DURATION
+  const frequencyType = policyInput.frequencyType || 'daily'
+  const frequencyConfig = policyInput.frequencyConfig || { intervalDays: 1 }
+  const startDate = policyInput.startDate || businessDate
+
+  const userHabit = {
+    userHabitId,
+    habitId,
+    source: HABIT_SOURCE.custom,
+    name,
+    category: CUSTOM_CATEGORY,
+    remark,
+    themeClass: CUSTOM_THEME_CLASS,
+    iconUrl: CUSTOM_ICON_URL,
+    status: 'active',
+    createdAt: businessDate,
+    addedAt,
+    pinnedAt: null,
+    deletedAt: null,
+    latestPolicyVersionId: ''
+  }
+
+  const existingHabits = storageService.getMyHabitsWithMigration()
+  existingHabits.push(userHabit)
+  storageService.setMyHabits(existingHabits)
+
+  const meta = storageService.getMigrationMeta()
+  if (!meta.userHabitInstances) {
+    meta.userHabitInstances = {}
+  }
+  meta.userHabitInstances[userHabitId] = {
+    userHabitId,
+    habitId,
+    source: HABIT_SOURCE.custom,
+    name,
+    category: CUSTOM_CATEGORY,
+    remark,
+    themeClass: CUSTOM_THEME_CLASS,
+    iconUrl: CUSTOM_ICON_URL,
+    status: 'active',
+    createdAt: businessDate,
+    addedAt,
+    pinnedAt: null,
+    deletedAt: null
+  }
+  storageService.setMigrationMeta(meta)
+
+  const policyVersion = await createPolicyVersion(userHabitId, {
+    duration,
+    frequencyType,
+    frequencyConfig,
+    startDate
+  }, { skipSync: true })
+
+  userHabit.latestPolicyVersionId = policyVersion.policyVersionId
+  const habits = storageService.getMyHabitsWithMigration()
+  const index = habits.findIndex(h => h.userHabitId === userHabitId)
+  if (index >= 0) {
+    habits[index] = userHabit
+    storageService.setMyHabits(habits)
+  }
+
+  syncService.pushWithDedup('habit', 'addHabit', {
+    userHabitId,
+    habitId,
+    source: HABIT_SOURCE.custom,
+    name,
+    category: CUSTOM_CATEGORY,
+    remark,
+    themeClass: CUSTOM_THEME_CLASS,
+    iconUrl: CUSTOM_ICON_URL,
+    createdAt: userHabit.createdAt,
+    addedAt: userHabit.addedAt,
+    pinnedAt: userHabit.pinnedAt,
+    policyVersionId: policyVersion.policyVersionId,
+    duration: policyVersion.duration,
+    frequencyType: policyVersion.frequencyType,
+    frequencyConfig: policyVersion.frequencyConfig,
+    startDate: policyVersion.startDate
+  })
+  schedulePendingAfterLocalWrite()
+  emitHabitUpdated('addCustomHabit', {
+    userHabitId,
+    habitId,
+    policyVersionId: policyVersion.policyVersionId,
+    date: startDate
+  })
+
+  return userHabit
+}
+
+async function addCustomHabit(metaInput = {}, policyInput = {}) {
+  const name = validateCustomHabitName(metaInput.name)
+  const nameMatch = findCustomHabitByName(name)
+  if (nameMatch && nameMatch.status === 'active') {
+    throw new Error('CUSTOM_HABIT_NAME_DUPLICATED_ACTIVE')
+  }
+  if (nameMatch && nameMatch.status === 'deleted') {
+    throw new Error('CUSTOM_HABIT_NAME_EXISTS_DELETED')
+  }
+  const habitId = generateCustomHabitId()
+  assertCustomHabitLimitForCreate(habitId)
+  return addCustomHabitInstance(habitId, metaInput, policyInput)
+}
+
+async function updateCustomHabitMeta(userHabitId, patch = {}) {
+  const habits = storageService.getMyHabitsWithMigration()
+  const index = habits.findIndex(h => h.userHabitId === userHabitId)
+  if (index < 0) {
+    throw new Error(`UserHabit not found: ${userHabitId}`)
+  }
+
+  const habit = habits[index]
+  if (habit.status !== 'active') {
+    throw new Error(`UserHabit is not active: ${userHabitId}`)
+  }
+  if (!isCustomHabit(habit)) {
+    throw new Error(`UserHabit is not custom: ${userHabitId}`)
+  }
+
+  const next = {
+    ...habit,
+    source: HABIT_SOURCE.custom,
+    category: CUSTOM_CATEGORY,
+    themeClass: habit.themeClass || CUSTOM_THEME_CLASS,
+    iconUrl: habit.iconUrl || CUSTOM_ICON_URL,
+    updatedAt: getAddedAtValue()
+  }
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'name')) {
+    next.name = validateCustomHabitName(patch.name)
+    ensureNoActiveCustomHabitName(next.name, { excludeUserHabitId: userHabitId })
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'remark')) {
+    next.remark = normalizeCustomRemark(patch.remark)
+  }
+
+  habits[index] = next
+  storageService.setMyHabits(habits)
+
+  const meta = storageService.getMigrationMeta()
+  if (meta.userHabitInstances && meta.userHabitInstances[userHabitId]) {
+    meta.userHabitInstances[userHabitId] = {
+      ...meta.userHabitInstances[userHabitId],
+      source: HABIT_SOURCE.custom,
+      name: next.name,
+      category: CUSTOM_CATEGORY,
+      remark: next.remark || '',
+      themeClass: next.themeClass,
+      iconUrl: next.iconUrl || CUSTOM_ICON_URL
+    }
+    storageService.setMigrationMeta(meta)
+  }
+
+  syncService.pushWithDedup('habit', 'updateHabitMeta', {
+    userHabitId,
+    habitId: next.habitId,
+    source: HABIT_SOURCE.custom,
+    name: next.name,
+    category: CUSTOM_CATEGORY,
+    remark: next.remark || '',
+    themeClass: next.themeClass,
+    iconUrl: next.iconUrl || CUSTOM_ICON_URL,
+    idempotencyKey: `habit_${userHabitId}_meta_${next.updatedAt}`
+  })
+  schedulePendingAfterLocalWrite()
+  emitHabitUpdated('updateHabitMeta', {
+    userHabitId,
+    habitId: next.habitId,
+    policyVersionId: next.latestPolicyVersionId || ''
+  })
+
+  return next
+}
+
+async function renameCustomHabitAsNew(userHabitId, metaInput = {}, policyInput = {}) {
+  const oldHabit = getHabitByUserHabitId(userHabitId)
+  if (!oldHabit) {
+    throw new Error(`UserHabit not found: ${userHabitId}`)
+  }
+  if (oldHabit.status !== 'active') {
+    throw new Error(`UserHabit is not active: ${userHabitId}`)
+  }
+  if (!isCustomHabit(oldHabit)) {
+    throw new Error(`UserHabit is not custom: ${userHabitId}`)
+  }
+
+  const name = validateCustomHabitName(metaInput.name)
+  const nameMatch = ensureNoActiveCustomHabitName(name, { excludeUserHabitId: userHabitId })
+  const nextHabitId = nameMatch && nameMatch.status === 'deleted'
+    ? nameMatch.habitId
+    : generateCustomHabitId()
+  assertCustomHabitLimitForCreate(nextHabitId, {
+    excludeActiveUserHabitId: userHabitId
+  })
+
+  await softDeleteHabit(userHabitId)
+  return addCustomHabitInstance(nextHabitId, {
+    ...metaInput,
+    name
+  }, policyInput)
+}
+
+function cleanupNamelessCustomHabits(options = {}) {
+  const habits = storageService.getMyHabitsWithMigration()
+  const removed = habits.filter(habit => isCustomHabit(habit) && !hasValidCustomHabitName(habit))
+  if (!removed.length) {
+    return { removedCount: 0, userHabitIds: [], habitIds: [] }
+  }
+
+  const removedUserHabitIds = new Set(removed.map(habit => habit.userHabitId).filter(Boolean))
+  const removedHabitIds = new Set(removed.map(habit => habit.habitId).filter(Boolean))
+
+  storageService.setMyHabits(habits.filter(habit => !removedUserHabitIds.has(habit.userHabitId)))
+  storageService.setPolicyVersions(storageService.getPolicyVersions().filter(policy => !removedUserHabitIds.has(policy.userHabitId)))
+  storageService.setDailyCheckinStates(storageService.getDailyCheckinStates().filter(state => !removedUserHabitIds.has(state.userHabitId)))
+  storageService.setCheckinOperations(storageService.getCheckinOperations().filter(operation => !removedUserHabitIds.has(operation.userHabitId)))
+  storageService.setPendingOperations(storageService.getPendingOperations().filter(item => {
+    const payload = item.payload || {}
+    return !removedUserHabitIds.has(payload.userHabitId || item.entityId)
+  }))
+
+  const meta = storageService.getMigrationMeta()
+  if (meta.userHabitInstances) {
+    removedUserHabitIds.forEach(id => {
+      delete meta.userHabitInstances[id]
+    })
+    storageService.setMigrationMeta(meta)
+  }
+
+  emitHabitUpdated('cleanupNamelessCustomHabits', {
+    userHabitId: Array.from(removedUserHabitIds).join(','),
+    habitId: Array.from(removedHabitIds).join(',')
+  })
+  eventBus.emit('cache:invalidated', {
+    source: 'habit',
+    action: 'cleanupNamelessCustomHabits',
+    removedCount: removed.length
+  })
+
+  if (options.cloud !== false) {
+    cloudService.callFunction('syncHabit', {
+      action: 'cleanupNamelessCustomHabits',
+      userHabitId: '__cleanup__',
+      habitId: '__cleanup__'
+    }).catch(e => {
+      console.warn('cleanupNamelessCustomHabits cloud cleanup failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    })
+  }
+
+  return {
+    removedCount: removed.length,
+    userHabitIds: Array.from(removedUserHabitIds),
+    habitIds: Array.from(removedHabitIds)
+  }
 }
 
 /**
@@ -209,6 +670,11 @@ function getHabitByUserHabitId(userHabitId) {
 function getHabitsByHabitId(habitId) {
   const habits = storageService.getMyHabitsWithMigration()
   return habits.filter(h => h.habitId === habitId)
+}
+
+function isHabitCheckedOnDate(userHabitId, date) {
+  const state = storageService.getDailyState(userHabitId, date)
+  return state && state.status === DAILY_STATE_STATUS.checked
 }
 
 /**
@@ -577,6 +1043,7 @@ async function getTodayHabits(date) {
       return { habit, policy, state }
     })
     .filter(({ habit, policy, state }) => {
+      if (isCustomHabit(habit) && !hasValidCustomHabitName(habit)) return false
       const deletedAt = habit.deletedAt ? String(habit.deletedAt).split('T')[0] : null
       const deletedCheckedToday = habit.status === 'deleted' &&
         deletedAt === date &&
@@ -599,11 +1066,16 @@ async function getTodayHabits(date) {
       return reportAggregator.isDueOnDateByFrequency(policy, date)
     })
     .map(({ habit, policy, state }) => {
+      const displayMeta = getHabitDisplayMeta(habit)
       return {
         userHabitId: habit.userHabitId,
         habitId: habit.habitId,
-        name: getBuiltInHabitDef(habit.habitId)?.name || '',
-        category: getBuiltInHabitDef(habit.habitId)?.category || '',
+        source: displayMeta.source,
+        name: displayMeta.name,
+        category: displayMeta.category,
+        themeClass: displayMeta.themeClass,
+        iconUrl: displayMeta.iconUrl,
+        emoji: displayMeta.emoji,
         duration: habit.targetMinutes || policy?.duration || 20,
         policy,
         isChecked: state && state.status === 'checked',
@@ -731,21 +1203,25 @@ function buildStrategyObject(userHabitId, policyInput, options = {}) {
  * @returns {Array} - 带策略状态的展示列表
  */
 function buildHabitDisplayList(builtInHabits) {
-  const activeUserHabits = getActiveUserHabits()
+  const allUserHabits = storageService.getMyHabitsWithMigration()
+  const activeUserHabits = allUserHabits.filter(h => h.status === 'active')
 
   // 构建 habitId -> userHabit 映射
   const userHabitMap = {}
   activeUserHabits.forEach(uh => {
-    userHabitMap[uh.habitId] = uh
+    if (!isCustomHabit(uh)) {
+      userHabitMap[uh.habitId] = uh
+    }
   })
 
-  return builtInHabits.map(habit => {
+  const systemHabits = builtInHabits.map(habit => {
     const habitId = String(habit._id)
     const userHabit = userHabitMap[habitId]
 
     if (!userHabit) {
       return {
         ...habit,
+        source: HABIT_SOURCE.system,
         hasStrategy: false
       }
     }
@@ -772,6 +1248,7 @@ function buildHabitDisplayList(builtInHabits) {
 
     return {
       ...habit,
+      source: HABIT_SOURCE.system,
       hasStrategy: true,
       createdAt: userHabit.createdAt,
       addedAt: userHabit.addedAt || null,
@@ -780,6 +1257,66 @@ function buildHabitDisplayList(builtInHabits) {
       strategyText
     }
   })
+
+  const customHabitMap = {}
+  allUserHabits
+    .filter(habit => isCustomHabit(habit) && hasValidCustomHabitName(habit))
+    .forEach(userHabit => {
+      const habitId = userHabit.habitId
+      if (!habitId) return
+      if (!customHabitMap[habitId]) {
+        customHabitMap[habitId] = []
+      }
+      customHabitMap[habitId].push(userHabit)
+    })
+
+  const customHabits = Object.keys(customHabitMap)
+    .map(habitId => {
+      const instances = customHabitMap[habitId]
+      const activeInstance = instances.find(item => item.status === 'active')
+      const userHabit = activeInstance || instances
+        .slice()
+        .sort((a, b) => String(b.addedAt || b.createdAt || '').localeCompare(String(a.addedAt || a.createdAt || '')))[0]
+      const displayMeta = getHabitDisplayMeta(userHabit)
+      const policy = getActivePolicyVersion(userHabit.userHabitId)
+      const duration = policy ? policy.duration : (userHabit.targetMinutes || CUSTOM_DEFAULT_DURATION)
+      const hasStrategy = userHabit.status === 'active'
+      const strategy = hasStrategy ? buildStrategyObject(userHabit.userHabitId, {
+        duration,
+        frequencyType: policy ? policy.frequencyType : 'daily',
+        frequencyConfig: policy
+          ? (policy.frequencyType === 'weekly' ? policy.frequencyConfig.weekdays : policy.frequencyConfig.intervalDays)
+          : 1,
+        startDate: policy ? policy.startDate : ''
+      }, {
+        habitTitle: displayMeta.name,
+        category: displayMeta.category
+      }) : null
+      const freqText = strategy ? buildStrategyText(strategy) : ''
+
+      return {
+        _id: habitId,
+        userHabitId: hasStrategy ? userHabit.userHabitId : '',
+        source: HABIT_SOURCE.custom,
+        title: displayMeta.name,
+        name: displayMeta.name,
+        category: displayMeta.category,
+        description: userHabit.remark || '自定义修习',
+        default_duration: duration,
+        iconUrl: displayMeta.iconUrl,
+        emoji: displayMeta.emoji,
+        themeClass: displayMeta.themeClass,
+        hasStrategy,
+        createdAt: userHabit.createdAt,
+        addedAt: userHabit.addedAt || null,
+        pinnedAt: userHabit.pinnedAt || null,
+        deletedAt: userHabit.deletedAt || null,
+        strategy: strategy || null,
+        strategyText: strategy ? `${freqText} · ${duration}分钟` : ''
+      }
+    })
+
+  return systemHabits.concat(customHabits)
 }
 
 /**
@@ -839,15 +1376,24 @@ module.exports = {
   // 内置习惯
   getBuiltInHabits,
   getBuiltInHabitDef,
+  getHabitDisplayMeta,
 
   // userHabitId
   generateUserHabitId,
 
   // 用户习惯实例
   addHabit,
+  addCustomHabit,
+  addCustomHabitInstance,
+  renameCustomHabitAsNew,
+  updateCustomHabitMeta,
+  cleanupNamelessCustomHabits,
+  findCustomHabitByName,
+  normalizeCustomHabitName,
   getActiveUserHabits,
   getHabitByUserHabitId,
   getHabitsByHabitId,
+  isHabitCheckedOnDate,
   softDeleteHabit,
   pinHabit,
   unpinHabit,

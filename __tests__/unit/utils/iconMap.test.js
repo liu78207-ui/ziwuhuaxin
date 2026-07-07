@@ -113,6 +113,10 @@ describe('iconMap 工具函数测试', () => {
       expect(iconMap.getThemeByCategory('起居类')).toBe('t-yellow');
     });
 
+    test('自定义应该返回t-purple', () => {
+      expect(iconMap.getThemeByCategory('自定义')).toBe('t-purple');
+    });
+
     test('未知分类应该返回默认主题t-blue', () => {
       expect(iconMap.getThemeByCategory('未知分类')).toBe('t-blue');
     });

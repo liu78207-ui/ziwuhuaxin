@@ -43,7 +43,7 @@ describe('修习页面 (habits) 测试', () => {
   beforeAll(() => {
     pageConfig = {
       data: {
-        categories: ['我的', '运动类', '理疗类', '起居类'],
+        categories: ['我的', '运动', '理疗', '起居', '自定义'],
         currentTab: 0,
         habits: [],
         filteredHabits: [],
@@ -84,11 +84,14 @@ describe('修习页面 (habits) 测试', () => {
 
       switchTab(e) {
         const index = e.currentTarget.dataset.index;
-        const category = this.data.categories[index];
+        const categoryMap = { 1: '运动类', 2: '理疗类', 3: '起居类' };
+        const category = categoryMap[index];
         
         let filtered = this.data.habits;
-        if (category === '我的') {
+        if (index === 0) {
           filtered = this.data.habits.filter(h => h.hasStrategy);
+        } else if (index === 4) {
+          filtered = this.data.habits.filter(h => h.source === 'custom' && h.hasStrategy);
         } else {
           filtered = this.data.habits.filter(h => h.category === category);
         }

@@ -1,33 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="13" failures="0" errors="0" time="0.919">
-  <testsuite name="修习页面我的Tab" errors="0" failures="0" skipped="0" timestamp="2026-06-25T04:15:37" time="0.758" tests="6">
-    <testcase classname="修习页面我的Tab" name="第一个Tab文案为我的" time="0.067">
+<testsuites name="jest tests" tests="6" failures="0" errors="0" time="0.767">
+  <testsuite name="profile page login flow" errors="0" failures="0" skipped="0" timestamp="2026-07-07T06:21:52" time="0.7" tests="6">
+    <testcase classname="profile page login flow" name="onLogin forces user login and refreshes profile view model" time="0.047">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab只显示已添加且正在进行的习惯" time="0.007">
+    <testcase classname="profile page login flow" name="onLogin logs timeout failures without printing the raw Error stack" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="分类Tab仍按分类展示全部可添加习惯" time="0.006">
+    <testcase classname="profile page login flow" name="onAvatarOpen locks chooseAvatar entry against repeat taps" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab空状态提供添加入口" time="0.006">
+    <testcase classname="profile page login flow" name="onChooseAvatar uploads and saves selected avatar through userService" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="已添加习惯操作菜单提供置顶和取消置顶入口" time="0.006">
+    <testcase classname="profile page login flow" name="onNicknameSubmit trims and saves nickname once logged in" time="0.009">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="修习列表不显示置顶心形图标" time="0.005">
-    </testcase>
-  </testsuite>
-  <testsuite name="homeService.getHomeViewModel" errors="0" failures="0" skipped="0" timestamp="2026-06-25T04:15:38" time="0.073" tests="7">
-    <testcase classname="homeService.getHomeViewModel" name="同日删除后重加同一 habitId，首页只显示一张 checked 卡片并指向已打卡实例" time="0.006">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="首页坚持天数按 habitId 跨生命周期自然日去重" time="0">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="新用户首次添加并打卡时首页坚持天数为 1" time="0">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="首页坚持天数只读取每日最终状态，取消、未打卡、非应修和低可信日期不计入" time="0.001">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="首页习惯默认按添加顺序排序" time="0.016">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="首页置顶习惯排在未置顶习惯前，置顶内部按 pinnedAt 排序" time="0">
-    </testcase>
-    <testcase classname="homeService.getHomeViewModel" name="首页缺少时间字段时按名称和 userHabitId 稳定兜底排序" time="0.001">
+    <testcase classname="profile page login flow" name="confirmClearCache skips pre-clear sync and forces cloud recovery" time="0.002">
     </testcase>
   </testsuite>
 </testsuites>

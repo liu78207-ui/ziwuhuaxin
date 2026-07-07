@@ -30,6 +30,7 @@
 - 用户习惯实例已引入 `userHabitId` 生命周期边界，旧 `MyHabits` 缓存仍作为兼容存储入口存在。
 - 策略版本已按 `policyVersionId` / `userHabitId` 归属，策略修改当天通过锁定字段保持首页和观心一致。
 - 云端新集合方向为 `user_habits`、`habit_policy_versions`，同时保留旧 `user_strategies` 等兼容入口。
+- 自定义修习不进入内置习惯库。自定义修习的 `habitId` 使用 `custom_...` 用户私有目录 ID，`source` 为 `custom`，名称、分类、主题等展示元信息保存在 `userHabit` / `user_habits`；生命周期、策略、打卡和报表仍以 `userHabitId` 为边界。自定义名称变化必须由用户选择“仅修改名称”或“作为新习惯”，后者创建新的 custom `habitId` / `userHabitId` 并保留旧历史。
 
 当前打卡与状态数据状态：
 - 打卡和取消已通过前端 service 生成 operation 并更新 `dailyCheckinState`。

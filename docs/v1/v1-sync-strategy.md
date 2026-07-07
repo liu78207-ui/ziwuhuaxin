@@ -256,6 +256,8 @@ pending 项推荐字段：
 
 `habit/addHabit` pending payload 必须携带本地业务创建日 `createdAt` 和精确添加时间 `addedAt`，并与策略 `startDate` / `effectiveStartDate` 分开同步。云端 `user_habits.createdAt` 表示习惯实例生命周期开始日，不能用未来/自定义计划开始日替代；`user_habits.addedAt` 仅用于首页未置顶习惯的添加顺序排序；`habit_policy_versions.startDate` / `effectiveStartDate` 才表示策略生效日。恢复数据时，观心页依赖 `user_habits.createdAt` 判断创建日前历史为 `not_required`。
 
+自定义习惯名称变化若用户选择“仅修改名称”，同步为 `habit/updateHabitMeta`，不改变 `userHabitId`；若选择“作为新习惯”，必须先入队 `habit/deleteHabit` 软删除旧实例，再入队 `habit/addHabit` 创建新实例，重试不得复活旧 `userHabitId`。
+
 `habit/updatePinned` pending payload 用于同步首页置顶偏好，必须携带 `userHabitId`、`habitId` 和 `pinnedAt`。`pinnedAt` 有值表示置顶并作为置顶内部排序依据；`pinnedAt = null` 表示取消置顶。该字段属于用户展示偏好，不影响打卡状态、报表口径、策略版本或生命周期判断。
 
 重试规则：

@@ -452,6 +452,54 @@ describe('stats page V1 report links', () => {
     expect(wxml).toContain('yh-dot {{dot.level}} {{dot.themeClass}}');
   });
 
+  test('月报日历使用固定七列并在卡片内居中', () => {
+    const wxss = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
+      'utf8'
+    );
+
+    expect(wxss).toMatch(/\.mc-cal\s*\{[^}]*grid-template-columns:\s*repeat\(7,\s*34rpx\)/s);
+    expect(wxss).toMatch(/\.mc-cal\s*\{[^}]*justify-content:\s*center/s);
+    expect(wxss).toMatch(/\.mc-cal\s*\{[^}]*column-gap:\s*8rpx/s);
+    expect(wxss).toMatch(/\.mc-cell\s*\{[^}]*width:\s*34rpx/s);
+    expect(wxss).toMatch(/\.mc-cell\s*\{[^}]*height:\s*34rpx/s);
+    expect(wxss).not.toMatch(/\.mc-cell\s*\{[^}]*width:\s*92%/s);
+    expect(wxss).not.toMatch(/\.mc-cell\s*\{[^}]*aspect-ratio:\s*1/s);
+  });
+
+  test('月报和年报滚动容器收紧横向溢出并隐藏滚动条', () => {
+    const wxml = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxml'),
+      'utf8'
+    );
+    const wxss = fs.readFileSync(
+      path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
+      'utf8'
+    );
+
+    expect(wxml).toContain('<view class="content-inner">');
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*right:\s*-48rpx/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*width:\s*calc\(100vw \+ 48rpx\)/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*overflow-x:\s*hidden/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*padding:\s*270rpx 48rpx 200rpx 0/s);
+    expect(wxss).toMatch(/\.content-inner\s*\{[^}]*width:\s*100vw/s);
+    expect(wxss).toMatch(/\.content-inner\s*\{[^}]*min-width:\s*0/s);
+    expect(wxss).toMatch(/\.content-inner\s*\{[^}]*padding:\s*0 48rpx/s);
+    expect(wxss).toMatch(/\.content-inner\s*\{[^}]*box-sizing:\s*border-box/s);
+    expect(wxss).toMatch(/\.month-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(0,\s*1fr\)/s);
+    expect(wxss).toMatch(/\.month-grid\s*\{[^}]*width:\s*100%/s);
+    expect(wxss).toMatch(/\.month-grid\s*\{[^}]*overflow:\s*hidden/s);
+    expect(wxss).toMatch(/\.m-card\s*\{[^}]*min-width:\s*0/s);
+    expect(wxss).toMatch(/\.m-card\s*\{[^}]*overflow:\s*hidden/s);
+    expect(wxss).toMatch(/\.year-list\s*\{[^}]*overflow-x:\s*hidden/s);
+    expect(wxss).toMatch(/\.y-card\s*\{[^}]*min-width:\s*0/s);
+    expect(wxss).toMatch(/\.y-card\s*\{[^}]*overflow:\s*hidden/s);
+    expect(wxss).toMatch(/\.yc-heatmap\s*\{[^}]*overflow:\s*hidden/s);
+    expect(wxss).toMatch(/\.content-scroll \*::-webkit-scrollbar/s);
+    expect(wxss).toMatch(/\.content-inner \*::-webkit-scrollbar/s);
+    expect(wxss).toMatch(/\.year-list::-webkit-scrollbar/s);
+  });
+
   test('周报应修未完成使用主题描边，非应修和未来使用浅灰色块', () => {
     const wxss = fs.readFileSync(
       path.join(__dirname, '../../../miniprogram/pages/stats/stats.wxss'),
@@ -1495,6 +1543,50 @@ describe('stats page V1 report links', () => {
       expectValidReportTheme(card.themeClass);
       expect(card.heatmap.some(day => day.level === 'level-1')).toBe(true);
     });
+  });
+
+  test('custom habit without icon uses unified custom icon instead of garbled fallback icon', async () => {
+    jest.useFakeTimers().setSystemTime(new Date(2026, 4, 16, 12, 0, 0));
+
+    const customHabit = makeUserHabit({
+      userHabitId: 'uh_custom_taekwondo',
+      habitId: 'custom_taekwondo',
+      name: '拾拳道',
+      category: '自定义',
+      themeClass: 't-purple',
+      freqType: 'daily',
+      freqRules: 1,
+      freqCategory: 'everyday',
+      planStartDate: '2026-05-01',
+      status: 'active'
+    });
+
+    const userHabits = [customHabit];
+    const policyVersions = [
+      makePolicyVersion({
+        userHabitId: customHabit.userHabitId,
+        habitId: customHabit.habitId,
+        freqType: 'daily',
+        freqRules: 1,
+        freqCategory: 'everyday',
+        startDate: '2026-05-01'
+      })
+    ];
+    const dailyStates = [
+      makeDailyState({ userHabitId: customHabit.userHabitId, date: '2026-05-11', status: 'checked' })
+    ];
+
+    const { page } = loadStatsPageWithV1({ userHabits, policyVersions, dailyStates });
+    page.data.currentWeekStart = weekStartTimestamp(5, 11);
+
+    await page.loadWeekData();
+
+    const row = page.data.habitMatrix.find(item => item.habitId === 'custom_taekwondo');
+    expect(row).toBeDefined();
+    expect(row.name).toBe('拾拳道');
+    expect(row.iconUrl).toBe('/assets/icons/habit-zidingyi.png');
+    expect(row.icon).toBeNull();
+    expect(row.themeClass).toBe('t-purple');
   });
 
   test('same habitId deleted and re-added with different userHabitId shows correct lifecycle', async () => {

@@ -60,9 +60,9 @@
           <text class="stamp-icon">✓</text>
         </view>
       </view>
-      
+
       <!-- 习惯信息 -->
-      <text class="gi-name">{{item.title}}</text>
+      <text class="gi-name">{{item.title || item.name}}</text>
       <text class="gi-sub">{{item.isChecked ? '已坚持 ' + item.streak + ' 天' : (item.meta || '待完成')}}</text>
     </view>
   </view>

@@ -242,9 +242,13 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = 
     }
   )
 
-  // 补充 builtInHabit 信息
-  let name = userHabit.name || ''
-  let theme = userHabit.themeClass || 't-blue'
+  // 补充展示元信息：自定义习惯优先读 userHabit，官方习惯回退到内置库
+  const displayMeta = typeof habitService.getHabitDisplayMeta === 'function'
+    ? habitService.getHabitDisplayMeta(userHabit)
+    : null
+  let name = displayMeta?.name || userHabit.name || userHabit.title || userHabit.habitTitle || userHabit.habit_title || ''
+  let theme = displayMeta?.themeClass || userHabit.themeClass || 't-blue'
+  let category = displayMeta?.category || userHabit.category || ''
 
   try {
     const builtIn = context?.builtInByHabitId
@@ -253,6 +257,7 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = 
     if (builtIn) {
       name = builtIn.name || name
       theme = builtIn.themeClass || theme
+      category = builtIn.category || category
     }
   } catch (e) {
     // ignore
@@ -262,6 +267,7 @@ function buildInstanceReport(userHabit, startDate, endDate, todayKey, context = 
     ...instanceReport,
     habitId: userHabit.habitId,
     name,
+    category,
     theme,
     _policyVersions: policyVersions
   }
@@ -287,6 +293,12 @@ function buildAggregatedReports(startDate, endDate, todayKey, context = null) {
   // 3. 删除当天未打卡仍由裁决结果保持低压力口径，不单独撑出报表行。
   const instanceReports = userHabits
     .filter(h => {
+      const isCustom = h && (h.source === 'custom' || String(h.habitId || '').indexOf('custom_') === 0)
+      const customName = String((h && (h.name || h.title || h.habitTitle || h.habit_title)) || '')
+        .replace(/[\r\n\t]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+      if (isCustom && !customName) return false
       const pvs = reportContext.policyVersionsByUserHabitId
         ? (reportContext.policyVersionsByUserHabitId[h.userHabitId] || [])
         : fetchPolicyVersionsByUserHabitId(h.userHabitId)
@@ -420,6 +432,7 @@ function adaptToLegacyFormat(aggregated, startDate, endDate, todayKey, options =
     const habit = {
       habitId: group.habitId,
       name: representative.name || group.name || '',
+      category: representative.category || group.category || '',
       themeClass: representative.theme || group.theme || '',
       isDeleted: group.instances.every(inst => inst.deletedAt),
       deletedAt: representative.deletedAt || null

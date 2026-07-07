@@ -19,102 +19,104 @@
 
   <!-- 可滚动内容区域 -->
   <scroll-view class="content-scroll" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
-    <!-- 日期切换控件 -->
-    <view class="date-control">
-      <text class="dc-arrow" bindtap="prevPeriod">‹</text>
-      <view class="date-info">
-        <text class="dc-title">{{dateTitle}}</text>
-        <text class="dc-subtitle" wx:if="{{dateSubtitle}}">{{dateSubtitle}}</text>
+    <view class="content-inner">
+      <!-- 日期切换控件 -->
+      <view class="date-control">
+        <text class="dc-arrow" bindtap="prevPeriod">‹</text>
+        <view class="date-info">
+          <text class="dc-title">{{dateTitle}}</text>
+          <text class="dc-subtitle" wx:if="{{dateSubtitle}}">{{dateSubtitle}}</text>
+        </view>
+        <text class="dc-arrow" bindtap="nextPeriod">›</text>
       </view>
-      <text class="dc-arrow" bindtap="nextPeriod">›</text>
-    </view>
 
-    <!-- 周报表视图 -->
-    <view class="stat-view {{currentTab === 'week' ? 'active' : ''}}">
-      <!-- 打卡矩阵卡片 -->
-      <view class="card-panel">
-        <view class="cp-title">本周修习轨迹</view>
-        <view class="week-tracker">
-          <!-- 习惯打卡行 -->
-          <view class="wt-row {{item.themeClass}}" wx:for="{{habitMatrix}}" wx:key="habitId">
-            <view class="wt-label {{item.themeClass}}">
-              <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
-              <text wx:else>{{item.icon || '🔥'}}</text>
-              <text class="wt-name">{{item.name}}</text>
-            </view>
-            <view class="wt-days {{item.themeClass}}">
-              <view class="wt-dot {{day.displayStatus || day.status}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
+      <!-- 周报表视图 -->
+      <view class="stat-view {{currentTab === 'week' ? 'active' : ''}}">
+        <!-- 打卡矩阵卡片 -->
+        <view class="card-panel">
+          <view class="cp-title">本周修习轨迹</view>
+          <view class="week-tracker">
+            <!-- 习惯打卡行 -->
+            <view class="wt-row {{item.themeClass}}" wx:for="{{habitMatrix}}" wx:key="habitId">
+              <view class="wt-label {{item.themeClass}}">
+                <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
+                <text wx:else>{{item.icon || '🔥'}}</text>
+                <text class="wt-name">{{item.name || item.title}}</text>
+              </view>
+              <view class="wt-days {{item.themeClass}}">
+                <view class="wt-dot {{day.displayStatus || day.status}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index"></view>
+              </view>
             </view>
           </view>
         </view>
-      </view>
 
-      <!-- 数据统计面板 -->
-      <view class="stat-board">
-        <view class="sb-card">
-          <view class="sb-name">打卡完成率</view>
-          <view class="sb-val">{{stats.checkinRate}}<text>%</text></view>
-        </view>
-        <view class="sb-card">
-          <view class="sb-name">累计修习</view>
-          <view class="sb-val primary">{{stats.totalCount}}<text>次</text></view>
-        </view>
-        <view class="sb-card">
-          <view class="sb-name">坚持时日</view>
-          <view class="sb-val accent">{{stats.checkinDays}}<text>天</text></view>
-        </view>
-        <view class="sb-card">
-          <view class="sb-name">最长连日</view>
-          <view class="sb-val streak">{{stats.maxStreak}}<text>天</text></view>
-        </view>
-      </view>
-    </view>
-
-    <!-- 月报表视图 -->
-    <view class="stat-view {{currentTab === 'month' ? 'active' : ''}}">
-      <view class="month-grid">
-        <view class="m-card {{item.themeClass}}" wx:for="{{monthHabits}}" wx:key="habitId">
-          <view class="mc-header">
-            <view class="mc-content">
-              <view class="mc-color-bg"></view>
-              <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
-              <view class="mc-icon" wx:else>{{item.icon || '🔥'}}</view>
-              <view class="mc-title">{{item.name}}</view>
-            </view>
+        <!-- 数据统计面板 -->
+        <view class="stat-board">
+          <view class="sb-card">
+            <view class="sb-name">打卡完成率</view>
+            <view class="sb-val">{{stats.checkinRate}}<text>%</text></view>
           </view>
-          <view class="mc-cal">
-            <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.displayStatus || day.status}} {{day.done ? 'done' : ''}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
-              {{day.date}}
-            </view>
+          <view class="sb-card">
+            <view class="sb-name">累计修习</view>
+            <view class="sb-val primary">{{stats.totalCount}}<text>次</text></view>
           </view>
-          <view class="mc-stats">
-            <view class="ms-item">
-              <text class="ms-icon done-icon">✓</text>
-              <text class="ms-val">{{item.rate}}%</text>
-            </view>
-            <view class="ms-item">
-              <text class="ms-icon day-icon">⊞</text>
-              <text class="ms-val">{{item.daysCount}}天</text>
-            </view>
+          <view class="sb-card">
+            <view class="sb-name">坚持时日</view>
+            <view class="sb-val accent">{{stats.checkinDays}}<text>天</text></view>
+          </view>
+          <view class="sb-card">
+            <view class="sb-name">最长连日</view>
+            <view class="sb-val streak">{{stats.maxStreak}}<text>天</text></view>
           </view>
         </view>
       </view>
-    </view>
 
-    <!-- 年报表视图 -->
-    <view class="stat-view {{currentTab === 'year' ? 'active' : ''}}">
-      <view class="year-list">
-        <view class="y-card {{item.themeClass}}" wx:for="{{yearHabits}}" wx:key="habitId">
-          <view class="yc-header">
-            <view class="yc-left">
-              <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
-              <view class="yc-icon" wx:else>{{item.icon || '🔥'}}</view>
-              <text class="yc-title">{{item.name}}</text>
+      <!-- 月报表视图 -->
+      <view class="stat-view {{currentTab === 'month' ? 'active' : ''}}">
+        <view class="month-grid">
+          <view class="m-card {{item.themeClass}}" wx:for="{{monthHabits}}" wx:key="habitId">
+            <view class="mc-header">
+              <view class="mc-content">
+                <view class="mc-color-bg"></view>
+                <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
+                <view class="mc-icon" wx:else>{{item.icon || '🔥'}}</view>
+                <view class="mc-title">{{item.name || item.title}}</view>
+              </view>
             </view>
-            <view class="yc-total">{{item.totalDays}} 天</view>
+            <view class="mc-cal">
+              <view class="mc-cell {{day.empty ? 'empty' : ''}} {{day.displayStatus || day.status}} {{day.done ? 'done' : ''}} {{day.themeClass}}" wx:for="{{item.days}}" wx:for-item="day" wx:key="index">
+                {{day.date}}
+              </view>
+            </view>
+            <view class="mc-stats">
+              <view class="ms-item">
+                <text class="ms-icon done-icon">✓</text>
+                <text class="ms-val">{{item.rate}}%</text>
+              </view>
+              <view class="ms-item">
+                <text class="ms-icon day-icon">⊞</text>
+                <text class="ms-val">{{item.daysCount}}天</text>
+              </view>
+            </view>
           </view>
-          <view class="yc-heatmap">
-            <view class="yh-dot {{dot.level}} {{dot.themeClass}}" wx:for="{{item.heatmap}}" wx:for-item="dot" wx:key="index"></view>
+        </view>
+      </view>
+
+      <!-- 年报表视图 -->
+      <view class="stat-view {{currentTab === 'year' ? 'active' : ''}}">
+        <view class="year-list">
+          <view class="y-card {{item.themeClass}}" wx:for="{{yearHabits}}" wx:key="habitId">
+            <view class="yc-header">
+              <view class="yc-left">
+                <image class="stat-icon" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
+                <view class="yc-icon" wx:else>{{item.icon || '🔥'}}</view>
+                <text class="yc-title">{{item.name || item.title}}</text>
+              </view>
+              <view class="yc-total">{{item.totalDays}} 天</view>
+            </view>
+            <view class="yc-heatmap">
+              <view class="yh-dot {{dot.level}} {{dot.themeClass}}" wx:for="{{item.heatmap}}" wx:for-item="dot" wx:key="index"></view>
+            </view>
           </view>
         </view>
       </view>

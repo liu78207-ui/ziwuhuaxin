@@ -3,6 +3,7 @@
 
 const ID_PREFIXES = {
   USER_HABIT: 'uh_',           // 用户习惯实例 ID
+  CUSTOM_HABIT: 'custom_',     // 自定义习惯目录 ID
   POLICY_VERSION: 'pv_',        // 策略版本 ID
   CHECKIN_OPERATION: 'op_',    // 打卡操作 ID
   DAILY_STATE: 'ds_',          // 每日状态 ID
@@ -31,6 +32,14 @@ function generatePrefixedId(prefix, habitId) {
  */
 function generateUserHabitId(habitId) {
   return generatePrefixedId(ID_PREFIXES.USER_HABIT, habitId)
+}
+
+/**
+ * 生成自定义 habitId
+ * @returns {string}
+ */
+function generateCustomHabitId() {
+  return generatePrefixedId(ID_PREFIXES.CUSTOM_HABIT)
 }
 
 /**
@@ -63,6 +72,7 @@ function generateStateId(habitId) {
 module.exports = {
   ID_PREFIXES,
   generatePrefixedId,
+  generateCustomHabitId,
   generateUserHabitId,
   generatePolicyVersionId,
   generateOperationId,

@@ -68,7 +68,8 @@ function getThemeByCategory(category) {
   const themeMap = {
     '运动类': 't-green',
     '理疗类': 't-red',
-    '起居类': 't-yellow'
+    '起居类': 't-yellow',
+    '自定义': 't-purple'
   };
   return themeMap[category] || 't-blue';
 }

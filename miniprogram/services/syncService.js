@@ -18,6 +18,8 @@ const storageService = require('./storageService')
 const cloudService = require('./cloudService')
 const eventBus = require('./eventBus')
 
+const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png'
+
 // ==================== 并发保护 ====================
 
 let isProcessing = false
@@ -54,6 +56,7 @@ const CLOUD_FUNCTION_MAP = {
     addHabit: 'syncHabit',
     deleteHabit: 'syncHabit',
     updatePolicy: 'syncHabit',
+    updateHabitMeta: 'syncHabit',
     updatePinned: 'syncHabit'
   }
 }
@@ -427,22 +430,27 @@ async function recoverFromCloud(options = {}) {
 
   // 恢复 userHabits -> MyHabits
   if (userHabits && Array.isArray(userHabits)) {
-    const migratedHabits = userHabits.map((h, sourceIndex) => cleanRecoveredObject({
-      userHabitId: h.userHabitId,
-      habitId: h.habitId,
-      name: h.name || h.title || h.habitTitle,
-      category: h.category || '运动类',
-      targetMinutes: h.targetMinutes || h.duration || 20,
-      themeClass: h.themeClass || 't-default',
-      iconUrl: h.iconUrl,
-      status: h.status || 'active',
-      createdAt: h.createdAt,
-      addedAt: h.addedAt || null,
-      pinnedAt: h.pinnedAt || null,
-      deletedAt: h.deletedAt,
-      latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId),
-      sourceIndex
-    }))
+    const migratedHabits = userHabits.map((h, sourceIndex) => {
+      const isCustom = h.source === 'custom' || String(h.habitId || '').indexOf('custom_') === 0
+      return cleanRecoveredObject({
+        userHabitId: h.userHabitId,
+        habitId: h.habitId,
+        source: isCustom ? 'custom' : (h.source || 'system'),
+        name: h.name || h.title || h.habitTitle,
+        category: h.category || (isCustom ? '自定义' : '运动类'),
+        remark: h.remark || '',
+        targetMinutes: h.targetMinutes || h.duration || 20,
+        themeClass: h.themeClass || (isCustom ? 't-purple' : 't-default'),
+        iconUrl: h.iconUrl || (isCustom ? CUSTOM_ICON_URL : ''),
+        status: h.status || 'active',
+        createdAt: h.createdAt,
+        addedAt: h.addedAt || null,
+        pinnedAt: h.pinnedAt || null,
+        deletedAt: h.deletedAt,
+        latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId),
+        sourceIndex
+      })
+    })
       .sort(compareRecoveredHabitOrder)
       .map(({ sourceIndex, ...habit }) => habit)
     storageService.setMyHabits(migratedHabits)
@@ -458,6 +466,9 @@ async function recoverFromCloud(options = {}) {
     storageService.setDailyCheckinStates(dailyStates)
   }
 
+  // 云端恢复成功后以云端快照为准，丢弃旧本地 pending，避免恢复后重放过期操作再次污染云端。
+  storageService.setPendingOperations([])
+
   return { success: true, source: 'recoverData', restored: true }
 }
 
@@ -466,13 +477,18 @@ async function recoverFromCloud(options = {}) {
  */
 function needsLocalRecovery() {
   const habits = storageService.getMyHabits()
-  // 如果本地没有任何习惯实例，则需要从云端恢复
-  return !habits || habits.length === 0
+  const policyVersions = storageService.getPolicyVersions()
+  const dailyStates = storageService.getDailyCheckinStates()
+  // 本地核心缓存任一关键部分缺失，都应从云端恢复，避免 MyHabits 存在但报表事实为空的半恢复状态。
+  if (!habits || habits.length === 0) return true
+  if (!policyVersions || policyVersions.length === 0) return true
+  if (!dailyStates || dailyStates.length === 0) return true
+  return false
 }
 
 async function bootstrapCloudData(options = {}) {
   try {
-    if (!needsLocalRecovery()) {
+    if (!options.force && !needsLocalRecovery()) {
       return {
         success: true,
         source: 'localCache',
@@ -481,7 +497,8 @@ async function bootstrapCloudData(options = {}) {
       }
     }
 
-    const result = await recoverFromCloud(options)
+    const { force, ...recoverOptions } = options
+    const result = await recoverFromCloud(recoverOptions)
     if (result && result.success && result.restored) {
       eventBus.emit('sync:recovered', {
         source: result.source,

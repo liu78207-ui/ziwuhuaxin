@@ -41,7 +41,8 @@ function getThemeClass(category) {
   const themeMap = {
     '运动类': 'theme-jade',
     '理疗类': 'theme-fire',
-    '起居类': 'theme-green'
+    '起居类': 'theme-green',
+    '自定义': 't-purple'
   }
   return themeMap[category] || 'theme-jade'
 }
@@ -50,7 +51,8 @@ function getEmojiByCategory(category) {
   const emojiMap = {
     '运动类': '🏃',
     '理疗类': '🔥',
-    '起居类': '🍵'
+    '起居类': '🍵',
+    '自定义': '养'
   }
   return emojiMap[category] || '🧘'
 }
@@ -211,21 +213,25 @@ async function getHomeViewModel() {
     const isDone = state && state.status === 'checked'
     const habitId = String(habit.habitId)
     const practiceDays = practiceDaysByHabitId.get(habitId) || 0
-    if ((!habit.name || !habit.category) && !builtInHabitById.has(habitId)) {
+    const displayMeta = typeof habitService.getHabitDisplayMeta === 'function'
+      ? habitService.getHabitDisplayMeta(habit)
+      : null
+    if ((!habit.name || !habit.category) && !displayMeta && !builtInHabitById.has(habitId)) {
       const builtInHabit = typeof habitService.getBuiltInHabitDef === 'function'
         ? habitService.getBuiltInHabitDef(habitId)
         : null
       builtInHabitById.set(habitId, builtInHabit || {})
     }
     const builtInHabit = builtInHabitById.get(habitId) || {}
-    const name = habit.name || builtInHabit.name || ''
-    const category = habit.category || builtInHabit.category || '运动类'
+    const name = displayMeta?.name || habit.name || builtInHabit.name || ''
+    const category = displayMeta?.category || habit.category || builtInHabit.category || '运动类'
 
     return {
       _id: habit.userHabitId,
       habitId: habit.habitId,
       sourceIndex,
       title: name,
+      name,
       category,
       duration: habit.duration,
       isChecked: isDone,
@@ -235,9 +241,9 @@ async function getHomeViewModel() {
       addedAt: habit.addedAt || null,
       streak: practiceDays,
       bgColor: '',
-      iconUrl: getIconUrl(name),
-      themeClass: getThemeClass(category),
-      emoji: getEmojiByCategory(category),
+      iconUrl: displayMeta?.iconUrl || getIconUrl(name),
+      themeClass: displayMeta?.themeClass || getThemeClass(category),
+      emoji: displayMeta?.emoji || getEmojiByCategory(category),
       meta: `${habit.duration}分钟`
     }
   }).sort(compareHomeTaskOrder).map((task, index) => ({

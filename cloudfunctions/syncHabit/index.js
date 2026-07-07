@@ -17,6 +17,9 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command || {};
+const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
+const CUSTOM_HABIT_LIBRARY_LIMIT = 12;
+const CUSTOM_ACTIVE_HABIT_LIMIT = 5;
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -44,6 +47,42 @@ function cleanData(data) {
   }, {});
 }
 
+function normalizeCustomName(value) {
+  return String(value || '')
+    .replace(/[\r\n\t]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 12);
+}
+
+function isCustomHabitRecord(record) {
+  return record && (record.source === 'custom' || String(record.habitId || '').indexOf('custom_') === 0);
+}
+
+function hasValidCustomName(record) {
+  return normalizeCustomName(record.name || record.title || record.habitTitle || record.habit_title).length > 0;
+}
+
+function getCustomHabitId(record) {
+  return String(record && record.habitId || '');
+}
+
+async function assertCustomHabitLimits(openid, targetHabitId) {
+  const habitsRes = await db.collection('user_habits').where({ _openid: openid }).get();
+  const customHabits = (habitsRes.data || []).filter(record => isCustomHabitRecord(record) && hasValidCustomName(record));
+  const libraryHabitIds = new Set(customHabits.map(getCustomHabitId).filter(Boolean));
+  const activeCount = customHabits.filter(record => record.status === 'active').length;
+  const willCreateLibraryEntry = targetHabitId && !libraryHabitIds.has(String(targetHabitId));
+
+  if (willCreateLibraryEntry && libraryHabitIds.size >= CUSTOM_HABIT_LIBRARY_LIMIT) {
+    return { success: false, code: 'CUSTOM_HABIT_LIBRARY_LIMIT_REACHED', message: '自定义习惯已达 12 个上限' };
+  }
+  if (activeCount >= CUSTOM_ACTIVE_HABIT_LIMIT) {
+    return { success: false, code: 'CUSTOM_ACTIVE_HABIT_LIMIT_REACHED', message: '最多同时启用 5 个自定义习惯' };
+  }
+  return null;
+}
+
 function removeFieldValue() {
   return typeof _.remove === 'function' ? _.remove() : null;
 }
@@ -65,6 +104,12 @@ exports.main = async (event, context) => {
     userHabitId,
     habitId,
     policyVersionId,
+    source,
+    name,
+    category,
+    remark,
+    themeClass,
+    iconUrl,
     status, // 'active' | 'deleted'
     duration,
     frequencyType,
@@ -89,12 +134,66 @@ exports.main = async (event, context) => {
     return { success: false, code: 'NO_OPENID', message: '无法获取用户信息' };
   }
 
+  if (action === 'cleanupNamelessCustomHabits') {
+    try {
+      const habitsRes = await db.collection('user_habits').where({ _openid: openid }).get();
+      const namelessCustomHabits = (habitsRes.data || []).filter(record =>
+        isCustomHabitRecord(record) && !hasValidCustomName(record)
+      );
+      const removedUserHabitIds = namelessCustomHabits.map(record => record.userHabitId).filter(Boolean);
+
+      for (const record of namelessCustomHabits) {
+        await db.collection('user_habits').doc(record._id).remove();
+      }
+
+      for (const targetUserHabitId of removedUserHabitIds) {
+        const policyRes = await db.collection('habit_policy_versions').where({
+          _openid: openid,
+          userHabitId: targetUserHabitId
+        }).get();
+        for (const record of policyRes.data || []) {
+          await db.collection('habit_policy_versions').doc(record._id).remove();
+        }
+
+        const stateRes = await db.collection('daily_checkin_states').where({
+          _openid: openid,
+          userHabitId: targetUserHabitId
+        }).get();
+        for (const record of stateRes.data || []) {
+          await db.collection('daily_checkin_states').doc(record._id).remove();
+        }
+
+        const opRes = await db.collection('checkin_operations').where({
+          _openid: openid,
+          userHabitId: targetUserHabitId
+        }).get();
+        for (const record of opRes.data || []) {
+          await db.collection('checkin_operations').doc(record._id).remove();
+        }
+      }
+
+      return {
+        success: true,
+        action,
+        removedCount: namelessCustomHabits.length,
+        removedUserHabitIds,
+        serverTime: Date.now()
+      };
+    } catch (error) {
+      return {
+        success: false,
+        code: 'CLEANUP_FAILED',
+        message: error && error.message ? error.message : String(error || '清理失败')
+      };
+    }
+  }
+
   if (!userHabitId || !habitId) {
     return { success: false, code: 'MISSING_PARAMS', message: '缺少 userHabitId 或 habitId' };
   }
 
-  if (!action || !['addHabit', 'deleteHabit', 'updatePolicy', 'updatePinned'].includes(action)) {
-    return { success: false, code: 'INVALID_ACTION', message: 'action 必须为 addHabit、deleteHabit、updatePolicy 或 updatePinned' };
+  if (!action || !['addHabit', 'deleteHabit', 'updatePolicy', 'updatePinned', 'updateHabitMeta', 'cleanupNamelessCustomHabits'].includes(action)) {
+    return { success: false, code: 'INVALID_ACTION', message: 'action 必须为 addHabit、deleteHabit、updatePolicy、updatePinned、updateHabitMeta 或 cleanupNamelessCustomHabits' };
   }
 
   const serverTime = Date.now();
@@ -103,6 +202,10 @@ exports.main = async (event, context) => {
     // ========== userHabit 同步 ==========
 
     if (action === 'addHabit') {
+      if ((source === 'custom' || String(habitId || '').indexOf('custom_') === 0) && normalizeCustomName(name).length < 2) {
+        return { success: false, code: 'INVALID_NAME', message: '自定义修习名称需为 2-12 个字' };
+      }
+      const isCustomAdd = source === 'custom' || String(habitId || '').indexOf('custom_') === 0;
       // 检查是否已存在（幂等）
       const existingHabit = await db.collection('user_habits').where({
         _openid: openid,
@@ -114,11 +217,25 @@ exports.main = async (event, context) => {
         const existing = existingHabit.data[0];
         const habitCreatedAt = createdAt || existing.createdAt || startDate || toDateStr(new Date());
         const habitAddedAt = addedAt || existing.addedAt || null;
-        if (existing.status !== (status || 'active') || !existing.createdAt || (addedAt && !existing.addedAt)) {
+        const needsMetaUpdate = Boolean(
+          (source && existing.source !== source) ||
+          (name && existing.name !== name) ||
+          (category && existing.category !== category) ||
+          (remark && existing.remark !== remark) ||
+          (themeClass && existing.themeClass !== themeClass) ||
+          (iconUrl && existing.iconUrl !== iconUrl)
+        );
+        if (existing.status !== (status || 'active') || !existing.createdAt || (addedAt && !existing.addedAt) || needsMetaUpdate) {
           // 状态不一致，需要更新
           await db.collection('user_habits').doc(existing._id).update({
             data: cleanData({
               status: status || 'active',
+              source: source || existing.source || 'system',
+              name: name || existing.name,
+              category: category || existing.category,
+              remark: remark || existing.remark,
+              themeClass: themeClass || existing.themeClass,
+              iconUrl: iconUrl || existing.iconUrl || (source === 'custom' ? CUSTOM_ICON_URL : ''),
               createdAt: habitCreatedAt,
               addedAt: habitAddedAt,
               pinnedAt,
@@ -129,12 +246,22 @@ exports.main = async (event, context) => {
         // 注意：不直接 return，必须继续执行 policyVersion 同步
         // 以确保 userHabit 和 policyVersion 都达到目标状态
       } else {
+        if (isCustomAdd) {
+          const limitError = await assertCustomHabitLimits(openid, String(habitId));
+          if (limitError) return limitError;
+        }
         // 写入 user_habits
         await db.collection('user_habits').add({
           data: cleanData({
             _openid: openid,
             userHabitId,
             habitId: String(habitId),
+            source: source || 'system',
+            name,
+            category,
+            remark,
+            themeClass,
+            iconUrl: iconUrl || (source === 'custom' ? CUSTOM_ICON_URL : ''),
             status: status || 'active',
             createdAt: createdAt || startDate || toDateStr(new Date()),
             addedAt: addedAt || null,
@@ -238,6 +365,32 @@ exports.main = async (event, context) => {
           pinnedAt: nullableFieldValue(pinnedAt || null),
           updatedAt: serverTime
         }
+      });
+    } else if (action === 'updateHabitMeta') {
+      const existingHabit = await db.collection('user_habits').where({
+        _openid: openid,
+        userHabitId: userHabitId
+      }).get();
+
+      if (!existingHabit.data || existingHabit.data.length === 0) {
+        return { success: false, code: 'USER_HABIT_NOT_FOUND', message: '未找到 userHabit' };
+      }
+
+      const normalizedName = String(name || '').trim().slice(0, 12);
+      if (normalizedName.length < 2) {
+        return { success: false, code: 'INVALID_NAME', message: '自定义修习名称需为 2-12 个字' };
+      }
+
+      await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
+        data: cleanData({
+          source: 'custom',
+          name: normalizedName,
+          category: category || '自定义',
+          remark: String(remark || '').trim().slice(0, 40),
+          themeClass: themeClass || 't-purple',
+          iconUrl: iconUrl || CUSTOM_ICON_URL,
+          updatedAt: serverTime
+        })
       });
     }
 

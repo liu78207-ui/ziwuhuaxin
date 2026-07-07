@@ -86,11 +86,40 @@
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  right: -48rpx;
   bottom: 0;
   overflow-y: auto;
-  padding: 270rpx 48rpx 200rpx;
+  overflow-x: hidden;
+  width: calc(100vw + 48rpx);
+  padding: 270rpx 48rpx 200rpx 0;
   box-sizing: border-box;
+}
+
+.content-scroll,
+.content-inner,
+.month-grid,
+.year-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.content-scroll::-webkit-scrollbar,
+.content-inner::-webkit-scrollbar,
+.month-grid::-webkit-scrollbar,
+.year-list::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  color: transparent;
+  background: transparent !important;
+}
+
+.content-inner {
+  width: 100vw;
+  min-width: 0;
+  padding: 0 48rpx;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* ============================================
@@ -359,8 +388,12 @@
    ============================================ */
 .month-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 24rpx;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .m-card {
@@ -371,6 +404,9 @@
   border: 1rpx solid var(--border-light);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .mc-header {
@@ -425,18 +461,21 @@
 
 .mc-cal {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8rpx 6rpx;
+  grid-template-columns: repeat(7, 34rpx);
+  row-gap: 8rpx;
+  column-gap: 8rpx;
+  justify-content: center;
   justify-items: center;
 }
 
 .mc-cell {
-  width: 92%;
-  aspect-ratio: 1;
+  width: 34rpx;
+  height: 34rpx;
   border-radius: 8rpx;
   display: flex;
   justify-content: center;
   align-items: center;
+  box-sizing: border-box;
   font-size: 20rpx;
   font-family: sans-serif;
   background: #F4F6F8;
@@ -547,6 +586,10 @@
   display: flex;
   flex-direction: column;
   gap: 32rpx;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .y-card {
@@ -555,6 +598,9 @@
   padding: 32rpx;
   box-shadow: var(--shadow-card);
   border: 1rpx solid var(--border-light);
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .yc-header {
@@ -611,6 +657,9 @@
   grid-template-columns: repeat(53, 1fr);
   grid-template-rows: repeat(7, 1fr);
   gap: 4rpx;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 .yh-dot {

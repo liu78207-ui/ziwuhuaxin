@@ -672,6 +672,7 @@ function aggregateByHabitId(instanceReports) {
       groups[habitId] = {
         habitId,
         name: report.name,
+        category: report.category,
         theme: report.theme,
         instances: []
       }

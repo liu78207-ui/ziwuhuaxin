@@ -16,12 +16,15 @@ function getErrorMessage(err) {
 
 async function clearLocalUserCacheAndRecover(options = {}) {
   const dailyStateDays = options.dailyStateDays || 90
+  const skipPreClearSync = options.skipPreClearSync !== false
   let recoveryError = ''
 
-  try {
-    await syncService.recoverOrSync()
-  } catch (e) {
-    console.warn('cacheService.recoverOrSync failed before clear:', getErrorMessage(e))
+  if (!skipPreClearSync) {
+    try {
+      await syncService.recoverOrSync()
+    } catch (e) {
+      console.warn('cacheService.recoverOrSync failed before clear:', getErrorMessage(e))
+    }
   }
 
   const clearResult = storageService.clearUserDataCache()
@@ -39,6 +42,7 @@ async function clearLocalUserCacheAndRecover(options = {}) {
       success: false,
       cleared: false,
       restored: false,
+      skippedPreClearSync: skipPreClearSync,
       failedKeys,
       recoveryError: ''
     }
@@ -46,7 +50,7 @@ async function clearLocalUserCacheAndRecover(options = {}) {
 
   try {
     await userService.login({ force: true })
-    const recoverResult = await syncService.bootstrapCloudData({ dailyStateDays })
+    const recoverResult = await syncService.recoverFromCloud({ dailyStateDays })
     if (!recoverResult.success) {
       recoveryError = recoverResult.error || '云端恢复失败'
     }
@@ -55,6 +59,8 @@ async function clearLocalUserCacheAndRecover(options = {}) {
       success: true,
       cleared: true,
       restored: Boolean(recoverResult.success && recoverResult.restored),
+      restoreSource: recoverResult.source || '',
+      skippedPreClearSync: skipPreClearSync,
       failedKeys,
       recoveryError
     }
@@ -64,6 +70,8 @@ async function clearLocalUserCacheAndRecover(options = {}) {
       success: true,
       cleared: true,
       restored: false,
+      restoreSource: '',
+      skippedPreClearSync: skipPreClearSync,
       failedKeys,
       recoveryError
     }

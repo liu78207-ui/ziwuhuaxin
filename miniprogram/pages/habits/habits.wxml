@@ -24,23 +24,29 @@
 
   <!-- 习惯列表 -->
   <scroll-view class="habit-list" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
-    <view class="list-card {{item.themeClass}}" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" bindlongpress="onHabitLongPress" data-habit="{{item}}">
-      <!-- 左侧图标 -->
-      <view class="lc-icon">
-        <image class="icon-img-sm" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
-        <text wx:else>{{item.emoji || '养'}}</text>
-      </view>
+    <view class="list-card {{item.themeClass}} {{item.isCustomAddCard ? 'custom-add-card' : ''}}" wx:for="{{filteredHabits}}" wx:key="_id" bindtap="openStrategyModal" bindlongpress="onHabitLongPress" data-habit="{{item}}">
+      <block wx:if="{{item.isCustomAddCard}}">
+        <text class="custom-add-plus">+</text>
+      </block>
+      <block wx:else>
+        <!-- 左侧图标 -->
+        <view class="lc-icon">
+          <image class="icon-img-sm" src="{{item.iconUrl}}" mode="aspectFit" wx:if="{{item.iconUrl}}"></image>
+          <text class="custom-initial" wx:elif="{{item.displayInitial}}">{{item.displayInitial}}</text>
+          <text wx:else>{{item.emoji || '养'}}</text>
+        </view>
 
-      <!-- 中间信息 -->
-      <view class="card-info">
-        <text class="lc-title">{{item.title}}</text>
-        <text class="lc-desc">{{item.strategyText || item.frequencyText || '每日 · ' + item.default_duration + '分钟'}}</text>
-      </view>
+        <!-- 中间信息 -->
+        <view class="card-info">
+          <text class="lc-title">{{item.title || item.name || item.habitTitle || item.habit_title}}</text>
+          <text class="lc-desc">{{item.strategyText || item.frequencyText || '每日 · ' + item.default_duration + '分钟'}}</text>
+        </view>
 
-      <!-- 右侧添加按钮 -->
-      <view class="add-btn {{item.hasStrategy ? 'added' : ''}}">
-        <text class="btn-icon">{{item.hasStrategy ? '✓' : '+'}}</text>
-      </view>
+        <!-- 右侧添加按钮 -->
+        <view class="add-btn {{item.hasStrategy ? 'added' : ''}}">
+          <text class="btn-icon">{{item.hasStrategy ? '✓' : '+'}}</text>
+        </view>
+      </block>
     </view>
 
     <!-- 空状态 -->
@@ -59,7 +65,18 @@
 
   <!-- 标题 -->
   <view class="modal-header">
-    <text class="sh-title">{{selectedHabit.title}}策略</text>
+    <block wx:if="{{isCustomHabitModal}}">
+      <input
+        class="custom-title-input"
+        value="{{customHabitName}}"
+        maxlength="12"
+        placeholder="填写习惯名称"
+        placeholder-class="custom-title-placeholder"
+        bindinput="onCustomHabitNameInput"
+      />
+      <text class="custom-name-error" wx:if="{{customHabitNameError}}">{{customHabitNameError}}</text>
+    </block>
+    <text class="sh-title" wx:else>{{selectedHabit.title}}策略</text>
   </view>
 
   <scroll-view class="modal-body" scroll-y enhanced="{{true}}" show-scrollbar="{{false}}">
@@ -158,7 +175,7 @@
       bindtap="saveStrategy"
       disabled="{{planStartNeedsReselect || isSavingStrategy}}"
       loading="{{isSavingStrategy}}"
-    >{{isSavingStrategy ? '保存中' : '保存策略'}}</button>
+    >{{isSavingStrategy ? '保存中' : (isEditingStrategy ? '保存修改' : (isCustomHabitModal ? '保存习惯' : '保存策略'))}}</button>
   </view>
 </view>
 
@@ -248,14 +265,31 @@
   </view>
 </view>
 
+<!-- 自定义习惯改名确认弹窗 -->
+<view class="rename-choice-modal {{showRenameChoiceModal ? 'show' : ''}}" catchtap="closeRenameChoiceModal">
+  <view class="rename-choice-content" catchtap="preventBubble">
+    <view class="rename-choice-header">
+      <text class="rename-choice-title">名称已变更</text>
+    </view>
+    <view class="rename-choice-body">
+      <text class="rename-choice-text">{{renameChoiceContent}}</text>
+    </view>
+    <view class="rename-choice-actions">
+      <button class="rename-choice-btn rename-choice-secondary" bindtap="confirmRenameAsNewHabit" loading="{{isConfirmingRenameChoice}}" disabled="{{isConfirmingRenameChoice}}">作为新习惯</button>
+      <button class="rename-choice-btn rename-choice-primary" bindtap="confirmRenameOnly" loading="{{isConfirmingRenameChoice}}" disabled="{{isConfirmingRenameChoice}}">{{renameChoicePrimaryText || '仅改名称'}}</button>
+    </view>
+  </view>
+</view>
+
 <!-- 删除习惯确认弹窗 -->
 <view class="delete-habit-modal {{showDeleteHabitModal ? 'show' : ''}}" catchtap="closeDeleteHabitModal">
   <view class="delete-habit-modal-content" catchtap="preventBubble">
     <view class="delete-habit-modal-header">
-      <text class="delete-habit-modal-title">删除习惯</text>
+      <text class="delete-habit-modal-title">{{pendingDeleteHabit.source === 'custom' ? '停用习惯' : '删除习惯'}}</text>
     </view>
     <view class="delete-habit-modal-body">
-      <text class="delete-habit-modal-text">{{deleteHabitModalContent}}</text>
+      <text class="delete-habit-modal-text delete-habit-modal-question">{{deleteHabitModalTitleText}}</text>
+      <text class="delete-habit-modal-text delete-habit-modal-hint">{{deleteHabitModalHintText}}</text>
     </view>
     <view class="delete-habit-modal-footer">
       <button class="delete-habit-modal-btn delete-habit-modal-cancel" bindtap="closeDeleteHabitModal" disabled="{{isDeletingHabit}}">取消</button>

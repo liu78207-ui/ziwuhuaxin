@@ -100,6 +100,7 @@ describe('syncService recoverFromCloud', () => {
   })
 
   test('persists recovered V1 user habits using canonical fields', async () => {
+    storage.pendingOperations = [{ queueId: 'q_stale', status: 'pending' }]
     wx.cloud.callFunction.mockResolvedValueOnce({
       result: {
         success: true,
@@ -137,6 +138,7 @@ describe('syncService recoverFromCloud', () => {
     })])
     expect(storage.policyVersions).toEqual([{ policyVersionId: 'pv_001', userHabitId: 'uh_001', effectiveEndDate: null }])
     expect(storage.dailyCheckinStates).toEqual([{ stateId: 'ds_001', userHabitId: 'uh_001', date: '2026-05-31' }])
+    expect(storage.pendingOperations).toEqual([])
   })
 
   test('recoverFromCloud writes recovered habits in stable added order', async () => {
@@ -220,8 +222,10 @@ describe('syncService recoverFromCloud', () => {
     })
   })
 
-  test('bootstrapCloudData skips recovery when local habits exist', async () => {
+  test('bootstrapCloudData skips recovery only when local core cache is complete', async () => {
     storage.MyHabits = [{ userHabitId: 'uh_local' }]
+    storage.policyVersions = [{ policyVersionId: 'pv_local', userHabitId: 'uh_local' }]
+    storage.dailyCheckinStates = [{ stateId: 'ds_local', userHabitId: 'uh_local', date: '2026-06-16', status: 'checked' }]
 
     await expect(syncService.bootstrapCloudData()).resolves.toEqual({
       success: true,
@@ -232,6 +236,84 @@ describe('syncService recoverFromCloud', () => {
 
     expect(wx.cloud.callFunction).not.toHaveBeenCalled()
     expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
+  })
+
+  test('bootstrapCloudData recovers when habits exist but daily states are missing', async () => {
+    storage.MyHabits = [{ userHabitId: 'uh_local', habitId: '17', name: '晨起温水' }]
+    storage.policyVersions = [{ policyVersionId: 'pv_local', userHabitId: 'uh_local', effectiveEndDate: null }]
+    storage.dailyCheckinStates = []
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: [{ userHabitId: 'uh_cloud', habitId: '17', name: '晨起温水', status: 'active' }],
+          policyVersions: [{ policyVersionId: 'pv_cloud', userHabitId: 'uh_cloud', effectiveEndDate: null }],
+          dailyStates: [{ stateId: 'ds_cloud', userHabitId: 'uh_cloud', habitId: '17', date: '2026-07-01', status: 'checked' }]
+        }
+      }
+    })
+
+    await expect(syncService.bootstrapCloudData()).resolves.toEqual({
+      success: true,
+      source: 'recoverData',
+      restored: true,
+      skipped: false,
+      error: undefined
+    })
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
+      name: 'recoverData',
+      data: { dailyStateDays: 90 }
+    })
+    expect(storage.dailyCheckinStates).toEqual([
+      { stateId: 'ds_cloud', userHabitId: 'uh_cloud', habitId: '17', date: '2026-07-01', status: 'checked' }
+    ])
+  })
+
+  test('bootstrapCloudData force option recovers even when local habits exist', async () => {
+    const recoveredHandler = jest.fn()
+    eventBus.on('sync:recovered', recoveredHandler)
+    storage.MyHabits = [{ userHabitId: 'uh_local', habitId: 'custom_stale', source: 'custom' }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: [{
+            userHabitId: 'uh_cloud',
+            habitId: '17',
+            name: '晨起温水',
+            status: 'active'
+          }],
+          policyVersions: [],
+          dailyStates: [{ stateId: 'ds_cloud', userHabitId: 'uh_cloud', habitId: '17', date: '2026-07-07', status: 'checked' }]
+        }
+      }
+    })
+
+    await expect(syncService.bootstrapCloudData({ dailyStateDays: 30, force: true })).resolves.toEqual({
+      success: true,
+      source: 'recoverData',
+      restored: true,
+      skipped: false,
+      error: undefined
+    })
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
+      name: 'recoverData',
+      data: { dailyStateDays: 30 }
+    })
+    expect(storage.MyHabits).toEqual([expect.objectContaining({
+      userHabitId: 'uh_cloud',
+      habitId: '17',
+      name: '晨起温水'
+    })])
+    expect(storage.dailyCheckinStates).toEqual([
+      { stateId: 'ds_cloud', userHabitId: 'uh_cloud', habitId: '17', date: '2026-07-07', status: 'checked' }
+    ])
+    expect(recoveredHandler).toHaveBeenCalledWith({
+      source: 'recoverData',
+      restored: true
+    })
   })
 
   test('recoverOrSync skips network probing when pending queue is empty', async () => {
@@ -530,6 +612,15 @@ describe('syncService recoverFromCloud', () => {
     expect(syncService.needsLocalRecovery()).toBe(true)
 
     storage.MyHabits = [{ userHabitId: 'uh_existing' }]
+    storage.policyVersions = []
+    storage.dailyCheckinStates = [{ stateId: 'ds_existing' }]
+    expect(syncService.needsLocalRecovery()).toBe(true)
+
+    storage.policyVersions = [{ policyVersionId: 'pv_existing' }]
+    storage.dailyCheckinStates = []
+    expect(syncService.needsLocalRecovery()).toBe(true)
+
+    storage.dailyCheckinStates = [{ stateId: 'ds_existing' }]
     expect(syncService.needsLocalRecovery()).toBe(false)
   })
 })

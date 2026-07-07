@@ -5,6 +5,8 @@ const timeService = require('../../services/timeService.js');
 const eventBus = require('../../services/eventBus.js');
 const { getNavTitleStyle } = require('../../utils/navLayout');
 
+const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
+
 // All report data must come from reportService / reportAggregator.
 let reportService = null
 try {
@@ -416,7 +418,8 @@ Page({
       life: 't-yellow',
       '运动类': 't-green',
       '理疗类': 't-red',
-      '起居类': 't-yellow'
+      '起居类': 't-yellow',
+      '自定义': 't-purple'
     };
     return themeMap[category] || iconMap.getThemeByCategory(category) || 't-blue';
   },
@@ -436,6 +439,19 @@ Page({
     const countB = Number(b.practiceCount ?? b.totalDays ?? b.daysCount ?? 0);
     if (countA !== countB) return countB - countA;
     return this.compareHabitDisplayName(a, b);
+  },
+
+  getHabitFallbackIcon(habitName) {
+    const normalizedName = String(habitName || '').trim().replace(/[\r\n\t]/g, '');
+    return Array.from(normalizedName)[0] || '养';
+  },
+
+  isCustomReportHabit(habit) {
+    return habit && (
+      habit.source === 'custom' ||
+      habit.category === '自定义' ||
+      String(habit.habitId || '').indexOf('custom_') === 0
+    );
   },
 
   getHabitVisual(habit) {
@@ -458,8 +474,10 @@ Page({
     if (!iconUrl) {
       if (iconConfig) {
         iconUrl = iconConfig.iconUrl;
+      } else if (this.isCustomReportHabit(habit)) {
+        iconUrl = CUSTOM_ICON_URL;
       } else {
-        icon = '馃敟';
+        icon = this.getHabitFallbackIcon(habitName);
       }
     }
 
@@ -469,9 +487,11 @@ Page({
   mapWeekHabitReport(report) {
     const habit = report.habit || {};
     const visual = this.getHabitVisual(habit);
+    const displayName = this.getHabitDisplayName(habit);
     return {
       habitId: report.habitId,
-      name: this.getHabitDisplayName(habit),
+      name: displayName,
+      title: displayName,
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,
@@ -498,6 +518,7 @@ Page({
   mapMonthHabitReport(report, year, month, daysInMonth, startWeekday) {
     const habit = report.habit || {};
     const visual = this.getHabitVisual(habit);
+    const displayName = this.getHabitDisplayName(habit);
     const dayMap = {};
     report.days.forEach(day => {
       dayMap[day.date] = day;
@@ -535,7 +556,8 @@ Page({
 
     return {
       habitId: report.habitId,
-      name: this.getHabitDisplayName(habit),
+      name: displayName,
+      title: displayName,
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,
@@ -550,6 +572,7 @@ Page({
   mapYearHabitReport(report, year) {
     const habit = report.habit || {};
     const visual = this.getHabitVisual(habit);
+    const displayName = this.getHabitDisplayName(habit);
     const dayMap = {};
     report.days.forEach(day => {
       dayMap[day.date] = day;
@@ -582,7 +605,8 @@ Page({
 
     return {
       habitId: report.habitId,
-      name: this.getHabitDisplayName(habit),
+      name: displayName,
+      title: displayName,
       iconUrl: visual.iconUrl,
       icon: visual.icon,
       themeClass: visual.themeClass,

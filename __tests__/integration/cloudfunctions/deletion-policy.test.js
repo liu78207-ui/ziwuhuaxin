@@ -5,9 +5,20 @@ function mockWxServerSdk(collections, options = {}) {
     remove: jest.fn(() => ({ $remove: true }))
   };
 
+  const matchesQuery = (record, query = {}) => Object.keys(query).every(key => {
+    const expected = query[key];
+    if (expected && Object.prototype.hasOwnProperty.call(expected, '$in')) {
+      return expected.$in.includes(record[key]);
+    }
+    if (expected && typeof expected === 'object') {
+      return true;
+    }
+    return record[key] === expected;
+  });
+
   const makeCollection = name => ({
     where: jest.fn(query => ({
-      get: jest.fn(() => Promise.resolve({ data: collections[name] || [] }))
+      get: jest.fn(() => Promise.resolve({ data: (collections[name] || []).filter(record => matchesQuery(record, query)) }))
     })),
     doc: jest.fn(id => ({
       update: jest.fn(payload => {
@@ -299,5 +310,183 @@ describe('cloud deletion policy', () => {
         })
       }
     }));
+  });
+
+  test('syncHabit addHabit rejects the 13th custom library entry for current openid', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [
+        ...Array.from({ length: 12 }, (_, index) => ({
+          _id: `custom_doc_${index + 1}`,
+          _openid: 'test_openid',
+          userHabitId: `uh_custom_${index + 1}`,
+          habitId: `custom_${index + 1}`,
+          source: 'custom',
+          name: `习惯${index + 1}`,
+          status: index < 2 ? 'active' : 'deleted'
+        })),
+        {
+          _id: 'other_custom_doc',
+          _openid: 'other_openid',
+          userHabitId: 'uh_other_custom',
+          habitId: 'custom_other',
+          source: 'custom',
+          name: '他人习惯',
+          status: 'active'
+        }
+      ],
+      habit_policy_versions: []
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'addHabit',
+      userHabitId: 'uh_custom_13',
+      habitId: 'custom_13',
+      source: 'custom',
+      name: '第十三个',
+      policyVersionId: 'pv_custom_13',
+      duration: 20,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-25'
+    }, {});
+
+    expect(result).toEqual(expect.objectContaining({
+      success: false,
+      code: 'CUSTOM_HABIT_LIBRARY_LIMIT_REACHED'
+    }));
+    expect(calls.adds).toEqual([]);
+  });
+
+  test('syncHabit addHabit rejects the 6th active custom habit', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: Array.from({ length: 5 }, (_, index) => ({
+        _id: `custom_doc_${index + 1}`,
+        _openid: 'test_openid',
+        userHabitId: `uh_custom_${index + 1}`,
+        habitId: `custom_${index + 1}`,
+        source: 'custom',
+        name: `习惯${index + 1}`,
+        status: 'active'
+      })),
+      habit_policy_versions: []
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'addHabit',
+      userHabitId: 'uh_custom_6',
+      habitId: 'custom_6',
+      source: 'custom',
+      name: '第六个',
+      policyVersionId: 'pv_custom_6',
+      duration: 20,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-25'
+    }, {});
+
+    expect(result).toEqual(expect.objectContaining({
+      success: false,
+      code: 'CUSTOM_ACTIVE_HABIT_LIMIT_REACHED'
+    }));
+    expect(calls.adds).toEqual([]);
+  });
+
+  test('syncHabit addHabit idempotency retry does not consume a new custom slot', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [
+        ...Array.from({ length: 3 }, (_, index) => ({
+          _id: `custom_doc_${index + 1}`,
+          _openid: 'test_openid',
+          userHabitId: `uh_custom_${index + 1}`,
+          habitId: `custom_${index + 1}`,
+          source: 'custom',
+          name: `习惯${index + 1}`,
+          status: 'active'
+        })),
+        {
+          _id: 'custom_retry_doc',
+          _openid: 'test_openid',
+          userHabitId: 'uh_custom_retry',
+          habitId: 'custom_retry',
+          source: 'custom',
+          name: '重试习惯',
+          status: 'active'
+        }
+      ],
+      habit_policy_versions: []
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'addHabit',
+      userHabitId: 'uh_custom_retry',
+      habitId: 'custom_retry',
+      source: 'custom',
+      name: '重试习惯',
+      policyVersionId: 'pv_custom_retry',
+      duration: 20,
+      frequencyType: 'daily',
+      frequencyConfig: { intervalDays: 1 },
+      startDate: '2026-06-25'
+    }, {});
+
+    expect(result.success).toBe(true);
+    expect(calls.adds).toContainEqual(expect.objectContaining({
+      collection: 'habit_policy_versions',
+      payload: {
+        data: expect.objectContaining({
+          policyVersionId: 'pv_custom_retry',
+          userHabitId: 'uh_custom_retry'
+        })
+      }
+    }));
+    expect(calls.adds).not.toContainEqual(expect.objectContaining({
+      collection: 'user_habits'
+    }));
+  });
+
+  test('syncHabit cleanupNamelessCustomHabits removes only nameless custom records and related data', async () => {
+    const calls = { updates: [], adds: [], removes: [] };
+    mockWxServerSdk({
+      user_habits: [
+        { _id: 'habit_empty', _openid: 'test_openid', userHabitId: 'uh_empty', habitId: 'custom_empty', source: 'custom', name: '' },
+        { _id: 'habit_named', _openid: 'test_openid', userHabitId: 'uh_named', habitId: 'custom_named', source: 'custom', name: '早睡' },
+        { _id: 'habit_system', _openid: 'test_openid', userHabitId: 'uh_system', habitId: '20', source: 'system' }
+      ],
+      habit_policy_versions: [
+        { _id: 'pv_empty', _openid: 'test_openid', userHabitId: 'uh_empty' }
+      ],
+      daily_checkin_states: [
+        { _id: 'ds_empty', _openid: 'test_openid', userHabitId: 'uh_empty' }
+      ],
+      checkin_operations: [
+        { _id: 'op_empty', _openid: 'test_openid', userHabitId: 'uh_empty' }
+      ]
+    }, calls);
+
+    const { main } = require('../../../cloudfunctions/syncHabit/index.js');
+    const result = await main({
+      action: 'cleanupNamelessCustomHabits'
+    }, {});
+
+    expect(result).toEqual(expect.objectContaining({
+      success: true,
+      action: 'cleanupNamelessCustomHabits',
+      removedCount: 1,
+      removedUserHabitIds: ['uh_empty']
+    }));
+    expect(calls.removes).toEqual(expect.arrayContaining([
+      { collection: 'user_habits', id: 'habit_empty' },
+      { collection: 'habit_policy_versions', id: 'pv_empty' },
+      { collection: 'daily_checkin_states', id: 'ds_empty' },
+      { collection: 'checkin_operations', id: 'op_empty' }
+    ]));
+    expect(calls.removes).not.toContainEqual({ collection: 'user_habits', id: 'habit_named' });
+    expect(calls.removes).not.toContainEqual({ collection: 'user_habits', id: 'habit_system' });
   });
 });

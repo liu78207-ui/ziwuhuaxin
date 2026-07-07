@@ -274,16 +274,19 @@ Page({
 
     let toastOptions = { title: '缓存已清空', icon: 'none' };
     try {
-      const result = await cacheService.clearLocalUserCacheAndRecover({ dailyStateDays: 90 });
+      const result = await cacheService.clearLocalUserCacheAndRecover({
+        dailyStateDays: 90,
+        skipPreClearSync: true
+      });
       this.refreshViewModel();
 
       if (!result.success) {
         toastOptions = { title: '清理失败，请稍后重试', icon: 'none' };
       } else if (result.recoveryError) {
-        toastOptions = { title: '缓存已清空，恢复失败', icon: 'none' };
+        toastOptions = { title: '恢复失败', icon: 'none' };
       } else {
         toastOptions = {
-          title: result.restored ? '缓存已清空，已恢复云端数据' : '缓存已清空',
+          title: result.restored ? '已恢复云端' : '恢复未完成',
           icon: 'none'
         };
       }

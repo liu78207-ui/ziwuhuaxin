@@ -20,7 +20,20 @@ jest.mock('../../../miniprogram/services/timeService', () => ({
 }))
 
 jest.mock('../../../miniprogram/services/habitService', () => ({
-  getTodayHabits: jest.fn(() => Promise.resolve(mockData.todayHabits))
+  getTodayHabits: jest.fn(() => Promise.resolve(mockData.todayHabits)),
+  getHabitDisplayMeta: jest.fn((habit) => {
+    if (habit && habit.source === 'custom') {
+      return {
+        source: 'custom',
+        name: habit.name || '',
+        category: '自定义',
+        themeClass: 't-purple',
+        iconUrl: '/assets/icons/habit-zidingyi.png',
+        emoji: '养'
+      }
+    }
+    return null
+  })
 }))
 
 jest.mock('../../../miniprogram/services/checkinService', () => ({
@@ -426,5 +439,45 @@ describe('homeService.getHomeViewModel', () => {
     const vm = await homeService.getHomeViewModel()
 
     expect(vm.taskList.map(item => item.title)).toEqual(['揉腹', '八段锦'])
+  })
+
+  test('首页正确展示自定义修习名称和紫色主题', async () => {
+    mockData.todayHabits = [
+      {
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        category: '自定义',
+        themeClass: 't-purple',
+        duration: 20,
+        status: 'active',
+        isChecked: false
+      }
+    ]
+    mockData.myHabits = [
+      {
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_1',
+        source: 'custom',
+        name: '早睡',
+        status: 'active'
+      }
+    ]
+
+    const homeService = require('../../../miniprogram/services/homeService')
+    const vm = await homeService.getHomeViewModel()
+
+    expect(vm.taskList).toHaveLength(1)
+    expect(vm.taskList[0]).toEqual(expect.objectContaining({
+      _id: 'uh_custom_1',
+      habitId: 'custom_1',
+      title: '早睡',
+      name: '早睡',
+      category: '自定义',
+      themeClass: 't-purple',
+      iconUrl: '/assets/icons/habit-zidingyi.png',
+      emoji: '养'
+    }))
   })
 })

@@ -84,10 +84,12 @@ function slimUserHabit(habit) {
   const result = pickDefined(habit, [
     'userHabitId',
     'habitId',
+    'source',
     'name',
     'title',
     'habitTitle',
     'category',
+    'remark',
     'duration',
     'targetMinutes',
     'themeClass',
