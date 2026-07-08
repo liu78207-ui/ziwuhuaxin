@@ -6,6 +6,9 @@
   <view class="nav-header" style="{{navTitleStyle}}">
     <text class="nav-title">归藏</text>
   </view>
+  <view class="env-badge" wx:if="{{showEnvBadge}}">
+    <text>{{envBadgeText}}</text>
+  </view>
 
   <!-- 用户信息区域 -->
   <view class="profile-content">

@@ -7,9 +7,20 @@ const shareService = require('../../services/shareService');
 const userService = require('../../services/userService');
 const cacheService = require('../../services/cacheService');
 const { getNavTitleStyle } = require('../../utils/navLayout');
+const envConfig = require('../../config/env');
 
 function getErrorMessage(err) {
   return err && err.message ? err.message : String(err || 'unknown error');
+}
+
+function showSaveErrorModal(err) {
+  const message = getErrorMessage(err);
+  wx.showModal({
+    title: '保存失败',
+    content: message && message !== 'unknown error' ? message : '请稍后重试',
+    showCancel: false,
+    confirmText: '知道了'
+  });
 }
 
 Page({
@@ -27,12 +38,17 @@ Page({
     showClearCacheModal: false,
     showContactModal: false,
     contactQrcodeUrl: '/assets/images/contact-qrcode.png',
-    navTitleStyle: ''
+    navTitleStyle: '',
+    showEnvBadge: false,
+    envBadgeText: ''
   },
 
   onLoad() {
+    const currentEnvConfig = envConfig.getCurrentEnvConfig();
     this.setData({
-      navTitleStyle: getNavTitleStyle()
+      navTitleStyle: getNavTitleStyle(),
+      showEnvBadge: currentEnvConfig.showEnvBadge,
+      envBadgeText: currentEnvConfig.envBadgeText
     });
     this.refreshViewModel();
   },
@@ -171,7 +187,7 @@ Page({
       // 回滚 UI 和本地缓存
       this.setData({ displayAvatarUrl: previousDisplayUrl });
       userService.setUserInfo({ avatarUrl: previousAvatarUrl });
-      wx.showToast({ title: '保存失败', icon: 'none' });
+      showSaveErrorModal(err);
     } finally {
       this.setData({ isAvatarSaving: false });
     }
@@ -212,10 +228,7 @@ Page({
       // 失败时回滚本地缓存再刷新 UI
       userService.setUserInfo({ nickName: previousNickName });
       this.refreshViewModel();
-      wx.showToast({
-        title: '保存失败',
-        icon: 'none'
-      });
+      showSaveErrorModal(err);
     } finally {
       this.setData({ isProfileSaving: false });
     }

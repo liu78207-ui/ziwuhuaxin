@@ -1,4 +1,6 @@
-function createMockCloud(collections, wxContext = { OPENID: 'openid_1' }) {
+function createMockCloud(collections, wxContext = { OPENID: 'openid_1' }, options = {}) {
+  const missingCollections = new Set(options.missingCollections || [])
+
   function matches(query, doc) {
     return Object.keys(query || {}).every(key => doc[key] === query[key])
   }
@@ -6,6 +8,9 @@ function createMockCloud(collections, wxContext = { OPENID: 'openid_1' }) {
   function collectionApi(name) {
     return {
       where(query) {
+        if (missingCollections.has(name)) {
+          throw new Error(`collection.get:fail -502005 database collection not exists: ${name}`)
+        }
         const matched = (collections[name] || []).filter(doc => matches(query, doc))
         const state = { limitValue: matched.length, skipValue: 0 }
         const queryApi = {
@@ -117,6 +122,27 @@ describe('recoverData cloud function', () => {
       success: false,
       code: 'NO_OPENID'
     }))
+  })
+
+  test('returns empty snapshot when prefixed test collections do not exist yet', async () => {
+    createMockCloud({}, { OPENID: 'openid_1' }, {
+      missingCollections: [
+        'test_user_habits',
+        'test_habit_policy_versions',
+        'test_daily_checkin_states'
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({ __collectionPrefix: 'test_' }, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data).toEqual({
+      userHabits: [],
+      policyVersions: [],
+      dailyStates: [],
+      nextCursor: null
+    })
   })
 
   test('preserves custom habit metadata for cache recovery', async () => {

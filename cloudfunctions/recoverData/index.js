@@ -4,6 +4,42 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 const PAGE_SIZE = 100;
 const DEFAULT_DAILY_STATE_DAYS = 90;
+const COLLECTIONS = {
+  userHabits: 'user_habits',
+  habitPolicyVersions: 'habit_policy_versions',
+  dailyCheckinStates: 'daily_checkin_states'
+};
+
+function getCollectionName(key) {
+  const name = COLLECTIONS[key];
+  if (!name) {
+    throw new Error(`未登记的 CloudBase 集合: ${key}`);
+  }
+  return name;
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function collection(key, event = {}) {
+  return db.collection(`${getCollectionPrefix(event)}${getCollectionName(key)}`);
+}
+
+function isCollectionMissing(err) {
+  const message = err && (err.message || err.errMsg || '');
+  return err && (
+    err.errCode === -502005 ||
+    message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+    message.includes('collection not exists') ||
+    message.includes('Db or Table not exist') ||
+    message.includes('Table not exist')
+  );
+}
+
 const BUILT_IN_HABITS = {
   '1': { name: '金刚功', category: '运动类', targetMinutes: 15 },
   '2': { name: '站桩', category: '运动类', targetMinutes: 20 },
@@ -162,16 +198,24 @@ function slimDailyState(state) {
   return result;
 }
 
-async function listAllByOpenid(collectionName, openid) {
+async function listAllByOpenid(collectionKey, openid, event) {
   const items = [];
   let offset = 0;
 
   while (true) {
-    const res = await db.collection(collectionName)
-      .where({ _openid: openid })
-      .skip(offset)
-      .limit(PAGE_SIZE)
-      .get();
+    let res;
+    try {
+      res = await collection(collectionKey, event)
+        .where({ _openid: openid })
+        .skip(offset)
+        .limit(PAGE_SIZE)
+        .get();
+    } catch (err) {
+      if (isCollectionMissing(err) && getCollectionPrefix(event) === 'test_') {
+        return [];
+      }
+      throw err;
+    }
     const page = res.data || [];
     items.push(...page);
 
@@ -247,9 +291,9 @@ exports.main = async (event, context) => {
   }
 
   try {
-    const userHabits = await listAllByOpenid('user_habits', OPENID);
-    const policyVersions = await listAllByOpenid('habit_policy_versions', OPENID);
-    const allDailyStates = await listAllByOpenid('daily_checkin_states', OPENID);
+    const userHabits = await listAllByOpenid('userHabits', OPENID, event);
+    const policyVersions = await listAllByOpenid('habitPolicyVersions', OPENID, event);
+    const allDailyStates = await listAllByOpenid('dailyCheckinStates', OPENID, event);
     const range = resolveDailyStateRange(event, serverTime);
     const filteredDailyStates = filterDailyStates(allDailyStates, range)
       .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));

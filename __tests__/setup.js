@@ -35,6 +35,7 @@ global.wx = {
   cloud: {
     init: jest.fn(),
     callFunction: jest.fn(),
+    getTempFileURL: jest.fn(),
     database: jest.fn(() => ({
       collection: jest.fn(() => ({
         doc: jest.fn(),
@@ -81,6 +82,11 @@ global.wx = {
     screenHeight: 667,
     statusBarHeight: 20,
     platform: 'ios'
+  })),
+  getAccountInfoSync: jest.fn(() => ({
+    miniProgram: {
+      envVersion: 'develop'
+    }
   })),
 
   // 用户相关

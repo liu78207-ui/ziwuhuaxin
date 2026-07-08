@@ -4,6 +4,7 @@ const shareService = require('../../services/shareService');
 const timeService = require('../../services/timeService.js');
 const eventBus = require('../../services/eventBus.js');
 const { getNavTitleStyle } = require('../../utils/navLayout');
+const envConfig = require('../../config/env');
 
 const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
 
@@ -54,6 +55,8 @@ Page({
     currentMonth: null, // 褰撳墠鏄剧ず鐨勬湀浠?(0-11)
     currentYear: null, // 褰撳墠鏄剧ず鐨勫勾浠?
     navTitleStyle: '',
+    showEnvBadge: false,
+    envBadgeText: '',
     yearLoading: false
   },
 
@@ -77,8 +80,11 @@ Page({
   },
 
   onLoad() {
+    const currentEnvConfig = envConfig.getCurrentEnvConfig();
     this.setData({
-      navTitleStyle: getNavTitleStyle()
+      navTitleStyle: getNavTitleStyle(),
+      showEnvBadge: currentEnvConfig.showEnvBadge,
+      envBadgeText: currentEnvConfig.envBadgeText
     });
     this.subscribeSyncEvents();
     this.resetToCurrentPeriod();

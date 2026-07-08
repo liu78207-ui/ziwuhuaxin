@@ -7,6 +7,9 @@
     <view class="nav-title-wrap" style="{{navTitleStyle}}">
       <text class="nav-title">子午花信</text>
     </view>
+    <view class="env-badge" wx:if="{{showEnvBadge}}">
+      <text>{{envBadgeText}}</text>
+    </view>
   </view>
 
   <!-- 内容区域 -->

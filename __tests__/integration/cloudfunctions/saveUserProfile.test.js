@@ -77,111 +77,56 @@ function createMockCloud(initialCollections, wxContext = { OPENID: 'openid_1' },
   return { collections, calls }
 }
 
-describe('login cloud function', () => {
+describe('saveUserProfile cloud function', () => {
   beforeEach(() => {
     jest.resetModules()
     jest.clearAllMocks()
   })
 
-  test('creates a user document for a new openid without returning openid', async () => {
-    const { collections } = createMockCloud({ users: [] })
-
-    const { main } = require('../../../cloudfunctions/login/index.js')
-    const result = await main({ code: 'wx_code_1' }, {})
-
-    expect(result).toEqual(expect.objectContaining({
-      success: true,
-      userId: 'users_1',
-      createdAt: expect.any(String),
-      serverTime: expect.any(Number)
-    }))
-    expect(result.openid).toBeUndefined()
-    expect(collections.users[0]).toEqual(expect.objectContaining({
-      _openid: 'openid_1',
-      createdAt: result.createdAt,
-      updatedAt: result.createdAt
-    }))
-  })
-
-  test('creates missing prefixed test users collection before adding user', async () => {
+  test('creates missing prefixed test users collection and saves profile', async () => {
     const { collections, calls } = createMockCloud({}, { OPENID: 'openid_1' }, {
       missingCollections: ['test_users']
     })
 
-    const { main } = require('../../../cloudfunctions/login/index.js')
-    const result = await main({ __collectionPrefix: 'test_' }, {})
+    const { main } = require('../../../cloudfunctions/saveUserProfile/index.js')
+    const result = await main({
+      __collectionPrefix: 'test_',
+      nickName: '测试用户'
+    }, {})
 
     expect(result).toEqual(expect.objectContaining({
       success: true,
-      userId: 'test_users_1'
+      userId: 'test_users_1',
+      created: true
     }))
     expect(calls.creates).toContain('test_users')
     expect(collections.test_users[0]).toEqual(expect.objectContaining({
-      _openid: 'openid_1'
+      _openid: 'openid_1',
+      nickName: '测试用户'
     }))
     expect(collections.users).toBeUndefined()
   })
 
-  test('returns existing createdAt without updating a complete user document', async () => {
-    const { calls } = createMockCloud({
-      users: [{
-        _id: 'user_1',
-        _openid: 'openid_1',
-        createdAt: '2026-05-31T00:00:00.000Z',
-        updatedAt: '2026-05-31T00:00:00.000Z'
-      }]
-    })
-
-    const { main } = require('../../../cloudfunctions/login/index.js')
-    const result = await main({}, {})
-
-    expect(result).toEqual(expect.objectContaining({
-      success: true,
-      userId: 'user_1',
-      createdAt: '2026-05-31T00:00:00.000Z',
-      serverTime: expect.any(Number)
-    }))
-    expect(calls.updates).toHaveLength(0)
-  })
-
-  test('backfills createdAt for an existing legacy user document', async () => {
+  test('updates existing prefixed test user profile', async () => {
     const { collections, calls } = createMockCloud({
-      users: [{
-        _id: 'legacy_user_1',
+      test_users: [{
+        _id: 'test_user_1',
         _openid: 'openid_1',
-        nickName: 'Legacy User'
+        nickName: '旧名',
+        createdAt: '2026-07-07T00:00:00.000Z'
       }]
     })
 
-    const { main } = require('../../../cloudfunctions/login/index.js')
-    const result = await main({}, {})
+    const { main } = require('../../../cloudfunctions/saveUserProfile/index.js')
+    const result = await main({
+      __collectionPrefix: 'test_',
+      nickName: '新名'
+    }, {})
 
-    expect(result).toEqual(expect.objectContaining({
-      success: true,
-      userId: 'legacy_user_1',
-      createdAt: expect.any(String),
-      serverTime: expect.any(Number)
-    }))
-    expect(collections.users[0]).toEqual(expect.objectContaining({
-      createdAt: result.createdAt,
-      updatedAt: result.createdAt
-    }))
+    expect(result).toEqual({ success: true })
     expect(calls.updates).toHaveLength(1)
-    expect(calls.updates[0]).toEqual(expect.objectContaining({
-      collection: 'users',
-      id: 'legacy_user_1'
-    }))
-  })
-
-  test('returns NO_OPENID when wx context has no openid', async () => {
-    createMockCloud({}, { OPENID: '' })
-
-    const { main } = require('../../../cloudfunctions/login/index.js')
-    const result = await main({}, {})
-
-    expect(result).toEqual(expect.objectContaining({
-      success: false,
-      code: 'NO_OPENID'
+    expect(collections.test_users[0]).toEqual(expect.objectContaining({
+      nickName: '新名'
     }))
   })
 })

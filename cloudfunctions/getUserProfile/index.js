@@ -3,6 +3,44 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 
+const COLLECTIONS = {
+  users: 'users'
+};
+
+function getCollectionName(key) {
+  const name = COLLECTIONS[key];
+  if (!name) {
+    throw new Error(`未登记的 CloudBase 集合: ${key}`);
+  }
+  return name;
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function getResolvedCollectionName(key, event = {}) {
+  return `${getCollectionPrefix(event)}${getCollectionName(key)}`;
+}
+
+function collection(key, event = {}) {
+  return db.collection(getResolvedCollectionName(key, event));
+}
+
+function isCollectionMissing(err) {
+  const message = err && (err.message || err.errMsg || '');
+  return err && (
+    err.errCode === -502005 ||
+    message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+    message.includes('collection not exists') ||
+    message.includes('Db or Table not exist') ||
+    message.includes('Table not exist')
+  );
+}
+
 /**
  * 获取用户资料
  * 云端按 OPENID 隔离查询 users 文档
@@ -17,7 +55,7 @@ exports.main = async (event, context) => {
   }
 
   try {
-    const result = await db.collection('users')
+    const result = await collection('users', event)
       .where({ _openid: OPENID })
       .limit(1)
       .get();
@@ -48,6 +86,18 @@ exports.main = async (event, context) => {
       }
     };
   } catch (e) {
+    if (isCollectionMissing(e) && getCollectionPrefix(event) === 'test_') {
+      return {
+        success: true,
+        userId: null,
+        userInfo: {
+          nickName: '',
+          avatarUrl: '',
+          createdAt: '',
+          updatedAt: ''
+        }
+      };
+    }
     console.error('getUserProfile 云函数异常:', e);
     return { success: false, code: 'CLOUD_ERROR', message: e.message };
   }

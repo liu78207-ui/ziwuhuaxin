@@ -495,8 +495,8 @@ describe('stats page V1 report links', () => {
     expect(wxss).toMatch(/\.y-card\s*\{[^}]*min-width:\s*0/s);
     expect(wxss).toMatch(/\.y-card\s*\{[^}]*overflow:\s*hidden/s);
     expect(wxss).toMatch(/\.yc-heatmap\s*\{[^}]*overflow:\s*hidden/s);
-    expect(wxss).toMatch(/\.content-scroll \*::-webkit-scrollbar/s);
-    expect(wxss).toMatch(/\.content-inner \*::-webkit-scrollbar/s);
+    expect(wxss).toMatch(/\.content-scroll::-webkit-scrollbar/s);
+    expect(wxss).toMatch(/\.content-inner::-webkit-scrollbar/s);
     expect(wxss).toMatch(/\.year-list::-webkit-scrollbar/s);
   });
 

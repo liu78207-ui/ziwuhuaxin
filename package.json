@@ -14,6 +14,7 @@
     "test:pages": "node node_modules/jest/bin/jest.js __tests__/unit/pages --coverage=false",
     "test:cloud": "node node_modules/jest/bin/jest.js __tests__/integration/cloudfunctions --coverage=false",
     "verify:cloudfunctions": "node scripts/verify-v1-cloudfunctions.js",
+    "verify:cloud-env": "node scripts/verify-cloud-env-boundaries.js",
     "verify:legacy-boundaries": "node scripts/verify-legacy-boundaries.js",
     "verify:field-naming": "node scripts/verify-field-naming.js"
   },

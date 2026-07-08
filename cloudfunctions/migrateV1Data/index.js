@@ -24,14 +24,28 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 const db = cloud.database();
 
 const MIGRATION_VERSION = 'v1-formal-001';
+const COLLECTIONS = {
+  users: 'users',
+  userHabits: 'user_habits',
+  habitPolicyVersions: 'habit_policy_versions',
+  checkinOperations: 'checkin_operations',
+  dailyCheckinStates: 'daily_checkin_states',
+  migrationLogs: 'migration_logs',
+  conflictLogs: 'conflict_logs',
+  userStrategies: 'user_strategies',
+  userStrategyVersions: 'user_strategy_versions',
+  checkinLogs: 'checkin_logs'
+};
 const TARGET_COLLECTIONS = [
-  'user_habits',
-  'habit_policy_versions',
-  'checkin_operations',
-  'daily_checkin_states',
-  'migration_logs',
-  'conflict_logs'
+  COLLECTIONS.userHabits,
+  COLLECTIONS.habitPolicyVersions,
+  COLLECTIONS.checkinOperations,
+  COLLECTIONS.dailyCheckinStates,
+  COLLECTIONS.migrationLogs,
+  COLLECTIONS.conflictLogs
 ];
+const ALLOWED_COLLECTION_NAMES = new Set(Object.values(COLLECTIONS));
+let activeCollectionPrefix = '';
 const BUILT_IN_HABIT_BY_NAME = {
   '金刚功': '1',
   '站桩': '2',
@@ -190,9 +204,28 @@ function isCollectionMissing(err) {
   );
 }
 
+function assertKnownCollectionName(collectionName) {
+  if (!ALLOWED_COLLECTION_NAMES.has(collectionName)) {
+    throw new Error(`未登记的 CloudBase 集合: ${collectionName}`);
+  }
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function collectionByName(collectionName) {
+  assertKnownCollectionName(collectionName);
+  return db.collection(`${activeCollectionPrefix}${collectionName}`);
+}
+
 async function ensureCollection(name) {
+  assertKnownCollectionName(name);
   try {
-    await db.collection(name).limit(1).get();
+    await collectionByName(name).limit(1).get();
   } catch (err) {
     if (!isCollectionMissing(err)) {
       throw err;
@@ -213,7 +246,7 @@ async function ensureCollection(name) {
 
 async function getAll(collectionName, openid) {
   try {
-    const res = await db.collection(collectionName).where({ _openid: openid }).get();
+    const res = await collectionByName(collectionName).where({ _openid: openid }).get();
     return res.data || [];
   } catch (err) {
     if (isCollectionMissing(err)) {
@@ -237,7 +270,7 @@ async function repairTargetCollectionHabitIds(collectionName, openid, dryRun, se
 
     repaired += 1;
     if (!dryRun && record._id) {
-      await db.collection(collectionName).doc(record._id).update({
+      await collectionByName(collectionName).doc(record._id).update({
         data: {
           habitId: normalizedHabitId,
           updatedAt: serverTime
@@ -251,10 +284,10 @@ async function repairTargetCollectionHabitIds(collectionName, openid, dryRun, se
 
 async function repairTargetHabitIds(openid, dryRun, serverTime) {
   const collectionsToRepair = [
-    'user_habits',
-    'habit_policy_versions',
-    'checkin_operations',
-    'daily_checkin_states'
+    COLLECTIONS.userHabits,
+    COLLECTIONS.habitPolicyVersions,
+    COLLECTIONS.checkinOperations,
+    COLLECTIONS.dailyCheckinStates
   ];
   let repaired = 0;
 
@@ -267,7 +300,7 @@ async function repairTargetHabitIds(openid, dryRun, serverTime) {
 
 async function getAllForAdmin(collectionName) {
   try {
-    const res = await db.collection(collectionName).where({}).get();
+    const res = await collectionByName(collectionName).where({}).get();
     return res.data || [];
   } catch (err) {
     if (isCollectionMissing(err)) {
@@ -287,10 +320,10 @@ async function resolveOpenid(event, wxOpenid) {
   }
 
   const legacySources = await Promise.all([
-    getAllForAdmin('user_strategies'),
-    getAllForAdmin('user_strategy_versions'),
-    getAllForAdmin('checkin_logs'),
-    getAllForAdmin('users')
+    getAllForAdmin(COLLECTIONS.userStrategies),
+    getAllForAdmin(COLLECTIONS.userStrategyVersions),
+    getAllForAdmin(COLLECTIONS.checkinLogs),
+    getAllForAdmin(COLLECTIONS.users)
   ]);
   const [strategies, versions, logs, users] = legacySources;
   const openids = Array.from(new Set(
@@ -339,7 +372,7 @@ function buildOpenidSummaries(openids, strategies, versions, logs, users) {
 }
 
 async function findOne(collectionName, query) {
-  const res = await db.collection(collectionName).where(query).get();
+  const res = await collectionByName(collectionName).where(query).get();
   return (res.data || [])[0] || null;
 }
 
@@ -350,11 +383,11 @@ async function upsert(collectionName, query, data, dryRun) {
   }
 
   if (existing) {
-    await db.collection(collectionName).doc(existing._id).update({ data });
+    await collectionByName(collectionName).doc(existing._id).update({ data });
     return { action: 'updated', record: existing };
   }
 
-  const addResult = await db.collection(collectionName).add({ data });
+  const addResult = await collectionByName(collectionName).add({ data });
   return { action: 'created', record: { ...data, _id: addResult._id } };
 }
 
@@ -504,7 +537,7 @@ async function recordConflictLog(openid, conflict, serverTime, dryRun) {
     updatedAt: serverTime
   };
 
-  return upsert('conflict_logs', { _openid: openid, conflictId }, data, dryRun);
+  return upsert(COLLECTIONS.conflictLogs, { _openid: openid, conflictId }, data, dryRun);
 }
 
 function buildDailyState(openid, operation, serverTime) {
@@ -530,6 +563,7 @@ function buildDailyState(openid, operation, serverTime) {
 
 exports.main = async (rawEvent = {}, context = {}) => {
   const event = normalizeEvent(rawEvent);
+  activeCollectionPrefix = getCollectionPrefix(event);
   const wxContext = cloud.getWXContext();
   const dryRun = event.dryRun === true;
   const serverTime = Date.now();
@@ -558,16 +592,16 @@ exports.main = async (rawEvent = {}, context = {}) => {
     }
     const openid = openidResult.openid;
 
-    const strategies = await getAll('user_strategies', openid);
-    const legacyVersions = await getAll('user_strategy_versions', openid);
-    const checkinLogs = await getAll('checkin_logs', openid);
+    const strategies = await getAll(COLLECTIONS.userStrategies, openid);
+    const legacyVersions = await getAll(COLLECTIONS.userStrategyVersions, openid);
+    const checkinLogs = await getAll(COLLECTIONS.checkinLogs, openid);
     const userHabitsByHabitId = {};
     const policyByUserHabitId = {};
 
     for (const strategy of strategies) {
       const userHabit = buildUserHabit(openid, strategy, serverTime);
       const habitResult = await upsert(
-        'user_habits',
+        COLLECTIONS.userHabits,
         { _openid: openid, userHabitId: userHabit.userHabitId },
         userHabit,
         dryRun
@@ -586,7 +620,7 @@ exports.main = async (rawEvent = {}, context = {}) => {
       for (let i = 0; i < versionSources.length; i += 1) {
         const policyVersion = buildPolicyVersion(openid, userHabit, versionSources[i], serverTime, i);
         const policyResult = await upsert(
-          'habit_policy_versions',
+          COLLECTIONS.habitPolicyVersions,
           { _openid: openid, policyVersionId: policyVersion.policyVersionId },
           policyVersion,
           dryRun
@@ -603,9 +637,9 @@ exports.main = async (rawEvent = {}, context = {}) => {
       }
 
       if (!dryRun && userHabit.latestPolicyVersionId) {
-        const existingHabit = await findOne('user_habits', { _openid: openid, userHabitId: userHabit.userHabitId });
+        const existingHabit = await findOne(COLLECTIONS.userHabits, { _openid: openid, userHabitId: userHabit.userHabitId });
         if (existingHabit && existingHabit.latestPolicyVersionId !== userHabit.latestPolicyVersionId) {
-          await db.collection('user_habits').doc(existingHabit._id).update({
+          await collectionByName(COLLECTIONS.userHabits).doc(existingHabit._id).update({
             data: {
               latestPolicyVersionId: userHabit.latestPolicyVersionId,
               updatedAt: serverTime
@@ -638,7 +672,7 @@ exports.main = async (rawEvent = {}, context = {}) => {
       const policyVersion = policyByUserHabitId[userHabit.userHabitId];
       const operation = buildCheckinOperation(openid, log, userHabit, policyVersion, serverTime);
 
-      const existingOperation = await findOne('checkin_operations', {
+      const existingOperation = await findOne(COLLECTIONS.checkinOperations, {
         _openid: openid,
         idempotencyKey: operation.idempotencyKey
       });
@@ -656,13 +690,13 @@ exports.main = async (rawEvent = {}, context = {}) => {
       } else if (dryRun) {
         counts.checkinOperations += 1;
       } else {
-        await db.collection('checkin_operations').add({ data: operation });
+        await collectionByName(COLLECTIONS.checkinOperations).add({ data: operation });
         counts.checkinOperations += 1;
       }
 
       const dailyState = buildDailyState(openid, operation, serverTime);
       const stateResult = await upsert(
-        'daily_checkin_states',
+        COLLECTIONS.dailyCheckinStates,
         { _openid: openid, userHabitId: operation.userHabitId, date: operation.date },
         dailyState,
         dryRun
@@ -683,7 +717,7 @@ exports.main = async (rawEvent = {}, context = {}) => {
       updatedAt: serverTime
     };
     await upsert(
-      'migration_logs',
+      COLLECTIONS.migrationLogs,
       { _openid: openid, migrationVersion: MIGRATION_VERSION },
       migrationLog,
       dryRun

@@ -3,19 +3,20 @@ const iconMap = require('./utils/iconMap.js')
 const syncService = require('./services/syncService.js')
 const userService = require('./services/userService.js')
 const storageService = require('./services/storageService.js')
+const envConfig = require('./config/env.js')
 
 function getErrorMessage(err) {
   return err && err.message ? err.message : String(err || 'unknown error')
 }
 
 function isNonReleaseEnv() {
-  try {
-    if (!wx.getAccountInfoSync) return false
-    const info = wx.getAccountInfoSync()
-    return info && info.miniProgram && info.miniProgram.envVersion !== 'release'
-  } catch (e) {
-    return false
-  }
+  return envConfig.getRuntimeEnv() !== envConfig.ENV_TYPES.prod
+}
+
+function maskCloudEnvId(cloudEnvId) {
+  const value = String(cloudEnvId || '')
+  if (value.length <= 8) return value
+  return `${value.slice(0, 4)}...${value.slice(-4)}`
 }
 
 App({
@@ -38,7 +39,16 @@ App({
 
     // 网络状态
     isOnline: true,
-    isSyncing: false
+    isSyncing: false,
+
+    // 仅用于环境展示和诊断，业务逻辑不得依赖 globalData。
+    runtimeEnvInfo: {
+      envVersion: '',
+      runtimeEnv: '',
+      cloudEnvId: '',
+      showEnvBadge: false,
+      envBadgeText: ''
+    }
   },
 
   // 获取调试日期偏移
@@ -84,10 +94,31 @@ App({
 
   onLaunch() {
     console.log('App onLaunch')
-    // 初始化云开区
-    wx.cloud.init({
-      traceUser: true
+    const currentEnvConfig = envConfig.getCurrentEnvConfig()
+    this.globalData.runtimeEnvInfo = {
+      envVersion: currentEnvConfig.envVersion,
+      runtimeEnv: currentEnvConfig.runtimeEnv,
+      cloudEnvId: currentEnvConfig.cloudEnvId,
+      showEnvBadge: currentEnvConfig.showEnvBadge,
+      envBadgeText: currentEnvConfig.envBadgeText
+    }
+    console.info('CloudBase runtime env:', {
+      envVersion: currentEnvConfig.envVersion,
+      runtimeEnv: currentEnvConfig.runtimeEnv,
+      cloudEnvId: maskCloudEnvId(currentEnvConfig.cloudEnvId)
     })
+    try {
+      envConfig.assertCloudEnvReady(currentEnvConfig)
+      wx.cloud.init({
+        env: currentEnvConfig.cloudEnvId,
+        traceUser: true
+      })
+    } catch (e) {
+      console.error('云开发初始化已阻断:', getErrorMessage(e))
+      this.loadGlobalDataFromStorage()
+      this.initNetworkListener()
+      return
+    }
     // 从本地存储加载全局数据
     this.loadGlobalDataFromStorage()
     // Phase 7: 登录逻辑收敛到 userService（静默模式）

@@ -76,7 +76,12 @@ describe('userService profile view model', () => {
     expect(wx.cloud.callFunction).toHaveBeenCalledWith({
       name: 'login',
       data: {
-        code: 'wx_login_code_001'
+        code: 'wx_login_code_001',
+        __runtimeEnv: 'test',
+        __collectionPrefix: 'test_'
+      },
+      config: {
+        env: 'cloud1-6gjv79k431b8103b'
       }
     })
     expect(storage.userInfo).toEqual(expect.objectContaining({
@@ -118,5 +123,47 @@ describe('userService profile view model', () => {
     await Promise.resolve()
 
     expect(wx.cloud.callFunction).not.toHaveBeenCalled()
+  })
+
+  test('saveUserInfo creates current runtime user and retries when cloud profile is missing', async () => {
+    storage.userInfo = {
+      _userId: 'prod_user_001',
+      createdAt: '2026-05-31T00:00:00.000Z',
+      updatedAt: '2026-05-31T00:00:00.000Z',
+      nickName: '旧名',
+      avatarUrl: ''
+    }
+    wx.cloud.callFunction
+      .mockResolvedValueOnce({
+        result: {
+          success: false,
+          code: 'USER_NOT_FOUND',
+          message: '用户不存在，请先登录'
+        }
+      })
+      .mockResolvedValueOnce({
+        result: {
+          success: true,
+          userId: 'test_user_001',
+          createdAt: '2026-07-07T00:00:00.000Z'
+        }
+      })
+      .mockResolvedValueOnce({
+        result: {
+          success: true
+        }
+      })
+
+    await userService.saveUserInfo({ nickName: '测试名' })
+
+    expect(wx.cloud.callFunction.mock.calls.map(([options]) => options.name)).toEqual([
+      'saveUserProfile',
+      'login',
+      'saveUserProfile'
+    ])
+    expect(storage.userInfo).toEqual(expect.objectContaining({
+      _userId: 'test_user_001',
+      nickName: '测试名'
+    }))
   })
 })

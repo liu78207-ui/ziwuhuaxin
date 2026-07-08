@@ -27,28 +27,46 @@ const REPAIR_BUILTIN_CHECKINS_CONFIRM_PHRASE = 'REPAIR_TARGET_BUILTIN_CHECKINS';
 const INSPECT_BUILTIN_CHECKINS_ACTION = 'inspectTargetBuiltinCheckinsByHabitDates';
 const INSPECT_BUILTIN_CHECKINS_CONFIRM_PHRASE = 'INSPECT_TARGET_BUILTIN_CHECKINS';
 const ADMIN_TOKEN_ENV = 'CLEAR_USER_DATA_ADMIN_TOKEN';
+const PROD_MAINTENANCE_CONFIRM_PHRASE = 'ALLOW_PROD_MAINTENANCE_AFTER_BACKUP';
+const COLLECTIONS = {
+  users: 'users',
+  userHabits: 'user_habits',
+  habitPolicyVersions: 'habit_policy_versions',
+  checkinOperations: 'checkin_operations',
+  dailyCheckinStates: 'daily_checkin_states',
+  syncLogs: 'sync_logs',
+  conflictLogs: 'conflict_logs',
+  userSettings: 'user_settings',
+  aiLogs: 'ai_logs',
+  userStrategies: 'user_strategies',
+  userStrategyVersions: 'user_strategy_versions',
+  checkinLogs: 'checkin_logs',
+  habits: 'habits'
+};
+const ALLOWED_COLLECTION_NAMES = new Set(Object.values(COLLECTIONS));
+let activeCollectionPrefix = '';
 const USER_OWNED_QUERY = { _openid: _.exists(true) };
 const CUSTOM_RELATED_COLLECTIONS = [
-  'habit_policy_versions',
-  'daily_checkin_states',
-  'checkin_operations'
+  COLLECTIONS.habitPolicyVersions,
+  COLLECTIONS.dailyCheckinStates,
+  COLLECTIONS.checkinOperations
 ];
 
 const USER_DATA_COLLECTIONS = [
-  { name: 'users' },
-  { name: 'user_habits' },
-  { name: 'habit_policy_versions' },
-  { name: 'checkin_operations' },
-  { name: 'daily_checkin_states' },
-  { name: 'sync_logs' },
-  { name: 'conflict_logs' },
-  { name: 'user_settings' },
-  { name: 'ai_logs' },
-  { name: 'user_strategies' },
-  { name: 'user_strategy_versions' },
-  { name: 'checkin_logs' },
+  { name: COLLECTIONS.users },
+  { name: COLLECTIONS.userHabits },
+  { name: COLLECTIONS.habitPolicyVersions },
+  { name: COLLECTIONS.checkinOperations },
+  { name: COLLECTIONS.dailyCheckinStates },
+  { name: COLLECTIONS.syncLogs },
+  { name: COLLECTIONS.conflictLogs },
+  { name: COLLECTIONS.userSettings },
+  { name: COLLECTIONS.aiLogs },
+  { name: COLLECTIONS.userStrategies },
+  { name: COLLECTIONS.userStrategyVersions },
+  { name: COLLECTIONS.checkinLogs },
   // `habits` may also contain global built-in rows. Only remove user/test rows.
-  { name: 'habits' }
+  { name: COLLECTIONS.habits }
 ];
 
 function isCollectionMissingError(err, collectionName) {
@@ -59,6 +77,52 @@ function isCollectionMissingError(err, collectionName) {
     message.includes('Db or Table not exist') ||
     message.includes('DATABASE_COLLECTION_NOT_EXIST')
   );
+}
+
+function assertKnownCollectionName(collectionName) {
+  if (!ALLOWED_COLLECTION_NAMES.has(collectionName)) {
+    throw new Error(`未登记的 CloudBase 集合: ${collectionName}`);
+  }
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function collectionByName(collectionName) {
+  assertKnownCollectionName(collectionName);
+  return db.collection(`${activeCollectionPrefix}${collectionName}`);
+}
+
+function validateEnvironmentWriteGuard(event) {
+  const dryRun = event.dryRun !== false;
+  if (dryRun || isInspectBuiltinCheckinsAction(event)) {
+    return { success: true };
+  }
+
+  if (event.runtimeEnv === 'test' || event.confirmRuntimeEnv === 'test') {
+    return { success: true };
+  }
+
+  if (process.env.NODE_ENV === 'test') {
+    return { success: true };
+  }
+
+  if (
+    event.allowProdMaintenance === true &&
+    event.backupConfirmed === true &&
+    event.prodConfirmPhrase === PROD_MAINTENANCE_CONFIRM_PHRASE
+  ) {
+    return { success: true };
+  }
+
+  return {
+    success: false,
+    message: `非 dryRun 维护动作默认只允许测试环境。正式环境执行前必须先备份，并传入 allowProdMaintenance:true、backupConfirmed:true、prodConfirmPhrase:${PROD_MAINTENANCE_CONFIRM_PHRASE}。`
+  };
 }
 
 function normalizeEvent(event = {}) {
@@ -128,6 +192,11 @@ function validateRequest(event) {
       success: false,
       message: `${ADMIN_TOKEN_ENV} 未配置，禁止清理用户数据。`
     };
+  }
+
+  const environmentGuard = validateEnvironmentWriteGuard(event);
+  if (!environmentGuard.success) {
+    return environmentGuard;
   }
 
   if (isCleanupCustomHabitsAction(event)) {
@@ -308,7 +377,7 @@ function buildTargets(event) {
 }
 
 async function countCollection(collectionName, query) {
-  const collection = db.collection(collectionName).where(query);
+  const collection = collectionByName(collectionName).where(query);
   if (typeof collection.count === 'function') {
     const res = await collection.count();
     return Number(res.total || 0);
@@ -318,17 +387,17 @@ async function countCollection(collectionName, query) {
 }
 
 async function removeCollection(collectionName, query) {
-  const res = await db.collection(collectionName).where(query).remove();
+  const res = await collectionByName(collectionName).where(query).remove();
   return Number(res.deleted || res.removed || (res.stats && res.stats.removed) || 0);
 }
 
 async function addCollection(collectionName, data) {
-  const res = await db.collection(collectionName).add({ data });
+  const res = await collectionByName(collectionName).add({ data });
   return res && res._id ? res._id : '';
 }
 
 async function updateDocument(collectionName, docId, data) {
-  await db.collection(collectionName).doc(docId).update({ data });
+  await collectionByName(collectionName).doc(docId).update({ data });
 }
 
 function removeFieldValue() {
@@ -340,7 +409,7 @@ async function listAllCollection(collectionName, query) {
   let offset = 0;
 
   while (true) {
-    const res = await db.collection(collectionName)
+    const res = await collectionByName(collectionName)
       .where(query)
       .skip(offset)
       .limit(PAGE_SIZE)
@@ -464,7 +533,7 @@ async function inspectOrRemoveCustomHabits(event, dryRun) {
   if (!dryRun && !hasUnexpectedRelatedFailure) {
     for (const record of customHabits) {
       if (!record._id) continue;
-      await db.collection('user_habits').doc(record._id).remove();
+      await collectionByName(COLLECTIONS.userHabits).doc(record._id).remove();
       details.user_habits.deleted += 1;
     }
   }
@@ -556,7 +625,7 @@ function normalizeRepairCheckinOperation(record, targetOpenid) {
 }
 
 async function dailyStateExists(state) {
-  const res = await db.collection('daily_checkin_states').where({
+  const res = await collectionByName(COLLECTIONS.dailyCheckinStates).where({
     _openid: state._openid,
     userHabitId: state.userHabitId,
     date: state.date
@@ -568,7 +637,7 @@ async function checkinOperationExists(operation) {
   const identityQuery = operation.idempotencyKey
     ? { _openid: operation._openid, idempotencyKey: operation.idempotencyKey }
     : { _openid: operation._openid, operationId: operation.operationId };
-  const res = await db.collection('checkin_operations').where(identityQuery).get();
+  const res = await collectionByName(COLLECTIONS.checkinOperations).where(identityQuery).get();
   return Boolean(res.data && res.data.length > 0);
 }
 
@@ -676,7 +745,7 @@ function isPolicyEffectiveOnDate(policy, date) {
 }
 
 async function listRepairUserHabits(openid, habitId) {
-  const res = await db.collection('user_habits').where({
+  const res = await collectionByName(COLLECTIONS.userHabits).where({
     _openid: openid,
     habitId: String(habitId)
   }).get();
@@ -686,7 +755,7 @@ async function listRepairUserHabits(openid, habitId) {
 }
 
 async function listPolicyVersions(openid, userHabitId) {
-  const res = await db.collection('habit_policy_versions').where({
+  const res = await collectionByName(COLLECTIONS.habitPolicyVersions).where({
     _openid: openid,
     userHabitId
   }).get();
@@ -730,7 +799,7 @@ async function resolveRepairTargetForDate(openid, habitId, date) {
 }
 
 async function findDailyState(openid, userHabitId, date) {
-  const res = await db.collection('daily_checkin_states').where({
+  const res = await collectionByName(COLLECTIONS.dailyCheckinStates).where({
     _openid: openid,
     userHabitId,
     date
@@ -739,7 +808,7 @@ async function findDailyState(openid, userHabitId, date) {
 }
 
 async function findOperationByIdempotencyKey(openid, idempotencyKey) {
-  const res = await db.collection('checkin_operations').where({
+  const res = await collectionByName(COLLECTIONS.checkinOperations).where({
     _openid: openid,
     idempotencyKey
   }).get();
@@ -1010,6 +1079,7 @@ async function inspectOrRemoveCollection(target, dryRun) {
 
 exports.main = async (rawEvent = {}, context = {}) => {
   const event = normalizeEvent(rawEvent);
+  activeCollectionPrefix = getCollectionPrefix(event);
   const dryRun = event.dryRun !== false;
   const validation = validateRequest(event);
 

@@ -308,6 +308,17 @@ describe('首页 (home) 页面测试', () => {
 
       expect(wxml).not.toContain('pin-badge');
     });
+
+    test('开发版和体验版具备测试环境标识挂载点', () => {
+      const wxml = fs.readFileSync(
+        path.join(__dirname, '../../../miniprogram/pages/home/home.wxml'),
+        'utf8'
+      );
+
+      expect(wxml).toContain('class="env-badge"');
+      expect(wxml).toContain('wx:if="{{showEnvBadge}}"');
+      expect(wxml).toContain('{{envBadgeText}}');
+    });
   });
 
   describe('页面滚动效果测试', () => {

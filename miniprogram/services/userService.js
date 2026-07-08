@@ -223,14 +223,27 @@ async function saveUserInfo(data) {
   // 先更新本地缓存（乐观更新）
   setUserInfo(patch);
 
-  try {
+  const saveProfilePatch = async () => {
     // cloudService.callFunction 返回结构：{ success, data, error }
     const res = await cloudService.callFunction('saveUserProfile', patch);
     if (!res.success) {
-      throw new Error(res.error?.message || 'saveUserProfile 云函数返回失败');
+      const error = new Error(res.error?.message || 'saveUserProfile 云函数返回失败');
+      error.code = res.error?.code || '';
+      throw error;
     }
+  };
+
+  try {
+    await saveProfilePatch();
   } catch (e) {
-    // 云端失败时保留本地缓存，下次网络恢复可重试
+    // 切换到测试前缀集合后，本地可能已有旧登录态，但 test_users 还没有云端用户记录。
+    // 这种情况下先在当前 runtime env 补一次登录，再重试保存。
+    if (e && e.code === 'USER_NOT_FOUND') {
+      await login({ force: true });
+      await saveProfilePatch();
+      return;
+    }
+    // 云端失败时保留本地缓存，下次网络恢复可重试。
     throw e;
   }
 }

@@ -5,10 +5,13 @@ describe('cloudService.callFunction', () => {
     jest.resetModules()
     wx.cloud.callFunction.mockReset()
     wx.cloud.uploadFile = jest.fn()
+    wx.getAccountInfoSync = jest.fn(() => ({
+      miniProgram: { envVersion: 'develop' }
+    }))
     cloudService = require('../../../miniprogram/services/cloudService')
   })
 
-  test('does not pass a client timeout option to wx.cloud.callFunction by default', async () => {
+  test('binds cloud function calls to the current CloudBase env by default', async () => {
     wx.cloud.callFunction.mockResolvedValue({
       errMsg: 'cloud.callFunction:ok',
       result: { success: true, serverTime: 1780224000000 }
@@ -18,7 +21,13 @@ describe('cloudService.callFunction', () => {
 
     expect(wx.cloud.callFunction).toHaveBeenCalledWith({
       name: 'recoverData',
-      data: {}
+      data: {
+        __runtimeEnv: 'test',
+        __collectionPrefix: 'test_'
+      },
+      config: {
+        env: 'cloud1-6gjv79k431b8103b'
+      }
     })
   })
 
@@ -76,5 +85,13 @@ describe('cloudService.callFunction', () => {
     expect(consoleSpy).not.toHaveBeenCalledWith('cloudService.uploadFile 失败:', error)
 
     consoleSpy.mockRestore()
+  })
+
+  test('returns registered collection names with current prefix', () => {
+    expect(cloudService.getCollectionName('userHabits')).toBe('test_user_habits')
+  })
+
+  test('throws for unregistered collection names', () => {
+    expect(() => cloudService.getCollectionName('unknownCollection')).toThrow('未登记的 CloudBase 集合')
   })
 })

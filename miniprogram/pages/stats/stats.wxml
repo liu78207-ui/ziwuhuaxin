@@ -8,6 +8,9 @@
     <view class="nav-header" style="{{navTitleStyle}}">
       <text class="nav-title">观心</text>
     </view>
+    <view class="env-badge" wx:if="{{showEnvBadge}}">
+      <text>{{envBadgeText}}</text>
+    </view>
 
     <!-- 顶部 Tab 切换器 -->
     <view class="tabs-top">

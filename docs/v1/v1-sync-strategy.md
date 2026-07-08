@@ -30,6 +30,7 @@ V1 必须遵守以下原则：
 - 服务端确认：最终 `synced` 状态只能由云端确认后写回。
 - 日志可追踪：同步失败、冲突、迁移和恢复必须可诊断。
 - 用户不被阻断：同步失败不得阻断打卡、取消、习惯管理和报表展示。
+- 环境隔离：pending 同步、retry、recoverData 必须在当前 runtimeEnv 对应的数据集合内执行。当前采用同一 CloudBase 环境内集合前缀隔离：develop/trial 只读写 `test_` 前缀集合，release 只读写无前缀正式集合。
 
 推荐调用关系：
 
@@ -38,7 +39,7 @@ V1 必须遵守以下原则：
   -> service
   -> storageService 本地写入
   -> syncService 标记 pending
-  -> cloudService 调云函数
+  -> cloudService 按 runtimeEnv 调云函数
   -> 云函数幂等写 CloudBase
   -> syncService 回写确认状态
   -> EventBus 通知页面刷新
@@ -211,6 +212,7 @@ V1 恢复范围：
 - 如果用户已清空缓存，本地 pending 已丢失，V1 无法找回。
 - 恢复后以云端数据为准。
 - 可提示：“已从云端恢复，部分未同步离线操作可能无法找回”。
+- 清缓存恢复不得跨集合恢复：开发版和体验版只从 `test_` 前缀集合恢复，正式版只从无前缀正式集合恢复。
 
 ## 6. pending 队列规则
 

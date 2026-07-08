@@ -16,6 +16,97 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const _ = db.command || {};
+const COLLECTIONS = {
+  checkinOperations: 'checkin_operations',
+  dailyCheckinStates: 'daily_checkin_states'
+};
+
+function getCollectionName(key) {
+  const name = COLLECTIONS[key];
+  if (!name) {
+    throw new Error(`未登记的 CloudBase 集合: ${key}`);
+  }
+  return name;
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function getResolvedCollectionName(key, event = {}) {
+  return `${getCollectionPrefix(event)}${getCollectionName(key)}`;
+}
+
+function collection(key, event = {}) {
+  return db.collection(getResolvedCollectionName(key, event));
+}
+
+async function ensureTestCollection(key, event = {}) {
+  if (getCollectionPrefix(event) !== 'test_') {
+    return;
+  }
+  if (typeof db.createCollection !== 'function') {
+    return;
+  }
+  const name = getResolvedCollectionName(key, event);
+  try {
+    await db.createCollection(name);
+  } catch (createErr) {
+    const message = createErr && (createErr.message || createErr.errMsg || '');
+    if (!isCollectionAlreadyExists(createErr)) {
+      throw createErr;
+    }
+  }
+}
+
+function isCollectionAlreadyExists(err) {
+  const message = err && (err.message || err.errMsg || '');
+  return err && (
+    err.errCode === -501001 ||
+    message.includes('already exists') ||
+    message.includes('collection exists') ||
+    message.includes('DATABASE_COLLECTION_ALREADY_EXIST') ||
+    message.includes('ResourceExist') ||
+    message.includes('Table exist')
+  );
+}
+
+async function ensureTestCollections(keys, event = {}) {
+  for (const key of keys) {
+    await ensureTestCollection(key, event);
+  }
+}
+
+function isCollectionMissing(err) {
+  const message = err && (err.message || err.errMsg || '');
+  return err && (
+    err.errCode === -502005 ||
+    message.includes('DATABASE_COLLECTION_NOT_EXIST') ||
+    message.includes('collection not exists') ||
+    message.includes('Db or Table not exist') ||
+    message.includes('Table not exist')
+  );
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function runWithCollectionReady(key, event, operation) {
+  try {
+    return await operation();
+  } catch (err) {
+    if (!isCollectionMissing(err) || getCollectionPrefix(event) !== 'test_') {
+      throw err;
+    }
+    await ensureTestCollection(key, event);
+    await sleep(250);
+    return operation();
+  }
+}
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -105,11 +196,17 @@ exports.main = async (event, context) => {
   let opAlreadyExisted = false;
 
   try {
+    await ensureTestCollections([
+      'checkinOperations',
+      'dailyCheckinStates'
+    ], event);
     // Step 1: 写入或检查 checkin_operations
-    const existingOp = await db.collection('checkin_operations').where({
-      _openid: openid,
-      idempotencyKey: idempotencyKey
-    }).get();
+    const existingOp = await runWithCollectionReady('checkinOperations', event, () =>
+      collection('checkinOperations', event).where({
+        _openid: openid,
+        idempotencyKey: idempotencyKey
+      }).get()
+    );
 
     if (existingOp.data && existingOp.data.length > 0) {
       opAlreadyExisted = true;
@@ -132,7 +229,9 @@ exports.main = async (event, context) => {
       });
 
       try {
-        const opResult = await db.collection('checkin_operations').add({ data: opData });
+        const opResult = await runWithCollectionReady('checkinOperations', event, () =>
+          collection('checkinOperations', event).add({ data: opData })
+        );
         opRecordId = opResult._id;
       } catch (addErr) {
         // 唯一索引冲突（duplicate key）= 幂等跳过，但仍需保证 daily_checkin_states
@@ -148,11 +247,13 @@ exports.main = async (event, context) => {
     // 不管 operation 是否已存在，都要确保 daily_checkin_states 达到目标状态
     // 但如果已有状态的 lastOperationClientTime 比当前 clientCreatedAt 更新，则跳过更新
     // （防止旧操作重试覆盖新状态）
-    const existingState = await db.collection('daily_checkin_states').where({
-      _openid: openid,
-      userHabitId: userHabitId,
-      date: targetDate
-    }).get();
+    const existingState = await runWithCollectionReady('dailyCheckinStates', event, () =>
+      collection('dailyCheckinStates', event).where({
+        _openid: openid,
+        userHabitId: userHabitId,
+        date: targetDate
+      }).get()
+    );
 
     let stateUpdated = false;
     if (existingState.data && existingState.data.length > 0) {
@@ -184,44 +285,48 @@ exports.main = async (event, context) => {
       const clearOppositeTimeField = dailyStateStatus === 'checked'
         ? { canceledAt: removeFieldValue() }
         : { checkedAt: removeFieldValue() };
-      await db.collection('daily_checkin_states').doc(existing._id).update({
-        data: {
-          ...cleanData({
-          status: dailyStateStatus,
-          checkedAt: checkedAt,
-          canceledAt: canceledAt,
-          lastOperationId: operationId || idempotencyKey,
-          lastOperationClientTime: clientCreatedAt || null,
-          lastOperationClientSequence: clientSequence,
-          ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
-          ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
-          updatedAt: serverTime
-          }),
-          ...clearOppositeTimeField,
-          [legacyLockedReasonFieldName()]: removeFieldValue()
-        }
-      });
+      await runWithCollectionReady('dailyCheckinStates', event, () =>
+        collection('dailyCheckinStates', event).doc(existing._id).update({
+          data: {
+            ...cleanData({
+            status: dailyStateStatus,
+            checkedAt: checkedAt,
+            canceledAt: canceledAt,
+            lastOperationId: operationId || idempotencyKey,
+            lastOperationClientTime: clientCreatedAt || null,
+            lastOperationClientSequence: clientSequence,
+            ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
+            ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
+            updatedAt: serverTime
+            }),
+            ...clearOppositeTimeField,
+            [legacyLockedReasonFieldName()]: removeFieldValue()
+          }
+        })
+      );
       stateUpdated = true;
     } else {
       // 创建新状态
-      await db.collection('daily_checkin_states').add({
-        data: cleanData({
-          _openid: openid,
-          userHabitId,
-          habitId: String(habitId),
-          policyVersionId,
-          date: targetDate,
-          status: dailyStateStatus,
-          checkedAt: checkedAt,
-          canceledAt: canceledAt,
-          lastOperationId: operationId || idempotencyKey,
-          lastOperationClientTime: clientCreatedAt || null,
-          lastOperationClientSequence: clientSequence,
-          ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
-          ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
-          updatedAt: serverTime
+      await runWithCollectionReady('dailyCheckinStates', event, () =>
+        collection('dailyCheckinStates', event).add({
+          data: cleanData({
+            _openid: openid,
+            userHabitId,
+            habitId: String(habitId),
+            policyVersionId,
+            date: targetDate,
+            status: dailyStateStatus,
+            checkedAt: checkedAt,
+            canceledAt: canceledAt,
+            lastOperationId: operationId || idempotencyKey,
+            lastOperationClientTime: clientCreatedAt || null,
+            lastOperationClientSequence: clientSequence,
+            ...(hasPolicyChangedToday !== undefined ? { hasPolicyChangedToday: hasPolicyChangedToday === true } : {}),
+            ...(strategyLockReason ? { lockReason: strategyLockReason } : {}),
+            updatedAt: serverTime
+          })
         })
-      });
+      );
       stateUpdated = true;
     }
 

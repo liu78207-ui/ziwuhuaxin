@@ -3,6 +3,8 @@ const shareService = require('../../services/shareService');
 const habitService = require('../../services/habitService');
 const eventBus = require('../../services/eventBus');
 const { getNavTitleStyle } = require('../../utils/navLayout');
+const envConfig = require('../../config/env');
+const { compareHabitsByPinyinName } = require('../../utils/habitSort');
 
 const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
 
@@ -88,7 +90,9 @@ Page({
     renameChoicePrimaryText: '仅改名称',
     renameChoiceTodayChecked: false,
     isConfirmingRenameChoice: false,
-    navTitleStyle: ''
+    navTitleStyle: '',
+    showEnvBadge: false,
+    envBadgeText: ''
   },
 
   // 返回上一页
@@ -111,8 +115,11 @@ Page({
 
   onLoad() {
     console.log('habits页面 onLoad');
+    const currentEnvConfig = envConfig.getCurrentEnvConfig();
     this.setData({
-      navTitleStyle: getNavTitleStyle()
+      navTitleStyle: getNavTitleStyle(),
+      showEnvBadge: currentEnvConfig.showEnvBadge,
+      envBadgeText: currentEnvConfig.envBadgeText
     });
     this.subscribeSyncEvents();
     // 完整的习惯数据（与数据库一致）
@@ -159,7 +166,7 @@ Page({
           themeClass: iconConfig ? iconConfig.themeClass : iconMap.getThemeByCategory(habit.category)
         };
       })
-      .sort((a, b) => a.title.localeCompare(b.title, 'zh-CN'));
+      .sort(compareHabitsByPinyinName);
 
     this.setData({
       habits: processedHabits,
@@ -303,18 +310,20 @@ Page({
       return habits
         .filter(h => h.hasStrategy)
         .map(h => this.withCustomDisplayMeta(h))
-        .sort((a, b) => this.compareHabitsByDisplayName(a, b));
+        .sort(compareHabitsByPinyinName);
     }
     if (tabIndex === 4) {
       const customHabits = habits
         .filter(h => h.source === 'custom')
         .map(h => this.withCustomDisplayMeta(h))
-        .sort((a, b) => this.compareHabitsByDisplayName(a, b));
+        .sort(compareHabitsByPinyinName);
       return customHabits.concat(this.buildCustomAddCard());
     }
     const categoryMap = { 1: '运动类', 2: '理疗类', 3: '起居类' };
     const category = categoryMap[tabIndex];
-    return habits.filter(h => h.category === category);
+    return habits
+      .filter(h => h.category === category)
+      .sort(compareHabitsByPinyinName);
   },
 
   buildCustomAddCard() {
@@ -349,22 +358,6 @@ Page({
       iconUrl: habit.iconUrl || CUSTOM_ICON_URL,
       displayInitial: habit.displayInitial || this.getCustomDisplayInitial({ title: displayTitle })
     };
-  },
-
-  getHabitSortKey(habit) {
-    return this.getHabitDisplayTitle(habit) || '';
-  },
-
-  getHabitStableSortId(habit) {
-    return String((habit && (habit._id || habit.habitId || habit.userHabitId)) || '');
-  },
-
-  compareHabitsByDisplayName(a, b) {
-    const nameCompare = this.getHabitSortKey(a).localeCompare(this.getHabitSortKey(b), 'zh-CN-u-co-pinyin');
-    if (nameCompare !== 0) {
-      return nameCompare;
-    }
-    return this.getHabitStableSortId(a).localeCompare(this.getHabitStableSortId(b), 'zh-CN-u-co-pinyin');
   },
 
   openStrategyModal(e) {

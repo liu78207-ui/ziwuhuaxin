@@ -3,6 +3,26 @@ describe('syncService recoverFromCloud', () => {
   let eventBus
   let storage = {}
 
+  function expectedCloudCall(name, data) {
+    const expectedData = data && typeof data.asymmetricMatch === 'function'
+      ? expect.objectContaining({
+        __runtimeEnv: 'test',
+        __collectionPrefix: 'test_'
+      })
+      : expect.objectContaining({
+        ...data,
+        __runtimeEnv: 'test',
+        __collectionPrefix: 'test_'
+      })
+    return expect.objectContaining({
+      name,
+      data: expectedData,
+      config: {
+        env: 'cloud1-6gjv79k431b8103b'
+      }
+    })
+  }
+
   beforeEach(() => {
     jest.resetModules()
     storage = {}
@@ -24,10 +44,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('FunctionName parameter could not be found')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
     expect(storage.MyHabits).toBeUndefined()
     expect(storage.CheckinLogs).toBeUndefined()
@@ -39,10 +56,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
   })
 
@@ -58,10 +72,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('collection not exists')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
     expect(storage.MyHabits).toBeUndefined()
     expect(storage.CheckinLogs).toBeUndefined()
@@ -79,10 +90,7 @@ describe('syncService recoverFromCloud', () => {
       error: 'timeout'
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
   })
 
@@ -92,10 +100,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, {
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
   })
 
@@ -205,10 +210,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(storage.MyHabits).toEqual([expect.objectContaining({
       userHabitId: 'uh_bootstrap',
       habitId: '1',
@@ -261,10 +263,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'recoverData',
-      data: { dailyStateDays: 90 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', { dailyStateDays: 90 }))
     expect(storage.dailyCheckinStates).toEqual([
       { stateId: 'ds_cloud', userHabitId: 'uh_cloud', habitId: '17', date: '2026-07-01', status: 'checked' }
     ])
@@ -298,10 +297,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'recoverData',
-      data: { dailyStateDays: 30 }
-    })
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', { dailyStateDays: 30 }))
     expect(storage.MyHabits).toEqual([expect.objectContaining({
       userHabitId: 'uh_cloud',
       habitId: '17',
@@ -370,14 +366,11 @@ describe('syncService recoverFromCloud', () => {
     await syncService.recoverOrSync()
 
     expect(wx.getNetworkType).toHaveBeenCalled()
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'syncCheckin',
-      data: expect.objectContaining({
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('syncCheckin', expect.objectContaining({
         userHabitId: 'uh_001',
         action: 'checkin',
         idempotencyKey: 'idem_001'
-      })
-    })
+      })))
   })
 
   test('processQueue passes queue action to syncHabit payloads', async () => {
@@ -406,17 +399,14 @@ describe('syncService recoverFromCloud', () => {
 
     await syncService.processQueue()
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'syncHabit',
-      data: expect.objectContaining({
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('syncHabit', expect.objectContaining({
         action: 'addHabit',
         userHabitId: 'uh_habit_add',
         habitId: '20',
         policyVersionId: 'pv_habit_add',
         addedAt: '2026-06-16T08:00:00.000Z',
         idempotencyKey: 'idem_habit_add'
-      })
-    })
+      })))
     expect(storage.pendingOperations[0].status).toBe('synced')
   })
 
@@ -441,16 +431,13 @@ describe('syncService recoverFromCloud', () => {
 
     await syncService.processQueue()
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'syncHabit',
-      data: expect.objectContaining({
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('syncHabit', expect.objectContaining({
         action: 'updatePinned',
         userHabitId: 'uh_habit_pin',
         habitId: '20',
         pinnedAt: '2026-06-01T08:00:00.000Z',
         idempotencyKey: 'idem_habit_pin'
-      })
-    })
+      })))
     expect(storage.pendingOperations[0].status).toBe('synced')
   })
 
@@ -514,6 +501,7 @@ describe('syncService recoverFromCloud', () => {
   })
 
   test('processQueue marks retryable failures as retrying before final failed state', async () => {
+    jest.useFakeTimers()
     storage.pendingOperations = [{
       queueId: 'q_retry',
       entityType: 'checkin',
@@ -542,6 +530,7 @@ describe('syncService recoverFromCloud', () => {
       lastError: 'network down'
     }))
     expect(storage.pendingOperations[0].nextRetryAt).toBeTruthy()
+    jest.useRealTimers()
   })
 
   test('retry resets an eligible failed item to pending and processes it', async () => {
@@ -568,13 +557,10 @@ describe('syncService recoverFromCloud', () => {
 
     await syncService.retry('q_retry_success')
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'syncCheckin',
-      data: expect.objectContaining({
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('syncCheckin', expect.objectContaining({
         operationId: 'op_retry_success',
         idempotencyKey: 'idem_retry_success'
-      })
-    })
+      })))
     expect(storage.pendingOperations[0]).toEqual(expect.objectContaining({
       queueId: 'q_retry_success',
       status: 'synced',

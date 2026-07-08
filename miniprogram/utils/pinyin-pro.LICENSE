@@ -1,0 +1,7 @@
+pinyin-pro 3.28.1
+Source: https://github.com/zh-lx/pinyin-pro
+License: MIT
+
+This directory vendors the CommonJS/UMD runtime build in pinyin-pro.js so the
+WeChat Mini Program appservice can load pinyin conversion without requiring the
+developer tools npm build step.

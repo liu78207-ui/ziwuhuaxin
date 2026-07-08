@@ -156,6 +156,28 @@ function calculateNextRetry(retryCount) {
   return new Date(Date.now() + delay).toISOString()
 }
 
+function scheduleProcessQueue(delay = 0) {
+  if (processQueueTimer) return
+
+  processQueueTimer = setTimeout(() => {
+    processQueueTimer = null
+    processQueue().catch(e => {
+      console.warn('syncService.requestProcessQueue failed:', e && e.message ? e.message : String(e || 'unknown error'))
+    })
+  }, Math.max(0, delay))
+}
+
+function scheduleRetryingQueue(queue) {
+  const retryTimes = queue
+    .filter(item => item.status === 'retrying' && item.retryCount < 3 && item.nextRetryAt)
+    .map(item => new Date(item.nextRetryAt).getTime())
+    .filter(time => Number.isFinite(time))
+
+  if (retryTimes.length === 0) return
+  const nextRetryTime = Math.min(...retryTimes)
+  scheduleProcessQueue(Math.max(0, nextRetryTime - Date.now()))
+}
+
 /**
  * 处理 pending 队列（同步到云端）
  * 包含并发保护：同一时刻只允许一个 processQueue 执行
@@ -243,6 +265,7 @@ async function processQueue() {
     const otherItems = finalQueue.filter(i => i.status !== 'retrying' || i.retryCount >= 3)
     if (retryingItems.length > 0) {
       setPendingOperations([...otherItems, ...retryingItems])
+      scheduleRetryingQueue(getPendingOperations())
     }
 
     if (syncedCount > 0) {
@@ -257,14 +280,7 @@ async function processQueue() {
 }
 
 function requestProcessQueue() {
-  if (processQueueTimer) return
-
-  processQueueTimer = setTimeout(() => {
-    processQueueTimer = null
-    processQueue().catch(e => {
-      console.warn('syncService.requestProcessQueue failed:', e && e.message ? e.message : String(e || 'unknown error'))
-    })
-  }, 0)
+  scheduleProcessQueue(0)
 }
 
 /**

@@ -29,6 +29,10 @@ describe('修习页面我的Tab', () => {
     expect(page.data.categories[0]).toBe('我的');
   });
 
+  test('顶部Tab展示文案不带分类后缀', () => {
+    expect(page.data.categories).toEqual(['我的', '运动', '理疗', '起居', '自定义']);
+  });
+
   test('我的Tab只显示已添加且正在进行的习惯', () => {
     const habits = [
       { _id: '1', title: '八段锦', category: '运动类', hasStrategy: true },
@@ -41,12 +45,12 @@ describe('修习页面我的Tab', () => {
     expect(filtered.map(h => h.title)).toEqual(['八段锦', '梳头']);
   });
 
-  test('我的Tab按名称首字母排序且忽略置顶状态', () => {
+  test('我的Tab按名称首字母排序且忽略置顶和添加时间', () => {
     const habits = [
-      { _id: 'custom_z', title: '站桩', source: 'custom', category: '自定义', hasStrategy: true },
-      { _id: '1', title: '艾灸', category: '理疗类', hasStrategy: true, pinnedAt: '2026-06-02T08:00:00.000Z' },
-      { _id: '2', title: '八段锦', category: '运动类', hasStrategy: true },
-      { _id: '3', title: '晨起温水', category: '起居类', hasStrategy: true, pinnedAt: '2026-06-01T08:00:00.000Z' }
+      { _id: 'custom_z', title: '站桩', source: 'custom', category: '自定义', hasStrategy: true, addedAt: '2026-05-01T08:00:00.000Z' },
+      { _id: '1', title: '艾灸', category: '理疗类', hasStrategy: true, pinnedAt: '2026-06-02T08:00:00.000Z', addedAt: '2026-05-04T08:00:00.000Z' },
+      { _id: '2', title: '八段锦', category: '运动类', hasStrategy: true, addedAt: '2026-05-03T08:00:00.000Z' },
+      { _id: '3', title: '晨起温水', category: '起居类', hasStrategy: true, pinnedAt: '2026-06-01T08:00:00.000Z', addedAt: '2026-05-02T08:00:00.000Z' }
     ];
 
     const filtered = page.filterHabits(habits, 0);
@@ -54,15 +58,22 @@ describe('修习页面我的Tab', () => {
     expect(filtered.map(h => h.title)).toEqual(['艾灸', '八段锦', '晨起温水', '站桩']);
   });
 
-  test('分类Tab仍按分类展示全部可添加习惯', () => {
+  test('分类Tab仍按分类展示全部可添加习惯并按首字母排序', () => {
     const habits = [
-      { _id: '1', title: '八段锦', category: '运动类', hasStrategy: true },
+      { _id: '1', title: '站桩', category: '运动类', hasStrategy: true },
       { _id: '2', title: '太极拳', category: '运动类' },
-      { _id: '3', title: '艾灸', category: '理疗类' }
+      { _id: '3', title: '八段锦', category: '运动类' },
+      { _id: '4', title: '经络拍打', category: '理疗类' },
+      { _id: '5', title: '艾灸', category: '理疗类' },
+      { _id: '6', title: '点穴', category: '理疗类' },
+      { _id: '7', title: '睡前泡脚', category: '起居类' },
+      { _id: '8', title: '晨起温水', category: '起居类' },
+      { _id: '9', title: '梳头', category: '起居类' }
     ];
 
-    expect(page.filterHabits(habits, 1).map(h => h.title)).toEqual(['八段锦', '太极拳']);
-    expect(page.filterHabits(habits, 2).map(h => h.title)).toEqual(['艾灸']);
+    expect(page.filterHabits(habits, 1).map(h => h.title)).toEqual(['八段锦', '太极拳', '站桩']);
+    expect(page.filterHabits(habits, 2).map(h => h.title)).toEqual(['艾灸', '点穴', '经络拍打']);
+    expect(page.filterHabits(habits, 3).map(h => h.title)).toEqual(['晨起温水', '睡前泡脚', '梳头']);
   });
 
   test('我的Tab空状态提供添加入口', () => {
@@ -130,12 +141,13 @@ describe('修习页面我的Tab', () => {
   test('自定义Tab按名称首字母排序且添加卡片始终在最后', () => {
     const filtered = page.filterHabits([
       { _id: 'custom_z', name: '站桩', source: 'custom', category: '自定义', hasStrategy: false },
+      { _id: 'custom_c', name: '晨练', source: 'custom', category: '自定义', hasStrategy: true },
       { _id: 'custom_a', name: '艾灸', source: 'custom', category: '自定义', hasStrategy: true },
       { _id: 'custom_b', name: '八段锦', source: 'custom', category: '自定义', hasStrategy: true }
     ], 4);
 
-    expect(filtered.map(h => h.title || h.name || h._id)).toEqual(['艾灸', '八段锦', '站桩', 'custom-add-card']);
-    expect(filtered[3]).toEqual(expect.objectContaining({
+    expect(filtered.map(h => h.title || h.name || h._id)).toEqual(['艾灸', '八段锦', '晨练', '站桩', 'custom-add-card']);
+    expect(filtered[4]).toEqual(expect.objectContaining({
       isCustomAddCard: true
     }));
   });

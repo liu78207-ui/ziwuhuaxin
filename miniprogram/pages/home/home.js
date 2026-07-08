@@ -10,6 +10,7 @@ const timeService = require('../../services/timeService');
 const shareService = require('../../services/shareService');
 const eventBus = require('../../services/eventBus');
 const { getNavTitleStyle } = require('../../utils/navLayout');
+const envConfig = require('../../config/env');
 
 // 习惯圆圈背景色 - 柔和的国风色调
 const CIRCLE_COLORS = [
@@ -34,7 +35,9 @@ Page({
     checkedCount: 0,
     totalCount: 0,
     progressPercent: 0,
-    navTitleStyle: ''
+    navTitleStyle: '',
+    showEnvBadge: false,
+    envBadgeText: ''
   },
 
   // 防抖控制：记录正在处理的 habitId
@@ -69,8 +72,11 @@ Page({
   },
 
   onLoad() {
+    const currentEnvConfig = envConfig.getCurrentEnvConfig();
     this.setData({
-      navTitleStyle: getNavTitleStyle()
+      navTitleStyle: getNavTitleStyle(),
+      showEnvBadge: currentEnvConfig.showEnvBadge,
+      envBadgeText: currentEnvConfig.envBadgeText
     });
     this.subscribeSyncEvents();
     this.loadViewModel();

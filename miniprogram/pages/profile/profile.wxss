@@ -25,6 +25,24 @@
   letter-spacing: 0.1em;
 }
 
+.env-badge {
+  position: absolute;
+  right: 48rpx;
+  top: calc(var(--nav-mask-height) - 58rpx);
+  height: 40rpx;
+  padding: 0 16rpx;
+  border-radius: 999rpx;
+  background: rgba(196, 120, 106, 0.14);
+  border: 1rpx solid rgba(196, 120, 106, 0.34);
+  color: #9A5E54;
+  font-size: 22rpx;
+  font-weight: 600;
+  line-height: 40rpx;
+  box-sizing: border-box;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 /* ============================================
    用户信息区域
    ============================================ */

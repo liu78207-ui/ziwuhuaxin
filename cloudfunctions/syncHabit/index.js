@@ -20,6 +20,71 @@ const _ = db.command || {};
 const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png';
 const CUSTOM_HABIT_LIBRARY_LIMIT = 12;
 const CUSTOM_ACTIVE_HABIT_LIMIT = 5;
+const COLLECTIONS = {
+  userHabits: 'user_habits',
+  habitPolicyVersions: 'habit_policy_versions',
+  dailyCheckinStates: 'daily_checkin_states',
+  checkinOperations: 'checkin_operations'
+};
+
+function getCollectionName(key) {
+  const name = COLLECTIONS[key];
+  if (!name) {
+    throw new Error(`未登记的 CloudBase 集合: ${key}`);
+  }
+  return name;
+}
+
+function getCollectionPrefix(event = {}) {
+  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
+  if (!prefix) return '';
+  if (prefix === 'test_') return prefix;
+  throw new Error(`非法集合前缀: ${prefix}`);
+}
+
+function getResolvedCollectionName(key, event = {}) {
+  return `${getCollectionPrefix(event)}${getCollectionName(key)}`;
+}
+
+function collection(key, event = {}) {
+  return db.collection(getResolvedCollectionName(key, event));
+}
+
+async function ensureTestCollection(key, event = {}) {
+  if (getCollectionPrefix(event) !== 'test_') {
+    return;
+  }
+  if (typeof db.createCollection !== 'function') {
+    return;
+  }
+  const name = getResolvedCollectionName(key, event);
+  try {
+    await db.createCollection(name);
+  } catch (createErr) {
+    const message = createErr && (createErr.message || createErr.errMsg || '');
+    if (!isCollectionAlreadyExists(createErr)) {
+      throw createErr;
+    }
+  }
+}
+
+function isCollectionAlreadyExists(err) {
+  const message = err && (err.message || err.errMsg || '');
+  return err && (
+    err.errCode === -501001 ||
+    message.includes('already exists') ||
+    message.includes('collection exists') ||
+    message.includes('DATABASE_COLLECTION_ALREADY_EXIST') ||
+    message.includes('ResourceExist') ||
+    message.includes('Table exist')
+  );
+}
+
+async function ensureTestCollections(keys, event = {}) {
+  for (const key of keys) {
+    await ensureTestCollection(key, event);
+  }
+}
 
 function formatDate(date) {
   const year = date.getFullYear();
@@ -67,8 +132,8 @@ function getCustomHabitId(record) {
   return String(record && record.habitId || '');
 }
 
-async function assertCustomHabitLimits(openid, targetHabitId) {
-  const habitsRes = await db.collection('user_habits').where({ _openid: openid }).get();
+async function assertCustomHabitLimits(openid, targetHabitId, event) {
+  const habitsRes = await collection('userHabits', event).where({ _openid: openid }).get();
   const customHabits = (habitsRes.data || []).filter(record => isCustomHabitRecord(record) && hasValidCustomName(record));
   const libraryHabitIds = new Set(customHabits.map(getCustomHabitId).filter(Boolean));
   const activeCount = customHabits.filter(record => record.status === 'active').length;
@@ -136,39 +201,39 @@ exports.main = async (event, context) => {
 
   if (action === 'cleanupNamelessCustomHabits') {
     try {
-      const habitsRes = await db.collection('user_habits').where({ _openid: openid }).get();
+      const habitsRes = await collection('userHabits', event).where({ _openid: openid }).get();
       const namelessCustomHabits = (habitsRes.data || []).filter(record =>
         isCustomHabitRecord(record) && !hasValidCustomName(record)
       );
       const removedUserHabitIds = namelessCustomHabits.map(record => record.userHabitId).filter(Boolean);
 
       for (const record of namelessCustomHabits) {
-        await db.collection('user_habits').doc(record._id).remove();
+        await collection('userHabits', event).doc(record._id).remove();
       }
 
       for (const targetUserHabitId of removedUserHabitIds) {
-        const policyRes = await db.collection('habit_policy_versions').where({
+        const policyRes = await collection('habitPolicyVersions', event).where({
           _openid: openid,
           userHabitId: targetUserHabitId
         }).get();
         for (const record of policyRes.data || []) {
-          await db.collection('habit_policy_versions').doc(record._id).remove();
+          await collection('habitPolicyVersions', event).doc(record._id).remove();
         }
 
-        const stateRes = await db.collection('daily_checkin_states').where({
+        const stateRes = await collection('dailyCheckinStates', event).where({
           _openid: openid,
           userHabitId: targetUserHabitId
         }).get();
         for (const record of stateRes.data || []) {
-          await db.collection('daily_checkin_states').doc(record._id).remove();
+          await collection('dailyCheckinStates', event).doc(record._id).remove();
         }
 
-        const opRes = await db.collection('checkin_operations').where({
+        const opRes = await collection('checkinOperations', event).where({
           _openid: openid,
           userHabitId: targetUserHabitId
         }).get();
         for (const record of opRes.data || []) {
-          await db.collection('checkin_operations').doc(record._id).remove();
+          await collection('checkinOperations', event).doc(record._id).remove();
         }
       }
 
@@ -199,6 +264,12 @@ exports.main = async (event, context) => {
   const serverTime = Date.now();
 
   try {
+    await ensureTestCollections([
+      'userHabits',
+      'habitPolicyVersions',
+      'dailyCheckinStates',
+      'checkinOperations'
+    ], event);
     // ========== userHabit 同步 ==========
 
     if (action === 'addHabit') {
@@ -207,7 +278,7 @@ exports.main = async (event, context) => {
       }
       const isCustomAdd = source === 'custom' || String(habitId || '').indexOf('custom_') === 0;
       // 检查是否已存在（幂等）
-      const existingHabit = await db.collection('user_habits').where({
+      const existingHabit = await collection('userHabits', event).where({
         _openid: openid,
         userHabitId: userHabitId
       }).get();
@@ -227,7 +298,7 @@ exports.main = async (event, context) => {
         );
         if (existing.status !== (status || 'active') || !existing.createdAt || (addedAt && !existing.addedAt) || needsMetaUpdate) {
           // 状态不一致，需要更新
-          await db.collection('user_habits').doc(existing._id).update({
+          await collection('userHabits', event).doc(existing._id).update({
             data: cleanData({
               status: status || 'active',
               source: source || existing.source || 'system',
@@ -247,11 +318,11 @@ exports.main = async (event, context) => {
         // 以确保 userHabit 和 policyVersion 都达到目标状态
       } else {
         if (isCustomAdd) {
-          const limitError = await assertCustomHabitLimits(openid, String(habitId));
+          const limitError = await assertCustomHabitLimits(openid, String(habitId), event);
           if (limitError) return limitError;
         }
         // 写入 user_habits
-        await db.collection('user_habits').add({
+        await collection('userHabits', event).add({
           data: cleanData({
             _openid: openid,
             userHabitId,
@@ -273,13 +344,13 @@ exports.main = async (event, context) => {
       // 继续执行 policyVersion 同步（见下方 if 块）
     } else if (action === 'deleteHabit') {
       // 软删除 userHabit，使用 payload 中的 deletedAt（本地业务日期）
-      const existingHabit = await db.collection('user_habits').where({
+      const existingHabit = await collection('userHabits', event).where({
         _openid: openid,
         userHabitId: userHabitId
       }).get();
 
       if (existingHabit.data && existingHabit.data.length > 0) {
-        await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
+        await collection('userHabits', event).doc(existingHabit.data[0]._id).update({
           data: {
             status: 'deleted',
             // 使用 payload 中的 deletedAt，不可用云端同步日期
@@ -290,7 +361,7 @@ exports.main = async (event, context) => {
       }
 
       // 关闭该 userHabitId 下所有 policyVersion，使用 payload 中的日期
-      const versionsToClose = await db.collection('habit_policy_versions').where({
+      const versionsToClose = await collection('habitPolicyVersions', event).where({
         _openid: openid,
         userHabitId: userHabitId,
         effectiveEndDate: null
@@ -298,7 +369,7 @@ exports.main = async (event, context) => {
 
       const endDate = deletedAt || toDateStr(new Date());
       for (const pv of versionsToClose.data || []) {
-        await db.collection('habit_policy_versions').doc(pv._id).update({
+        await collection('habitPolicyVersions', event).doc(pv._id).update({
           data: {
             effectiveEndDate: endDate,
             updatedAt: serverTime
@@ -327,21 +398,21 @@ exports.main = async (event, context) => {
           updatedAt: serverTime
         });
 
-        const existingState = await db.collection('daily_checkin_states').where({
+        const existingState = await collection('dailyCheckinStates', event).where({
           _openid: openid,
           userHabitId,
           date: dailyStateDate
         }).get();
 
         if (existingState.data && existingState.data.length > 0) {
-          await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
+          await collection('dailyCheckinStates', event).doc(existingState.data[0]._id).update({
             data: {
               ...stateData,
               [legacyLockedReasonFieldName()]: removeFieldValue()
             }
           });
         } else {
-          await db.collection('daily_checkin_states').add({
+          await collection('dailyCheckinStates', event).add({
             data: cleanData({
               _openid: openid,
               stateId: deletionDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,
@@ -351,7 +422,7 @@ exports.main = async (event, context) => {
         }
       }
     } else if (action === 'updatePinned') {
-      const existingHabit = await db.collection('user_habits').where({
+      const existingHabit = await collection('userHabits', event).where({
         _openid: openid,
         userHabitId: userHabitId
       }).get();
@@ -360,14 +431,14 @@ exports.main = async (event, context) => {
         return { success: false, code: 'USER_HABIT_NOT_FOUND', message: '未找到 userHabit' };
       }
 
-      await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
+      await collection('userHabits', event).doc(existingHabit.data[0]._id).update({
         data: {
           pinnedAt: nullableFieldValue(pinnedAt || null),
           updatedAt: serverTime
         }
       });
     } else if (action === 'updateHabitMeta') {
-      const existingHabit = await db.collection('user_habits').where({
+      const existingHabit = await collection('userHabits', event).where({
         _openid: openid,
         userHabitId: userHabitId
       }).get();
@@ -381,7 +452,7 @@ exports.main = async (event, context) => {
         return { success: false, code: 'INVALID_NAME', message: '自定义修习名称需为 2-12 个字' };
       }
 
-      await db.collection('user_habits').doc(existingHabit.data[0]._id).update({
+      await collection('userHabits', event).doc(existingHabit.data[0]._id).update({
         data: cleanData({
           source: 'custom',
           name: normalizedName,
@@ -403,13 +474,13 @@ exports.main = async (event, context) => {
 
       // Step 1: 如果有 previousPolicyVersionId，先关闭旧版本
       if (previousPolicyVersionId && previousEffectiveEndDate) {
-        const oldVersion = await db.collection('habit_policy_versions').where({
+        const oldVersion = await collection('habitPolicyVersions', event).where({
           _openid: openid,
           policyVersionId: previousPolicyVersionId
         }).get();
 
         if (oldVersion.data && oldVersion.data.length > 0) {
-          await db.collection('habit_policy_versions').doc(oldVersion.data[0]._id).update({
+          await collection('habitPolicyVersions', event).doc(oldVersion.data[0]._id).update({
             data: {
               effectiveEndDate: previousEffectiveEndDate,
               updatedAt: serverTime
@@ -419,7 +490,7 @@ exports.main = async (event, context) => {
       }
 
       // Step 2: 写入/更新 habit_policy_versions（幂等 upsert）
-      const existingPv = await db.collection('habit_policy_versions').where({
+      const existingPv = await collection('habitPolicyVersions', event).where({
         _openid: openid,
         policyVersionId: policyVersionId
       }).get();
@@ -429,7 +500,7 @@ exports.main = async (event, context) => {
         const existing = existingPv.data[0];
         const needsUpdate = existing.effectiveEndDate !== null;
         if (needsUpdate) {
-          await db.collection('habit_policy_versions').doc(existing._id).update({
+          await collection('habitPolicyVersions', event).doc(existing._id).update({
             data: {
               ...cleanData({
                 duration: duration || existing.duration,
@@ -445,7 +516,7 @@ exports.main = async (event, context) => {
         }
       } else {
         // 写入新版本
-        await db.collection('habit_policy_versions').add({
+        await collection('habitPolicyVersions', event).add({
           data: {
             ...cleanData({
               _openid: openid,
@@ -485,21 +556,21 @@ exports.main = async (event, context) => {
           updatedAt: serverTime
         });
 
-        const existingState = await db.collection('daily_checkin_states').where({
+        const existingState = await collection('dailyCheckinStates', event).where({
           _openid: openid,
           userHabitId,
           date: dailyStateDate
         }).get();
 
         if (existingState.data && existingState.data.length > 0) {
-          await db.collection('daily_checkin_states').doc(existingState.data[0]._id).update({
+          await collection('dailyCheckinStates', event).doc(existingState.data[0]._id).update({
             data: {
               ...stateData,
               [legacyLockedReasonFieldName()]: removeFieldValue()
             }
           });
         } else {
-          await db.collection('daily_checkin_states').add({
+          await collection('dailyCheckinStates', event).add({
             data: cleanData({
               _openid: openid,
               stateId: strategyChangedDailyState.stateId || `state_${userHabitId}_${dailyStateDate}`,

@@ -9,6 +9,7 @@
  * - 网络异常时标记 shouldPending（供 syncService 入队）
  * - serverTime 校准
  * - Phase 7D: 新增云存储上传/临时 URL 能力
+ * - 环境隔离：所有云调用必须绑定当前 runtime CloudBase env
  *
  * 禁止：
  * - pending 队列操作
@@ -24,6 +25,9 @@ const ERROR_CODES = {
   UNAUTH: 'UNAUTH'
 }
 
+const envConfig = require('../config/env')
+const { getBaseCollectionName } = require('../constants/cloudCollections')
+
 function getErrorMessage(error) {
   return error && error.message ? error.message : String(error || '调用失败')
 }
@@ -38,18 +42,29 @@ function getErrorMessage(error) {
 async function callFunction(name, data, options = {}) {
   const { slow = false } = options
   const startedAt = Date.now()
+  const currentEnvConfig = envConfig.getCurrentEnvConfig()
+  envConfig.assertCloudEnvReady(currentEnvConfig)
+  const cloudFunctionName = currentEnvConfig.cloudFunctions[name] || name
+  const callData = {
+    ...(data || {}),
+    __runtimeEnv: currentEnvConfig.runtimeEnv,
+    __collectionPrefix: currentEnvConfig.collectionPrefix || ''
+  }
   const callOptions = {
-    name,
-    data
+    name: cloudFunctionName,
+    data: callData,
+    config: {
+      env: currentEnvConfig.cloudEnvId
+    }
   }
   if (slow) {
     callOptions.slow = true
   }
 
   try {
-    console.info('cloudService.callFunction 开始:', name)
+    console.info('cloudService.callFunction 开始:', cloudFunctionName, currentEnvConfig.runtimeEnv)
     const result = await wx.cloud.callFunction(callOptions)
-    console.info('cloudService.callFunction 完成:', name, `${Date.now() - startedAt}ms`)
+    console.info('cloudService.callFunction 完成:', cloudFunctionName, `${Date.now() - startedAt}ms`)
 
     if (result.errMsg && !result.errMsg.includes('ok')) {
       return {
@@ -81,7 +96,7 @@ async function callFunction(name, data, options = {}) {
     const isNetworkError = normalizedMsg.includes('network') || errMsg.includes('ERR_NETWORK') || normalizedMsg.includes('fail')
     const code = isTimeout ? ERROR_CODES.TIMEOUT : (isNetworkError ? ERROR_CODES.NETWORK_ERROR : ERROR_CODES.SERVER_ERROR)
 
-    console.warn('cloudService.callFunction 失败:', name, code, errMsg)
+    console.warn('cloudService.callFunction 失败:', cloudFunctionName, code, errMsg)
 
     return {
       success: false,
@@ -92,6 +107,51 @@ async function callFunction(name, data, options = {}) {
       shouldPending: isTimeout || isNetworkError // 网络/超时异常时标记进入 pending 队列
     }
   }
+}
+
+function getCloudEnvId() {
+  return envConfig.getCurrentEnvConfig().cloudEnvId
+}
+
+function getRuntimeEnvInfo() {
+  const currentEnvConfig = envConfig.getCurrentEnvConfig()
+  return {
+    envVersion: currentEnvConfig.envVersion,
+    runtimeEnv: currentEnvConfig.runtimeEnv,
+    cloudEnvId: currentEnvConfig.cloudEnvId,
+    showEnvBadge: currentEnvConfig.showEnvBadge,
+    envBadgeText: currentEnvConfig.envBadgeText
+  }
+}
+
+function getCollectionName(baseName) {
+  const currentEnvConfig = envConfig.getCurrentEnvConfig()
+  const collectionName = getBaseCollectionName(baseName)
+  return `${currentEnvConfig.collectionPrefix || ''}${collectionName}`
+}
+
+function resolveCloudPath(cloudPath) {
+  const currentEnvConfig = envConfig.getCurrentEnvConfig()
+  const value = String(cloudPath || '')
+  if (!value || !currentEnvConfig.collectionPrefix) {
+    return value
+  }
+  if (value.startsWith(`${currentEnvConfig.runtimeEnv}/`)) {
+    return value
+  }
+  return `${currentEnvConfig.runtimeEnv}/${value}`
+}
+
+function database() {
+  const currentEnvConfig = envConfig.getCurrentEnvConfig()
+  envConfig.assertCloudEnvReady(currentEnvConfig)
+  return wx.cloud.database({
+    env: currentEnvConfig.cloudEnvId
+  })
+}
+
+function collection(baseName) {
+  return database().collection(getCollectionName(baseName))
 }
 
 /**
@@ -123,9 +183,14 @@ async function getServerTime() {
  */
 async function uploadFile(tempFilePath, cloudPath) {
   try {
+    const currentEnvConfig = envConfig.getCurrentEnvConfig()
+    envConfig.assertCloudEnvReady(currentEnvConfig)
     const result = await wx.cloud.uploadFile({
-      cloudPath,
-      filePath: tempFilePath
+      cloudPath: resolveCloudPath(cloudPath),
+      filePath: tempFilePath,
+      config: {
+        env: currentEnvConfig.cloudEnvId
+      }
     })
     if (result.errMsg && result.errMsg.includes('ok')) {
       return result.fileID
@@ -147,8 +212,13 @@ async function getTempFileURL(cloudPath) {
     return cloudPath
   }
   try {
+    const currentEnvConfig = envConfig.getCurrentEnvConfig()
+    envConfig.assertCloudEnvReady(currentEnvConfig)
     const res = await wx.cloud.getTempFileURL({
-      fileList: [cloudPath]
+      fileList: [cloudPath],
+      config: {
+        env: currentEnvConfig.cloudEnvId
+      }
     })
     const file = res.fileList && res.fileList[0]
     return (file && file.tempFileURL) || cloudPath
@@ -164,5 +234,10 @@ module.exports = {
   getServerTime,
   uploadFile,
   getTempFileURL,
+  getCollectionName,
+  database,
+  collection,
+  getCloudEnvId,
+  getRuntimeEnvInfo,
   ERROR_CODES
 }
