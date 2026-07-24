@@ -1,0 +1,78 @@
+<!-- 修习提醒设置页 -->
+
+<view class="page-wrapper">
+  <view class="nav-header" style="{{navTitleStyle}}">
+    <view class="nav-back" bindtap="goBack">
+      <text class="nav-back-icon">‹</text>
+    </view>
+    <text class="nav-title">每日提醒</text>
+  </view>
+
+  <scroll-view class="settings-scroll" scroll-y="true" enhanced="{{true}}" show-scrollbar="{{false}}">
+    <view class="switch-card">
+      <text class="switch-title">每日提醒</text>
+      <switch checked="{{enabled}}" bindchange="onEnableChange" disabled="{{isSaving || isLoading}}" color="#38A385" />
+    </view>
+
+    <view class="time-card">
+      <text class="card-title">时间</text>
+      <view class="time-picker-wrap">
+        <view class="time-picker-selection"></view>
+        <picker-view
+          class="time-picker"
+          value="{{timeValue}}"
+          indicator-style="height: 96rpx; background-color: transparent; border: 0; border-top: none; border-bottom: none;"
+          mask-style="background: transparent;"
+          bindchange="onTimeChange"
+        >
+          <picker-view-column>
+            <view
+              class="time-item {{item.wheelClass}}"
+              wx:for="{{timeColumns[0]}}"
+              wx:key="label"
+            >
+              <text>{{item.label}}</text>
+            </view>
+          </picker-view-column>
+          <picker-view-column>
+            <view
+              class="time-item {{item.wheelClass}}"
+              wx:for="{{timeColumns[1]}}"
+              wx:key="label"
+            >
+              <text>{{item.label}}</text>
+            </view>
+          </picker-view-column>
+        </picker-view>
+      </view>
+    </view>
+
+    <view class="auth-card" wx:if="{{authGuideVisible}}">
+      <text class="auth-title">{{authGuideTitle}}</text>
+      <text class="auth-text">{{authGuideText}}</text>
+      <button
+        wx:if="{{authGuideActionText}}"
+        class="auth-action"
+        bindtap="onOpenSubscriptionSettings"
+      >
+        {{authGuideActionText}}
+      </button>
+      <text class="auth-path">路径：右上角 ... → 设置 → 订阅消息。若仍收不到提醒，请到微信「我 → 设置 → 新消息通知」和手机系统通知中确认微信通知已开启。</text>
+    </view>
+  </scroll-view>
+</view>
+
+<view class="enable-reminder-modal {{showEnableReminderModal ? 'show' : ''}}" catchtap="closeEnableReminderModal">
+  <view class="enable-reminder-modal-content" catchtap="preventBubble">
+    <view class="enable-reminder-modal-header">
+      <text class="enable-reminder-modal-title">开启每日提醒</text>
+    </view>
+    <view class="enable-reminder-modal-body">
+      <text class="enable-reminder-modal-text">开启后会在你设定的时间提醒记录，提醒需要授权微信订阅消息。</text>
+    </view>
+    <view class="enable-reminder-modal-footer">
+      <button class="enable-reminder-modal-btn enable-reminder-modal-cancel" bindtap="closeEnableReminderModal" disabled="{{isSaving}}">取消</button>
+      <button class="enable-reminder-modal-btn enable-reminder-modal-confirm" bindtap="confirmEnableReminder" loading="{{isSaving}}" disabled="{{isSaving}}">去授权</button>
+    </view>
+  </view>
+</view>

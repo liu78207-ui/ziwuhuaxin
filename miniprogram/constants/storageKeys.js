@@ -24,7 +24,10 @@ const STORAGE_KEYS = {
   pendingOperations: 'pendingOperations',
 
   // 客户端序列号计数器（解决同毫秒操作排序问题）
-  clientSequenceCounter: 'clientSequenceCounter'
+  clientSequenceCounter: 'clientSequenceCounter',
+
+  // 轻量提醒本地只读缓存（云端 user_settings.reminder 为准）
+  reminderSettings: 'reminderSettings'
 }
 
 module.exports = { STORAGE_KEYS }

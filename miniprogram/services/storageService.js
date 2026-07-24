@@ -81,6 +81,14 @@ function setUserInfo(info) {
   return setItem(STORAGE_KEYS.userInfo, info)
 }
 
+function getReminderSettings() {
+  return asObject(getItem(STORAGE_KEYS.reminderSettings))
+}
+
+function setReminderSettings(settings) {
+  return setItem(STORAGE_KEYS.reminderSettings, asObject(settings))
+}
+
 function removeItem(key) {
   try {
     wx.removeStorageSync(key)
@@ -111,6 +119,7 @@ const USER_DATA_CACHE_KEYS = [
   STORAGE_KEYS.migrationMeta,
   STORAGE_KEYS.pendingOperations,
   STORAGE_KEYS.clientSequenceCounter,
+  STORAGE_KEYS.reminderSettings,
   'allHabitIds',
   'DynamicThreeDayScenarioSummary'
 ]
@@ -620,6 +629,8 @@ module.exports = {
   setUserOpenid,
   getUserInfo,
   setUserInfo,
+  getReminderSettings,
+  setReminderSettings,
   removeItem,
   clear,
   clearUserDataCache,

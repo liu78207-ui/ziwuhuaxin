@@ -23,6 +23,8 @@ global.wx = {
   showLoading: jest.fn(),
   hideLoading: jest.fn(),
   showActionSheet: jest.fn(),
+  requestSubscribeMessage: jest.fn(),
+  openSetting: jest.fn(),
 
   // 导航
   navigateTo: jest.fn(),

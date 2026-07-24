@@ -175,6 +175,26 @@
   opacity: 0.45;
 }
 
+.pv-list-label {
+  font-size: 30rpx;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.pv-list-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.pv-list-value {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  font-weight: 400;
+  text-align: right;
+}
+
 .pv-list-arrow {
   font-size: 16px;
   color: var(--text-sub);

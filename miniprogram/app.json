@@ -4,6 +4,7 @@
     "pages/habits/habits",
     "pages/stats/stats",
     "pages/profile/profile",
+    "pages/reminder-settings/reminder-settings",
     "pages/about/about",
     "pages/privacy/privacy",
     "pages/agreement/agreement"

@@ -12,6 +12,7 @@ const CLOUD_COLLECTIONS = {
   syncLogs: 'sync_logs',
   conflictLogs: 'conflict_logs',
   userSettings: 'user_settings',
+  reminderSendLogs: 'reminder_send_logs',
   aiLogs: 'ai_logs',
 
   // Legacy compatibility collections.

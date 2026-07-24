@@ -6,6 +6,8 @@
 const shareService = require('../../services/shareService');
 const userService = require('../../services/userService');
 const cacheService = require('../../services/cacheService');
+const reminderService = require('../../services/reminderService');
+const eventBus = require('../../services/eventBus');
 const { getNavTitleStyle } = require('../../utils/navLayout');
 const envConfig = require('../../config/env');
 
@@ -40,8 +42,10 @@ Page({
     contactQrcodeUrl: '/assets/images/contact-qrcode.png',
     navTitleStyle: '',
     showEnvBadge: false,
-    envBadgeText: ''
+    envBadgeText: '',
+    reminderSummary: '未开启'
   },
+  unsubscribeReminderUpdated: null,
 
   onLoad() {
     const currentEnvConfig = envConfig.getCurrentEnvConfig();
@@ -50,6 +54,7 @@ Page({
       showEnvBadge: currentEnvConfig.showEnvBadge,
       envBadgeText: currentEnvConfig.envBadgeText
     });
+    this.subscribeReminderEvents();
     this.refreshViewModel();
   },
 
@@ -68,17 +73,34 @@ Page({
 
   onUnload() {
     this.clearAvatarChoosingLock();
+    this.unsubscribeReminderEvents();
+  },
+
+  subscribeReminderEvents() {
+    if (this.unsubscribeReminderUpdated) return;
+    this.unsubscribeReminderUpdated = eventBus.on('reminder:updated', () => {
+      this.refreshViewModel();
+    });
+  },
+
+  unsubscribeReminderEvents() {
+    if (this.unsubscribeReminderUpdated) {
+      this.unsubscribeReminderUpdated();
+      this.unsubscribeReminderUpdated = null;
+    }
   },
 
   refreshViewModel() {
     const vm = userService.getProfileViewModel();
+    const reminderSettings = reminderService.getCachedSettings();
     this.setData({
       userInfo: { nickName: vm.nickName },
       displayAvatarUrl: vm.displayAvatarUrl,
       buttonText: vm.buttonText,
       memberSince: vm.memberSince,
       isLoggedIn: vm.isLoggedIn,
-      canEditProfile: vm.canEditProfile
+      canEditProfile: vm.canEditProfile,
+      reminderSummary: reminderService.buildSummary(reminderSettings)
     });
   },
 
@@ -259,7 +281,9 @@ Page({
   },
 
   viewSettings() {
-    wx.showToast({ title: '设置功能开发中', icon: 'none' });
+    wx.navigateTo({
+      url: '/pages/reminder-settings/reminder-settings'
+    });
   },
 
   async onClearCacheTap() {
