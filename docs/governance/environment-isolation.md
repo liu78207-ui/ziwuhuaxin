@@ -34,6 +34,8 @@
 
 正式账号修复前必须先导出目标 openid 的 `users`、`user_habits`、`habit_policy_versions`、`daily_checkin_states`、`checkin_operations` 及 legacy 兼容集合。
 
+基于证据清单的修复统一使用 `repairTargetCheckinsFromManifest`。该动作支持内置和自定义习惯，但必须提供精确 `userHabitId`、`habitId`、日期和证据引用；云函数重新校验账号归属、生命周期和当日唯一策略版本。默认 dry-run，冲突状态必须逐条显式允许覆盖，禁止从累计数字推断无法唯一确定的日期。
+
 ## 发布前检查
 
 上传体验版或正式版前必须确认：
@@ -46,3 +48,13 @@
 - 本地 pending 队列不存在跨环境遗留操作。
 - 未使用真实正式账号测试 develop/trial。
 - 已运行 `npm run verify:cloud-env`、`npm run verify:legacy-boundaries`、`npm run verify:field-naming`。
+
+## 本地缓存与队列隔离
+
+- `cacheMeta.ownerUserId` 必须来自云端登录返回的内部 `userId`，不得由页面或客户端入参伪造。
+- `cacheMeta.runtimeEnv` 必须等于 `config/env.js` 当前解析结果。
+- pending 队列项必须固化创建时的 `ownerUserId/runtimeEnv`。
+- 冷启动身份未确认或离线时可以读取本地数据，但禁止上传 pending。
+- 身份或环境不匹配的队列项必须隔离为失败诊断项，不得改写后发送。
+- 旧缓存仅在身份确认且没有归属冲突时认领；无法确认归属的 pending 保持隔离。
+- 清缓存恢复必须先完成身份绑定，恢复成功后更新 `lastRecoveredAt`。

@@ -298,7 +298,7 @@ V1 保留接口和字段，不强制实现复杂分布式裁决。
 {
   stateId, _openid, userHabitId, habitId, policyVersionId,
   date, status, checkedAt, canceledAt,
-  lastOperationId, lastOperationClientTime, lastOperationClientSequence,
+  lastOperationId, lastOperationClientTime, lastOperationClientSequence, lastOperationServerTime,
   lockReason, hasPolicyChangedToday, hasDeletionToday, updatedAt
 }
 ```
@@ -674,3 +674,17 @@ V1 建议恢复最近 90 天每日状态；历史按用户打开周/月/年报�
 - 仅局部修复无法解决 `habitId/userHabitId` 混用、删除后重加、策略版本归属、`dailyCheckinState` 缺失、页面层重复计算报表等结构性风险。
 - 完全清空重写成本过高，也会浪费现有 UI、图标、测试、报表算法和云函数经验。
 - 因此推荐保留现有 UI 和页面结构，分阶段重写数据层、服务层、时间系统、报表聚合和 CloudBase 同步层。
+
+## V1 云同步发布加固补充
+
+V1 发布版采用服务端事务 revision 作为多端冲突的唯一归并依据：
+
+- `syncCheckin` 的 operation、每日最终状态和冲突日志原子提交。
+- `syncHabit` 的幂等流水、实例状态、策略版本和冲突日志原子提交。
+- `daily_checkin_states` 以 `_openid + userHabitId + date` 为 revision 边界。
+- `user_habits` 以 `_openid + userHabitId` 为 revision 边界。
+- 后提交事务获得更高 `serverRevision` 并生效；相同幂等 key 复用首次结果；旧结果不得覆盖新状态。
+- 前端 pending 队列使用 single-flight，并在上传前验证 `cacheMeta.ownerUserId/runtimeEnv`。
+- 兼容迁移仅补 revision 默认值和缓存元数据，不改变生命周期、报表口径或四主页面结构。
+
+本次发布范围只包含云同步。提醒能力不得出现在页面、service、缓存、订阅消息调用、云函数或数据库集合中。
