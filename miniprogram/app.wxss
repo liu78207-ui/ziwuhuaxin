@@ -144,6 +144,9 @@ page, view, text, image, navigator, button, input, textarea, scroll-view, swiper
 
 page {
   /* 苹果设备优先使用苹方，安卓使用系统黑体 */
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   background-color: var(--bg-body);
   color: var(--ink-main);
@@ -162,6 +165,14 @@ scroll-view::-webkit-scrollbar,
   display: none;
   color: transparent;
   background: transparent;
+}
+
+scroll-view,
+.content-scroll,
+.habit-list,
+.modal-body {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 /* ============================================

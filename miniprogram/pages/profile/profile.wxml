@@ -2,16 +2,17 @@
 <!-- 归藏页面 - 个人中心 -->
 
 <view class="page-wrapper">
-  <!-- 导航栏标题 -->
-  <view class="nav-header" style="{{navTitleStyle}}">
-    <text class="nav-title">归藏</text>
-  </view>
-  <view class="env-badge" wx:if="{{showEnvBadge}}">
-    <text>{{envBadgeText}}</text>
-  </view>
+  <scroll-view class="profile-scroll" scroll-y="true" enhanced="{{true}}" show-scrollbar="{{false}}">
+    <!-- 导航栏标题 -->
+    <view class="nav-header" style="{{navTitleStyle}}">
+      <text class="nav-title">归藏</text>
+    </view>
+    <view class="env-badge" wx:if="{{showEnvBadge}}">
+      <text>{{envBadgeText}}</text>
+    </view>
 
-  <!-- 用户信息区域 -->
-  <view class="profile-content">
+    <!-- 用户信息区域 -->
+    <view class="profile-content">
     <!-- 头像选择按钮 -->
     <view class="avatar-wrapper">
       <button
@@ -73,7 +74,8 @@
         <text class="pv-list-arrow">›</text>
       </view>
     </view>
-  </view>
+    </view>
+  </scroll-view>
 
   <!-- 清空缓存确认弹窗 -->
   <view class="contact-modal {{showClearCacheModal ? 'show' : ''}}" catchtap="closeClearCacheModal">

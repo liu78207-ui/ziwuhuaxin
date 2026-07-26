@@ -104,12 +104,12 @@
   position: fixed;
   top: 0;
   left: 0;
-  right: -48rpx;
+  right: 0;
   bottom: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  width: calc(100vw + 48rpx);
-  padding: 270rpx 48rpx 200rpx 0;
+  width: 100%;
+  padding: 270rpx 0 200rpx;
   box-sizing: border-box;
 }
 

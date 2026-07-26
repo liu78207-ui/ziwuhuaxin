@@ -1,3 +1,4 @@
 {
-  "navigationBarTitleText": "归藏"
+  "navigationBarTitleText": "归藏",
+  "disableScroll": true
 }
