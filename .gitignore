@@ -29,6 +29,7 @@ node_modules/
 
 # Test coverage
 coverage/
+reports/junit.xml
 
 # Logs
 *.log
