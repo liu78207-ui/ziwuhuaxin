@@ -78,6 +78,8 @@ function createDailyCheckinState({ userHabitId, habitId, date, status }) {
     checkedAt: status === DAILY_STATE_STATUS.checked ? now : null,
     canceledAt: status === DAILY_STATE_STATUS.canceled ? now : null,
     lastOperationId: null,
+    lastServerOperationId: null,
+    serverRevision: 0,
     syncStatus: 0, // 0=待同步, 1=已同步
     updatedAt: now
   }

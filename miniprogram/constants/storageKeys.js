@@ -19,9 +19,12 @@ const STORAGE_KEYS = {
   policyVersions: 'policyVersions',
   checkinOperations: 'checkinOperations',
   migrationMeta: 'migrationMeta',
+  cacheMeta: 'cacheMeta',
 
   // 新增（Phase 4）
   pendingOperations: 'pendingOperations',
+  pendingOperationsQuarantine: 'pendingOperationsQuarantine',
+  recoveryStaging: 'recoveryStaging',
 
   // 客户端序列号计数器（解决同毫秒操作排序问题）
   clientSequenceCounter: 'clientSequenceCounter'

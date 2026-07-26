@@ -318,8 +318,107 @@ describe('recoverData cloud function', () => {
     }, {})
 
     expect(firstPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_1', 'ds_2'])
-    expect(firstPage.data.nextCursor).toBe('2')
+    expect(firstPage.data.nextCursor).toEqual(expect.any(String))
+    expect(firstPage.data.nextCursor).not.toBe('2')
     expect(secondPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
     expect(secondPage.data.nextCursor).toBeNull()
+  })
+
+  test('stable cursor does not repeat or skip states when an earlier record is added concurrently', async () => {
+    const collections = {
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: [
+        { _openid: 'openid_1', _id: 'id_1', stateId: 'ds_1', userHabitId: 'uh_1', date: '2026-01-01' },
+        { _openid: 'openid_1', _id: 'id_2', stateId: 'ds_2', userHabitId: 'uh_1', date: '2026-01-02' },
+        { _openid: 'openid_1', _id: 'id_3', stateId: 'ds_3', userHabitId: 'uh_1', date: '2026-01-03' }
+      ]
+    }
+    createMockCloud(collections)
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const firstPage = await main({ historyScope: 'all', limit: 2 }, {})
+    collections.daily_checkin_states.unshift({
+      _openid: 'openid_1',
+      _id: 'id_0',
+      stateId: 'ds_0',
+      userHabitId: 'uh_1',
+      date: '2025-12-31'
+    })
+    const secondPage = await main({
+      historyScope: 'all',
+      cursor: firstPage.data.nextCursor,
+      limit: 2
+    }, {})
+
+    expect(firstPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_1', 'ds_2'])
+    expect(secondPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
+    expect(secondPage.data.nextCursor).toBeNull()
+  })
+
+  test('accepts the former numeric offset cursor for backward compatibility', async () => {
+    createMockCloud({
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: [
+        { _openid: 'openid_1', stateId: 'ds_1', userHabitId: 'uh_1', date: '2026-01-01' },
+        { _openid: 'openid_1', stateId: 'ds_2', userHabitId: 'uh_1', date: '2026-01-02' },
+        { _openid: 'openid_1', stateId: 'ds_3', userHabitId: 'uh_1', date: '2026-01-03' }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const page = await main({ historyScope: 'all', cursor: '2', limit: 2 }, {})
+
+    expect(page.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
+    expect(page.data.nextCursor).toBeNull()
+  })
+
+  test('paginates more than 500 historical states with stable opaque cursors', async () => {
+    const dailyStates = Array.from({ length: 501 }, (_, index) => ({
+      _openid: 'openid_1',
+      _id: `id_${String(index).padStart(3, '0')}`,
+      stateId: `ds_${String(index).padStart(3, '0')}`,
+      userHabitId: 'uh_1',
+      date: new Date(Date.UTC(2025, 0, 1) + index * 86400000).toISOString().slice(0, 10)
+    }))
+    createMockCloud({
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: dailyStates
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const recovered = []
+    let cursor = ''
+    do {
+      const result = await main({ historyScope: 'all', cursor, limit: 100 }, {})
+      expect(result.success).toBe(true)
+      recovered.push(...result.data.dailyStates)
+      cursor = result.data.nextCursor || ''
+    } while (cursor)
+
+    expect(recovered).toHaveLength(501)
+    expect(new Set(recovered.map(state => state.stateId)).size).toBe(501)
+    expect(recovered[0].stateId).toBe('ds_000')
+    expect(recovered[500].stateId).toBe('ds_500')
+  })
+
+  test('historyScope all includes states older than the default 90 day window', async () => {
+    createMockCloud({
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: [
+        { _openid: 'openid_1', _id: 'old', stateId: 'ds_old', userHabitId: 'uh_1', date: '2025-01-01' },
+        { _openid: 'openid_1', _id: 'new', stateId: 'ds_new', userHabitId: 'uh_1', date: '2026-07-22' }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({ historyScope: 'all' }, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.dailyStates.map(item => item.stateId)).toEqual(['ds_old', 'ds_new'])
+    expect(result.data.nextCursor).toBeNull()
   })
 })

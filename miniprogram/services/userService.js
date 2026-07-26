@@ -3,6 +3,8 @@
 
 const storageService = require('./storageService');
 const cloudService = require('./cloudService');
+const envConfig = require('../config/env');
+const syncService = require('./syncService');
 
 const DEFAULT_AVATAR_URL = '/assets/icons/profile.png';
 const MAX_NICKNAME_LENGTH = 24;
@@ -121,9 +123,19 @@ async function login(options = {}) {
       nickName: cachedUserInfo?.nickName || '',
       avatarUrl: cachedUserInfo?.avatarUrl || ''
     };
+    const identityResult = storageService.bindCacheIdentity(
+      userId,
+      envConfig.getRuntimeEnv()
+    );
+    if (!identityResult.success) {
+      throw new Error(identityResult.reason || '本地缓存身份绑定失败');
+    }
+    if (!syncService.confirmSyncIdentity(userId, envConfig.getRuntimeEnv())) {
+      throw new Error('同步身份确认失败');
+    }
     storageService.setUserInfo(userInfo);
 
-    return { userId, createdAt };
+    return { userId, createdAt, identityConfirmed: true, identityResult };
   } catch (e) {
     if (force) {
       throw e;

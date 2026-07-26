@@ -13,6 +13,12 @@ const habitService = require('./habitService')
 const syncService = require('./syncService')
 const eventBus = require('./eventBus')
 
+function bumpDataVersions() {
+  if (typeof storageService.bumpDataVersions === 'function') {
+    storageService.bumpDataVersions()
+  }
+}
+
 function schedulePendingAfterLocalWrite() {
   if (typeof syncService.requestProcessQueue === 'function') {
     syncService.requestProcessQueue()
@@ -85,8 +91,8 @@ async function checkin(userHabitId, date) {
 
   // 6. 进入 pending 队列，等待云端同步（Phase 4）
   // action 字段明确传递给云函数，用于更新 daily_checkin_states
-  // clientCreatedAt 用于云端判断操作顺序，防止旧操作重试覆盖新状态
-  // clientSequence 单调递增序列号，解决同毫秒操作的排序问题
+  // clientCreatedAt/clientSequence 仅保留客户端审计顺序；
+  // 云端跨设备最终顺序以服务器接收时间为准。
   syncService.pushWithDedup('checkin', 'checkin', {
     userHabitId,
     habitId: habit.habitId,
@@ -100,6 +106,7 @@ async function checkin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitCheckinUpdated('checkin', state, habit)
 
@@ -154,8 +161,8 @@ async function undoCheckin(userHabitId, date) {
 
   // 7. 进入 pending 队列，等待云端同步（Phase 4）
   // action 字段明确传递给云函数，用于更新 daily_checkin_states
-  // clientCreatedAt 用于云端判断操作顺序，防止旧操作重试覆盖新状态
-  // clientSequence 单调递增序列号，解决同毫秒操作的排序问题
+  // clientCreatedAt/clientSequence 仅保留客户端审计顺序；
+  // 云端跨设备最终顺序以服务器接收时间为准。
   syncService.pushWithDedup('checkin', 'undoCheckin', {
     userHabitId,
     habitId: habit.habitId,
@@ -169,6 +176,7 @@ async function undoCheckin(userHabitId, date) {
     clientCreatedAt: operation.createdAt,
     clientSequence: operation.clientSequence
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitCheckinUpdated('undoCheckin', state, habit)
 

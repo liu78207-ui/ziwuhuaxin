@@ -29,6 +29,8 @@ const USER_HABIT_FIELDS = [
   'pinnedAt',
   'deletedAt',
   'latestPolicyVersionId',
+  'lastServerOperationId',
+  'serverRevision',
   'syncStatus'
 ]
 
@@ -169,6 +171,8 @@ function toViewModel(habit) {
     pinnedAt: habit.pinnedAt || null,
     deletedAt: habit.deletedAt || null,
     latestPolicyVersionId: habit.latestPolicyVersionId || '',
+    lastServerOperationId: habit.lastServerOperationId || '',
+    serverRevision: Number(habit.serverRevision) || 0,
     syncStatus: habit.syncStatus !== undefined ? habit.syncStatus : 1
   }
 }

@@ -17,13 +17,19 @@
 const storageService = require('./storageService')
 const cloudService = require('./cloudService')
 const eventBus = require('./eventBus')
+const envConfig = require('../config/env')
+const { OPERATION_STATUS } = require('../models/checkinOperation')
 
 const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png'
+const DEFAULT_RECOVERY_PAGE_TIMEOUT_MS = 15000
 
 // ==================== 并发保护 ====================
 
-let isProcessing = false
+let processingPromise = null
 let processQueueTimer = null
+let processQueueTimerDueAt = 0
+let interruptedQueueRecovered = false
+let confirmedIdentity = null
 
 // ==================== ID 生成 ====================
 
@@ -85,6 +91,8 @@ function push(entityType, action, payload) {
   const queueId = generateQueueId()
   // 业务层（如 checkinService）已生成的 idempotencyKey，优先复用
   const idempotencyKey = payload.idempotencyKey || generateIdempotencyKey(entityType, action, payload)
+  const cacheMeta = storageService.getCacheMeta()
+  const runtimeEnv = envConfig.getRuntimeEnv()
 
   const item = {
     queueId,
@@ -93,6 +101,8 @@ function push(entityType, action, payload) {
     entityId: payload.userHabitId || payload.habitId || '',
     payload,
     idempotencyKey,
+    ownerUserId: cacheMeta.ownerUserId || '',
+    runtimeEnv,
     // 业务层 operationId（如 checkinOperation.operationId），云端同步时必须传递
     operationId: payload.operationId || null,
     // 客户端本地创建时间，用于云端判断操作顺序，防止旧操作覆盖新状态
@@ -157,14 +167,23 @@ function calculateNextRetry(retryCount) {
 }
 
 function scheduleProcessQueue(delay = 0) {
-  if (processQueueTimer) return
+  const normalizedDelay = Math.max(0, delay)
+  const dueAt = Date.now() + normalizedDelay
+  if (processQueueTimer) {
+    if (dueAt >= processQueueTimerDueAt) return
+    clearTimeout(processQueueTimer)
+    processQueueTimer = null
+    processQueueTimerDueAt = 0
+  }
 
   processQueueTimer = setTimeout(() => {
     processQueueTimer = null
+    processQueueTimerDueAt = 0
     processQueue().catch(e => {
       console.warn('syncService.requestProcessQueue failed:', e && e.message ? e.message : String(e || 'unknown error'))
     })
-  }, Math.max(0, delay))
+  }, normalizedDelay)
+  processQueueTimerDueAt = dueAt
 }
 
 function scheduleRetryingQueue(queue) {
@@ -182,101 +201,238 @@ function scheduleRetryingQueue(queue) {
  * 处理 pending 队列（同步到云端）
  * 包含并发保护：同一时刻只允许一个 processQueue 执行
  */
-async function processQueue() {
-  if (isProcessing) return
-  isProcessing = true
-  let syncedCount = 0
+function getConfirmedSyncIdentity() {
+  const meta = storageService.getCacheMeta()
+  const runtimeEnv = envConfig.getRuntimeEnv()
+  if (
+    !confirmedIdentity ||
+    confirmedIdentity.ownerUserId !== meta.ownerUserId ||
+    confirmedIdentity.runtimeEnv !== runtimeEnv ||
+    meta.runtimeEnv !== runtimeEnv
+  ) {
+    return null
+  }
+  return { ...confirmedIdentity }
+}
 
-  try {
-    const queue = getPendingOperations()
-    if (queue.length === 0) return
+function confirmSyncIdentity(ownerUserId, runtimeEnv) {
+  const meta = storageService.getCacheMeta()
+  const currentRuntimeEnv = envConfig.getRuntimeEnv()
+  if (
+    !ownerUserId ||
+    runtimeEnv !== currentRuntimeEnv ||
+    meta.ownerUserId !== ownerUserId ||
+    meta.runtimeEnv !== runtimeEnv
+  ) {
+    confirmedIdentity = null
+    return false
+  }
+  confirmedIdentity = { ownerUserId, runtimeEnv }
+  return true
+}
 
-    // 按 createdAt 从旧到新处理
-    const sortedQueue = [...queue].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-
-    for (const item of sortedQueue) {
-      // 已 synced 的跳过
-      if (item.status === 'synced') continue
-
-      // 有 nextRetryAt 的项（failed 或 pending）都要检查是否到时间
-      if (item.nextRetryAt) {
-        const now = Date.now()
-        const retryTime = new Date(item.nextRetryAt).getTime()
-        if (now < retryTime) continue
-      }
-
-      // 再次检查最新状态（防止并发）
-      const latestItem = getPendingOperations().find(i => i.queueId === item.queueId)
-      if (!latestItem || latestItem.status === 'synced') continue
-
-      try {
-        // 更新状态为 syncing（每次操作前重新读取最新状态）
-        storageService.updatePendingItem(item.queueId, {
-          status: 'syncing',
-          updatedAt: new Date().toISOString()
-        })
-
-        // 调用云函数，传递业务 operationId（而非 queueId）
-        const cloudFnName = getCloudFunctionName(item.entityType, item.action)
-        const result = await cloudService.callFunction(cloudFnName, {
-          ...item.payload,
-          action: item.payload.action || item.action,
-          // 优先使用业务层 operationId
-          operationId: item.operationId || item.queueId,
-          idempotencyKey: item.idempotencyKey
-        })
-
-        // 再次读取最新状态，避免用旧快照覆盖其他并发的更新
-        const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
-        if (result.success) {
-          storageService.updatePendingItem(item.queueId, {
-            status: 'synced',
-            lastError: null,
-            updatedAt: new Date().toISOString()
-          })
-          syncedCount += 1
-        } else {
-          const newRetryCount = (currentItem?.retryCount || 0) + 1
-          // 仍可重试的失败项标记为 retrying，超过上限才进入 failed。
-          storageService.updatePendingItem(item.queueId, {
-            status: newRetryCount >= 3 ? 'failed' : 'retrying',
-            lastError: result.error?.message || '未知错误',
-            retryCount: newRetryCount,
-            nextRetryAt: calculateNextRetry(newRetryCount),
-            updatedAt: new Date().toISOString()
-          })
-        }
-      } catch (e) {
-        const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
-        const newRetryCount = (currentItem?.retryCount || 0) + 1
-        storageService.updatePendingItem(item.queueId, {
-          status: newRetryCount >= 3 ? 'failed' : 'retrying',
-          lastError: e.message,
-          retryCount: newRetryCount,
-          nextRetryAt: calculateNextRetry(newRetryCount),
-          updatedAt: new Date().toISOString()
-        })
-      }
+function normalizeInterruptedQueue() {
+  if (processingPromise || interruptedQueueRecovered) return false
+  interruptedQueueRecovered = true
+  const queue = getPendingOperations()
+  let changed = false
+  const normalized = queue.map(item => {
+    if (item.status !== 'syncing' && item.status !== 'retrying') return item
+    changed = true
+    return {
+      ...item,
+      status: 'pending',
+      nextRetryAt: null,
+      updatedAt: new Date().toISOString()
     }
+  })
+  if (changed) setPendingOperations(normalized)
+  return changed
+}
 
-    // 失败重试项放回队尾（最多保留3次）
-    const finalQueue = getPendingOperations()
-    const retryingItems = finalQueue.filter(i => i.status === 'retrying' && i.retryCount < 3)
-    const otherItems = finalQueue.filter(i => i.status !== 'retrying' || i.retryCount >= 3)
-    if (retryingItems.length > 0) {
-      setPendingOperations([...otherItems, ...retryingItems])
-      scheduleRetryingQueue(getPendingOperations())
-    }
-
-    if (syncedCount > 0) {
-      eventBus.emit('sync:updated', {
-        syncedCount,
-        source: 'processQueue'
+function updateLocalSyncConfirmation(item, result) {
+  const response = result.data || {}
+  const serverRevision = Number(response.serverRevision) || 0
+  if (item.entityType === 'checkin' && item.operationId) {
+    storageService.updateCheckinOperation(item.operationId, {
+      syncStatus: OPERATION_STATUS.synced,
+      syncError: '',
+      serverRevision,
+      serverTime: response.serverTime || result.serverTime || null
+    })
+    const state = storageService.getDailyState(item.payload.userHabitId, item.payload.date)
+    if (state) {
+      storageService.setDailyState({
+        ...state,
+        ...(response.dailyState || {}),
+        serverRevision,
+        lastServerOperationId: response.lastOperationId || item.operationId,
+        syncStatus: 1
       })
     }
-  } finally {
-    isProcessing = false
   }
+
+  if (item.entityType === 'habit') {
+    const habits = storageService.getMyHabitsWithMigration()
+    const index = habits.findIndex(habit => habit.userHabitId === item.entityId)
+    if (index >= 0) {
+      habits[index] = {
+        ...habits[index],
+        serverRevision,
+        lastServerOperationId: response.operationId || item.idempotencyKey
+      }
+      if (response.latestPolicyVersionId) {
+        habits[index].latestPolicyVersionId = response.latestPolicyVersionId
+      }
+      storageService.setMyHabits(habits)
+    }
+  }
+  storageService.patchCacheMeta({
+    lastSyncedAt: new Date().toISOString()
+  })
+}
+
+function updateLocalSyncFailure(item, status, message) {
+  if (item.entityType !== 'checkin' || !item.operationId) return
+  storageService.updateCheckinOperation(item.operationId, {
+    syncStatus: status === 'failed' ? OPERATION_STATUS.failed : OPERATION_STATUS.pending,
+    syncError: message || '同步失败'
+  })
+}
+
+async function runQueue() {
+  let syncedCount = 0
+
+  const identity = getConfirmedSyncIdentity()
+  if (!identity) {
+    return {
+      success: false,
+      reason: 'IDENTITY_UNCONFIRMED',
+      summary: getSyncSummary()
+    }
+  }
+
+  // V1 旧队列只能在云端身份确认后认领，operation identity 保持不变。
+  storageService.claimUnownedPendingOperations(identity.ownerUserId, identity.runtimeEnv)
+  const queue = getPendingOperations()
+  if (queue.length === 0) {
+    return { success: true, syncedCount: 0, summary: getSyncSummary() }
+  }
+
+  // 按 createdAt 从旧到新处理
+  const sortedQueue = [...queue].sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+
+  for (const item of sortedQueue) {
+    // synced 已完成；failed 只允许显式 retry/retryAllFailed 重新激活。
+    if (item.status === 'synced' || item.status === 'failed') continue
+
+    if (
+      item.ownerUserId !== identity.ownerUserId ||
+      item.runtimeEnv !== identity.runtimeEnv
+    ) {
+      const message = '同步项所属账号或运行环境与当前身份不一致'
+      storageService.updatePendingItem(item.queueId, {
+        status: 'failed',
+        lastError: message,
+        lastErrorCode: 'SYNC_IDENTITY_MISMATCH',
+        nextRetryAt: null,
+        updatedAt: new Date().toISOString()
+      })
+      updateLocalSyncFailure(item, 'failed', message)
+      continue
+    }
+
+    if (item.nextRetryAt) {
+      const retryTime = new Date(item.nextRetryAt).getTime()
+      if (Date.now() < retryTime) continue
+    }
+
+    const latestItem = getPendingOperations().find(i => i.queueId === item.queueId)
+    if (!latestItem || latestItem.status === 'synced' || latestItem.status === 'failed') continue
+
+    try {
+      storageService.updatePendingItem(item.queueId, {
+        status: 'syncing',
+        updatedAt: new Date().toISOString()
+      })
+
+      const cloudFnName = getCloudFunctionName(item.entityType, item.action)
+      const result = await cloudService.callFunction(cloudFnName, {
+        ...item.payload,
+        action: item.payload.action || item.action,
+        operationId: item.operationId || item.queueId,
+        idempotencyKey: item.idempotencyKey
+      })
+
+      const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
+      if (result.success) {
+        storageService.updatePendingItem(item.queueId, {
+          status: 'synced',
+          lastError: null,
+          lastErrorCode: null,
+          nextRetryAt: null,
+          updatedAt: new Date().toISOString()
+        })
+        updateLocalSyncConfirmation(item, result)
+        syncedCount += 1
+      } else {
+        const newRetryCount = (currentItem?.retryCount || 0) + 1
+        const nextStatus = newRetryCount >= 3 ? 'failed' : 'retrying'
+        const message = result.error?.message || '未知错误'
+        storageService.updatePendingItem(item.queueId, {
+          status: nextStatus,
+          lastError: message,
+          lastErrorCode: result.error?.code || 'SYNC_FAILED',
+          retryCount: newRetryCount,
+          nextRetryAt: nextStatus === 'failed' ? null : calculateNextRetry(newRetryCount),
+          updatedAt: new Date().toISOString()
+        })
+        updateLocalSyncFailure(item, nextStatus, message)
+      }
+    } catch (e) {
+      const currentItem = getPendingOperations().find(i => i.queueId === item.queueId)
+      const newRetryCount = (currentItem?.retryCount || 0) + 1
+      const nextStatus = newRetryCount >= 3 ? 'failed' : 'retrying'
+      storageService.updatePendingItem(item.queueId, {
+        status: nextStatus,
+        lastError: e.message,
+        lastErrorCode: e.code || 'SYNC_FAILED',
+        retryCount: newRetryCount,
+        nextRetryAt: nextStatus === 'failed' ? null : calculateNextRetry(newRetryCount),
+        updatedAt: new Date().toISOString()
+      })
+      updateLocalSyncFailure(item, nextStatus, e.message)
+    }
+  }
+
+  const finalQueue = getPendingOperations()
+  const retryingItems = finalQueue.filter(i => i.status === 'retrying' && i.retryCount < 3)
+  const otherItems = finalQueue.filter(i => i.status !== 'retrying' || i.retryCount >= 3)
+  if (retryingItems.length > 0) {
+    setPendingOperations([...otherItems, ...retryingItems])
+    scheduleRetryingQueue(getPendingOperations())
+  }
+
+  const summary = getSyncSummary()
+  eventBus.emit('sync:updated', {
+    syncedCount,
+    summary,
+    source: 'processQueue'
+  })
+  return {
+    success: summary.allSynced,
+    syncedCount,
+    summary
+  }
+}
+
+function processQueue() {
+  if (processingPromise) return processingPromise
+  processingPromise = runQueue()
+    .finally(() => {
+      processingPromise = null
+    })
+  return processingPromise
 }
 
 function requestProcessQueue() {
@@ -291,16 +447,66 @@ async function retry(queueId) {
   const item = queue.find(i => i.queueId === queueId)
 
   if (!item) return { success: false, error: 'NOT_FOUND' }
-  if (item.retryCount >= 3) {
-    return { success: false, error: 'MAX_RETRIES_EXCEEDED' }
-  }
-
   storageService.updatePendingItem(queueId, {
     status: 'pending',
+    retryCount: 0,
+    nextRetryAt: null,
+    lastError: null,
     updatedAt: new Date().toISOString()
   })
 
-  return processQueue()
+  await processQueue()
+  const latest = getPendingOperations().find(i => i.queueId === queueId)
+  return {
+    success: Boolean(latest && latest.status === 'synced'),
+    status: latest ? latest.status : 'missing',
+    error: latest && latest.lastError ? latest.lastError : ''
+  }
+}
+
+async function retryAllFailed() {
+  const failedItems = getPendingOperations().filter(item => item.status === 'failed')
+  failedItems.forEach(item => {
+    storageService.updatePendingItem(item.queueId, {
+      status: 'pending',
+      retryCount: 0,
+      nextRetryAt: null,
+      lastError: null,
+      updatedAt: new Date().toISOString()
+    })
+  })
+  if (failedItems.length > 0) {
+    await processQueue()
+  }
+  const summary = getSyncSummary()
+  return {
+    success: summary.allSynced,
+    retriedCount: failedItems.length,
+    summary
+  }
+}
+
+function getSyncSummary() {
+  const queue = getPendingOperations()
+  const counts = {
+    pending: 0,
+    syncing: 0,
+    retrying: 0,
+    failed: 0,
+    synced: 0
+  }
+  queue.forEach(item => {
+    if (Object.prototype.hasOwnProperty.call(counts, item.status)) {
+      counts[item.status] += 1
+    }
+  })
+  const unsyncedCount = counts.pending + counts.syncing + counts.retrying + counts.failed
+  return {
+    ...counts,
+    total: queue.length,
+    unsyncedCount,
+    allSynced: unsyncedCount === 0
+  }
 }
 
 /**
@@ -341,6 +547,7 @@ function getNetworkTypeAsync() {
  */
 async function recoverOrSync() {
   try {
+    normalizeInterruptedQueue()
     const queue = getPendingOperations()
     const hasPendingWork = queue.some(item => item.status !== 'synced')
     console.info('syncService.recoverOrSync 开始:', `pending=${queue.length}`)
@@ -355,9 +562,18 @@ async function recoverOrSync() {
       return { success: false, skipped: true, reason: 'OFFLINE' }
     }
 
-    await processQueue()
+    const processResult = await processQueue()
+    const summary = getSyncSummary()
+    if (!summary.allSynced) {
+      return {
+        success: false,
+        skipped: false,
+        reason: processResult.reason || 'UNSYNCED_OPERATIONS_REMAIN',
+        summary
+      }
+    }
     console.info('syncService.recoverOrSync 完成')
-    return { success: true, skipped: false }
+    return { success: true, skipped: false, summary }
   } catch (e) {
     console.error('syncService.recoverOrSync failed:', e && e.message ? e.message : String(e || 'unknown error'))
     return { success: false, error: e && e.message ? e.message : String(e || 'unknown error') }
@@ -365,9 +581,9 @@ async function recoverOrSync() {
 }
 
 function buildRecoverDataParams(options = {}) {
-  const params = {
-    dailyStateDays: options.dailyStateDays || 90
-  }
+  const params = options.historyScope === 'all'
+    ? { historyScope: 'all' }
+    : { dailyStateDays: options.dailyStateDays || 90 }
   const optionalKeys = ['startDate', 'endDate', 'cursor', 'limit']
   optionalKeys.forEach(key => {
     if (options[key] !== undefined && options[key] !== null && options[key] !== '') {
@@ -433,20 +649,28 @@ function resolveLatestPolicyVersionId(policyVersions, userHabitId) {
 }
 
 async function recoverFromCloud(options = {}) {
-  const result = await cloudService.callFunction('recoverData', buildRecoverDataParams(options))
-  if (!result.success) {
-    throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+  const snapshot = await fetchRecoverySnapshot(options)
+  if (!storageService.stageRecoverySnapshot(snapshot)) {
+    throw new Error('恢复快照暂存失败，本地数据未修改')
   }
+  const commitResult = storageService.commitRecoverySnapshot()
+  if (!commitResult.success) {
+    storageService.discardRecoverySnapshot()
+    throw new Error('恢复快照提交失败，本地数据已回滚')
+  }
+  storageService.patchCacheMeta({
+    lastRecoveredAt: new Date().toISOString()
+  })
 
-  // cloudService.callFunction 返回 { success, data }
-  // recoverData 云函数返回 { success, data: { userHabits, policyVersions, dailyStates } }
-  // 所以实际数据在 result.data.data
-  const payload = result.data?.data || result.data || {}
-  const { userHabits, policyVersions, dailyStates } = payload
+  return {
+    success: true,
+    source: 'recoverData',
+    restored: true
+  }
+}
 
-  // 恢复 userHabits -> MyHabits
-  if (userHabits && Array.isArray(userHabits)) {
-    const migratedHabits = userHabits.map((h, sourceIndex) => {
+function normalizeRecoveredHabits(userHabits, policyVersions) {
+  return userHabits.map((h, sourceIndex) => {
       const isCustom = h.source === 'custom' || String(h.habitId || '').indexOf('custom_') === 0
       return cleanRecoveredObject({
         userHabitId: h.userHabitId,
@@ -467,25 +691,121 @@ async function recoverFromCloud(options = {}) {
         sourceIndex
       })
     })
-      .sort(compareRecoveredHabitOrder)
-      .map(({ sourceIndex, ...habit }) => habit)
-    storageService.setMyHabits(migratedHabits)
+    .sort(compareRecoveredHabitOrder)
+    .map(({ sourceIndex, ...habit }) => habit)
+}
+
+function validateRecoverySnapshot(snapshot) {
+  const seenHabits = new Set()
+  for (const habit of snapshot.userHabits) {
+    if (!habit || !habit.userHabitId) {
+      throw new Error('recoverData 返回了无效的用户习惯')
+    }
+    if (seenHabits.has(habit.userHabitId)) {
+      throw new Error(`recoverData 返回了重复的用户习惯: ${habit.userHabitId}`)
+    }
+    seenHabits.add(habit.userHabitId)
   }
 
-  // 恢复 policyVersions
-  if (policyVersions && Array.isArray(policyVersions)) {
-    storageService.setPolicyVersions(policyVersions)
+  const seenPolicies = new Set()
+  for (const policy of snapshot.policyVersions) {
+    if (!policy || !policy.policyVersionId || !policy.userHabitId) {
+      throw new Error('recoverData 返回了无效的策略版本')
+    }
+    if (seenPolicies.has(policy.policyVersionId)) {
+      throw new Error(`recoverData 返回了重复的策略版本: ${policy.policyVersionId}`)
+    }
+    seenPolicies.add(policy.policyVersionId)
   }
 
-  // 恢复 dailyStates
-  if (dailyStates && Array.isArray(dailyStates)) {
-    storageService.setDailyCheckinStates(dailyStates)
+  const seenStates = new Set()
+  for (const state of snapshot.dailyStates) {
+    if (!state || !state.userHabitId || !state.date) {
+      throw new Error('recoverData 返回了无效的每日状态')
+    }
+    const key = `${state.userHabitId}:${state.date}`
+    if (seenStates.has(key)) {
+      throw new Error(`recoverData 返回了重复的每日状态: ${key}`)
+    }
+    seenStates.add(key)
+  }
+}
+
+async function fetchRecoveryPage(params, timeoutMs) {
+  let timer
+  try {
+    return await Promise.race([
+      cloudService.callFunction('recoverData', params),
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('recoverData 分页请求超时，本地数据未修改'))
+        }, timeoutMs)
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+async function fetchRecoverySnapshot(options = {}) {
+  const dailyStates = []
+  const seenCursors = new Set()
+  const seenPageSignatures = new Set()
+  const requestedTimeout = Number(options.pageTimeoutMs)
+  const pageTimeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+    ? requestedTimeout
+    : DEFAULT_RECOVERY_PAGE_TIMEOUT_MS
+  let cursor = ''
+  let userHabits = []
+  let policyVersions = []
+  let pageCount = 0
+
+  while (true) {
+    const params = buildRecoverDataParams({
+      ...options,
+      cursor
+    })
+    const result = await fetchRecoveryPage(params, pageTimeoutMs)
+    if (!result.success) {
+      throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+    }
+    const payload = result.data?.data || result.data || {}
+    const pageStates = Array.isArray(payload.dailyStates) ? payload.dailyStates : []
+    if (pageCount === 0) {
+      userHabits = Array.isArray(payload.userHabits) ? payload.userHabits : []
+      policyVersions = Array.isArray(payload.policyVersions) ? payload.policyVersions : []
+    }
+
+    const signature = pageStates
+      .map(state => `${state.stateId || ''}:${state.userHabitId || ''}:${state.date || ''}`)
+      .join('|')
+    if (signature && seenPageSignatures.has(signature)) {
+      throw new Error('recoverData 返回了重复分页，本地数据未修改')
+    }
+    if (signature) seenPageSignatures.add(signature)
+    dailyStates.push(...pageStates)
+
+    const nextCursor = payload.nextCursor
+    if (nextCursor === null || nextCursor === undefined || nextCursor === '') break
+    const normalizedCursor = String(nextCursor)
+    if (normalizedCursor === String(cursor) || seenCursors.has(normalizedCursor)) {
+      throw new Error('recoverData 游标未前进，本地数据未修改')
+    }
+    seenCursors.add(normalizedCursor)
+    cursor = normalizedCursor
+    pageCount += 1
+    if (pageCount >= 1000) {
+      throw new Error('recoverData 分页超过安全上限，本地数据未修改')
+    }
   }
 
-  // 云端恢复成功后以云端快照为准，丢弃旧本地 pending，避免恢复后重放过期操作再次污染云端。
-  storageService.setPendingOperations([])
-
-  return { success: true, source: 'recoverData', restored: true }
+  const snapshot = {
+    userHabits: normalizeRecoveredHabits(userHabits, policyVersions),
+    policyVersions,
+    dailyStates
+  }
+  validateRecoverySnapshot(snapshot)
+  return snapshot
 }
 
 /**
@@ -550,10 +870,16 @@ module.exports = {
   processQueue,
   requestProcessQueue,
   retry,
+  retryAllFailed,
+  getSyncSummary,
   recoverOrSync,
   bootstrapCloudData,
   recoverFromCloud,
+  fetchRecoverySnapshot,
   needsLocalRecovery,
   calculateNextRetry,
-  getNetworkTypeAsync
+  getNetworkTypeAsync,
+  normalizeInterruptedQueue,
+  getConfirmedSyncIdentity,
+  confirmSyncIdentity
 }

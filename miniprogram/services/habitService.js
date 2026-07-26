@@ -30,6 +30,12 @@ const CUSTOM_NAME_MAX_LENGTH = 12
 const CUSTOM_HABIT_LIBRARY_LIMIT = 12
 const CUSTOM_ACTIVE_HABIT_LIMIT = 5
 
+function bumpDataVersions() {
+  if (typeof storageService.bumpDataVersions === 'function') {
+    storageService.bumpDataVersions()
+  }
+}
+
 function schedulePendingAfterLocalWrite() {
   if (typeof syncService.requestProcessQueue === 'function') {
     syncService.requestProcessQueue()
@@ -349,8 +355,10 @@ async function addHabit(habitId, policyInput) {
     duration: policyVersion.duration,
     frequencyType: policyVersion.frequencyType,
     frequencyConfig: policyVersion.frequencyConfig,
-    startDate: policyVersion.startDate
+    startDate: policyVersion.startDate,
+    idempotencyKey: `habit_${userHabitId}_add`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitUpdated('addHabit', {
     userHabitId,
@@ -464,8 +472,10 @@ async function addCustomHabitInstance(habitId, metaInput = {}, policyInput = {})
     duration: policyVersion.duration,
     frequencyType: policyVersion.frequencyType,
     frequencyConfig: policyVersion.frequencyConfig,
-    startDate: policyVersion.startDate
+    startDate: policyVersion.startDate,
+    idempotencyKey: `habit_${userHabitId}_add`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitUpdated('addCustomHabit', {
     userHabitId,
@@ -551,6 +561,7 @@ async function updateCustomHabitMeta(userHabitId, patch = {}) {
     iconUrl: next.iconUrl || CUSTOM_ICON_URL,
     idempotencyKey: `habit_${userHabitId}_meta_${next.updatedAt}`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitUpdated('updateHabitMeta', {
     userHabitId,
@@ -719,8 +730,10 @@ async function softDeleteHabit(userHabitId) {
     userHabitId,
     habitId: habit.habitId,
     deletedAt: habit.deletedAt,
-    deletionDailyState
+    deletionDailyState,
+    idempotencyKey: `habit_${userHabitId}_delete_${habit.deletedAt}`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitUpdated('deleteHabit', {
     userHabitId,
@@ -764,6 +777,7 @@ async function updateHabitPinnedAt(userHabitId, pinnedAt) {
     pinnedAt: nextHabit.pinnedAt,
     idempotencyKey: `habit_${userHabitId}_pinned_${nextHabit.pinnedAt || 'none'}`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitPreferenceUpdated(nextHabit.pinnedAt ? 'pinHabit' : 'unpinHabit', nextHabit)
 
@@ -850,8 +864,10 @@ async function createPolicyVersion(userHabitId, policyInput, options = {}) {
       startDate: newPolicy.startDate,
       effectiveStartDate: newPolicy.effectiveStartDate,
       previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
-      previousEffectiveEndDate: previousPolicy ? startDate : null
+      previousEffectiveEndDate: previousPolicy ? startDate : null,
+      idempotencyKey: `habit_${userHabitId}_policy_${newPolicy.policyVersionId}`
     })
+    bumpDataVersions()
     schedulePendingAfterLocalWrite()
     emitHabitUpdated('updatePolicy', {
       userHabitId,
@@ -923,8 +939,10 @@ async function updateHabitPolicy(userHabitId, policyInput) {
     effectiveStartDate: policyVersion.effectiveStartDate,
     previousPolicyVersionId: previousPolicy ? previousPolicy.policyVersionId : null,
     previousEffectiveEndDate: previousPolicy ? policyVersion.effectiveStartDate : null,
-    strategyChangedDailyState
+    strategyChangedDailyState,
+    idempotencyKey: `habit_${userHabitId}_policy_${policyVersion.policyVersionId}`
   })
+  bumpDataVersions()
   schedulePendingAfterLocalWrite()
   emitHabitUpdated('updatePolicy', {
     userHabitId,

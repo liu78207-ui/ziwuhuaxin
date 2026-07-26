@@ -75,7 +75,7 @@ function validateCheckinOperation(op) {
  * @param {string} params.habitId
  * @param {string} params.date
  * @param {string} params.action
- * @param {number} params.clientSequence - 单调递增序列号（由 storageService.getNextClientSequence() 生成）
+ * @param {number} params.clientSequence - 当前设备内单调递增序列号（由 storageService.getNextClientSequence() 生成）
  * @returns {object}
  */
 function createCheckinOperation({ userHabitId, habitId, date, action, clientSequence }) {
@@ -91,9 +91,11 @@ function createCheckinOperation({ userHabitId, habitId, date, action, clientSequ
     habitId,
     date,
     action,
-    // 单调递增序列号，解决同毫秒操作的排序问题
+    // 仅保证当前设备内的操作顺序；云端跨设备顺序必须使用 serverTime
     clientSequence: typeof clientSequence === 'number' ? clientSequence : 0,
     syncStatus: OPERATION_STATUS.pending,
+    serverRevision: 0,
+    syncError: '',
     createdAt: new Date().toISOString()
   }
 }
