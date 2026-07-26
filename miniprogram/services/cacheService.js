@@ -7,7 +7,6 @@
 
 const storageService = require('./storageService')
 const syncService = require('./syncService')
-const userService = require('./userService')
 const eventBus = require('./eventBus')
 
 function getErrorMessage(err) {
@@ -15,65 +14,84 @@ function getErrorMessage(err) {
 }
 
 async function clearLocalUserCacheAndRecover(options = {}) {
-  const dailyStateDays = options.dailyStateDays || 90
-  const skipPreClearSync = options.skipPreClearSync !== false
-  let recoveryError = ''
-
-  if (!skipPreClearSync) {
-    try {
-      await syncService.recoverOrSync()
-    } catch (e) {
-      console.warn('cacheService.recoverOrSync failed before clear:', getErrorMessage(e))
-    }
-  }
-
-  const clearResult = storageService.clearUserDataCache()
-  const failedKeys = clearResult.failedKeys || []
-
-  eventBus.emit('cache:invalidated', {
-    scope: 'userData',
-    source: 'profile.clearCache',
-    removedKeys: clearResult.removedKeys || [],
-    failedKeys
-  })
-
-  if (failedKeys.length > 0) {
+  let syncResult
+  try {
+    syncResult = await syncService.recoverOrSync()
+  } catch (e) {
     return {
       success: false,
       cleared: false,
       restored: false,
-      skippedPreClearSync: skipPreClearSync,
-      failedKeys,
-      recoveryError: ''
+      blocked: true,
+      blockedReason: 'SYNC_BEFORE_CLEAR_FAILED',
+      syncSummary: syncService.getSyncSummary(),
+      failedKeys: [],
+      recoveryError: getErrorMessage(e)
+    }
+  }
+  const syncSummary = syncResult.summary || syncService.getSyncSummary()
+  if (!syncResult.success || !syncSummary.allSynced) {
+    return {
+      success: false,
+      cleared: false,
+      restored: false,
+      blocked: true,
+      blockedReason: syncResult.reason || 'UNSYNCED_OPERATIONS_REMAIN',
+      syncSummary,
+      failedKeys: [],
+      recoveryError: syncResult.error || ''
     }
   }
 
   try {
-    await userService.login({ force: true })
-    const recoverResult = await syncService.recoverFromCloud({ dailyStateDays })
-    if (!recoverResult.success) {
-      recoveryError = recoverResult.error || '云端恢复失败'
+    const snapshot = await syncService.fetchRecoverySnapshot({
+      historyScope: 'all',
+      pageTimeoutMs: options.pageTimeoutMs
+    })
+    if (!storageService.stageRecoverySnapshot(snapshot)) {
+      throw new Error('恢复快照暂存失败')
     }
+    const replaceResult = storageService.replaceUserDataCacheFromRecoverySnapshot()
+    if (!replaceResult.success) {
+      return {
+        success: false,
+        cleared: false,
+        restored: false,
+        blocked: false,
+        blockedReason: '',
+        failedKeys: replaceResult.failedKeys || [],
+        recoveryError: replaceResult.reason || '恢复快照替换失败'
+      }
+    }
+
+    eventBus.emit('cache:invalidated', {
+      scope: 'userData',
+      source: 'profile.clearCache',
+      removedKeys: replaceResult.removedKeys || [],
+      failedKeys: replaceResult.failedKeys || []
+    })
 
     return {
       success: true,
       cleared: true,
-      restored: Boolean(recoverResult.success && recoverResult.restored),
-      restoreSource: recoverResult.source || '',
-      skippedPreClearSync: skipPreClearSync,
-      failedKeys,
-      recoveryError
+      restored: true,
+      restoreSource: 'recoverData',
+      blocked: false,
+      blockedReason: '',
+      failedKeys: replaceResult.failedKeys || [],
+      recoveryError: ''
     }
   } catch (e) {
-    recoveryError = getErrorMessage(e)
+    storageService.discardRecoverySnapshot()
     return {
-      success: true,
-      cleared: true,
+      success: false,
+      cleared: false,
       restored: false,
       restoreSource: '',
-      skippedPreClearSync: skipPreClearSync,
-      failedKeys,
-      recoveryError
+      blocked: false,
+      blockedReason: '',
+      failedKeys: [],
+      recoveryError: getErrorMessage(e)
     }
   }
 }

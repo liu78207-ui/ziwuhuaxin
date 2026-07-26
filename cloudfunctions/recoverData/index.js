@@ -1,9 +1,11 @@
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const PAGE_SIZE = 100;
 const DEFAULT_DAILY_STATE_DAYS = 90;
+const RECOVERY_PROTOCOL_VERSION = 2;
 const COLLECTIONS = {
   userHabits: 'user_habits',
   habitPolicyVersions: 'habit_policy_versions',
@@ -229,6 +231,13 @@ async function listAllByOpenid(collectionKey, openid, event) {
 }
 
 function resolveDailyStateRange(event, serverTime) {
+  if (event.historyScope === 'all') {
+    return {
+      startDate: '',
+      endDate: ''
+    };
+  }
+
   if (event.startDate || event.endDate) {
     return {
       startDate: event.startDate || '',
@@ -244,6 +253,53 @@ function resolveDailyStateRange(event, serverTime) {
   };
 }
 
+function getDailyStateSortId(state) {
+  return String(state._id || state.stateId || '');
+}
+
+function compareDailyStateForRecovery(a, b) {
+  const dateOrder = String(a.date || '').localeCompare(String(b.date || ''));
+  if (dateOrder !== 0) return dateOrder;
+  return getDailyStateSortId(a).localeCompare(getDailyStateSortId(b));
+}
+
+function encodeDailyStateCursor(state) {
+  return Buffer.from(JSON.stringify({
+    date: String(state.date || ''),
+    id: getDailyStateSortId(state)
+  }), 'utf8').toString('base64');
+}
+
+function decodeDailyStateCursor(value) {
+  if (value === undefined || value === null || value === '') return null;
+
+  // 兼容已经持有旧数字 offset 游标的客户端；新响应只返回稳定游标。
+  if (/^\d+$/.test(String(value))) {
+    return { offset: Number(value) };
+  }
+
+  try {
+    const parsed = JSON.parse(Buffer.from(String(value), 'base64').toString('utf8'));
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof parsed.date !== 'string' ||
+      typeof parsed.id !== 'string'
+    ) {
+      throw new Error('invalid cursor shape');
+    }
+    return { date: parsed.date, id: parsed.id };
+  } catch (error) {
+    throw new Error('recoverData cursor 无效');
+  }
+}
+
+function isStateAfterCursor(state, cursor) {
+  const dateOrder = String(state.date || '').localeCompare(cursor.date);
+  if (dateOrder !== 0) return dateOrder > 0;
+  return getDailyStateSortId(state).localeCompare(cursor.id) > 0;
+}
+
 function filterDailyStates(states, range) {
   return states.filter(state => {
     if (!state.date) return true;
@@ -254,14 +310,37 @@ function filterDailyStates(states, range) {
 }
 
 function paginateDailyStates(states, event) {
-  const limit = normalizePositiveInt(event.limit, PAGE_SIZE, 500);
-  const offset = normalizePositiveInt(event.cursor, 0, null);
-  const page = states.slice(offset, offset + limit);
-  const nextOffset = offset + page.length;
+  const limit = normalizePositiveInt(event.limit, PAGE_SIZE, PAGE_SIZE);
+  const cursor = decodeDailyStateCursor(event.cursor);
+  const remaining = cursor && cursor.offset === undefined
+    ? states.filter(state => isStateAfterCursor(state, cursor))
+    : states.slice(cursor && cursor.offset || 0);
+  const page = remaining.slice(0, limit);
   return {
     page,
-    nextCursor: nextOffset < states.length ? String(nextOffset) : null
+    nextCursor: page.length > 0 && page.length < remaining.length
+      ? encodeDailyStateCursor(page[page.length - 1])
+      : null
   };
+}
+
+function buildSnapshotToken(userHabits, policyVersions, dailyStates, range) {
+  const normalize = (items, fields) => items
+    .map(item => fields.map(field => item[field] === undefined ? null : item[field]))
+    .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  const identity = {
+    range,
+    userHabits: normalize(userHabits, [
+      'userHabitId', 'habitId', 'status', 'updatedAt', 'deletedAt', 'pinnedAt'
+    ]),
+    policyVersions: normalize(policyVersions, [
+      'policyVersionId', 'userHabitId', 'effectiveStartDate', 'effectiveEndDate', 'updatedAt'
+    ]),
+    dailyStates: normalize(dailyStates, [
+      'stateId', 'userHabitId', 'date', 'status', 'updatedAt', 'lastOperationId'
+    ])
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
 /**
@@ -277,8 +356,9 @@ function paginateDailyStates(states, event) {
  *
  * 入参:
  * - 默认 { dailyStateDays: 90 }
+ * - 新客户端全量恢复 { historyScope: "all", recoveryProtocolVersion: 2 }
  * - 可选 { startDate, endDate, cursor, limit } 分页恢复指定周期 daily states
- * 返回: { success, data: { userHabits, policyVersions, dailyStates, nextCursor } }
+ * 返回: { success, data: { userHabits, policyVersions, dailyStates, nextCursor, snapshotMeta } }
  */
 exports.main = async (event, context) => {
   event = event || {};
@@ -296,8 +376,16 @@ exports.main = async (event, context) => {
     const allDailyStates = await listAllByOpenid('dailyCheckinStates', OPENID, event);
     const range = resolveDailyStateRange(event, serverTime);
     const filteredDailyStates = filterDailyStates(allDailyStates, range)
-      .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')));
+      .sort(compareDailyStateForRecovery);
     const { page: dailyStates, nextCursor } = paginateDailyStates(filteredDailyStates, event);
+    const snapshotMeta = {
+      protocolVersion: RECOVERY_PROTOCOL_VERSION,
+      scope: event.historyScope === 'all' ? 'all' : 'range',
+      token: buildSnapshotToken(userHabits, policyVersions, filteredDailyStates, range),
+      totalUserHabits: userHabits.length,
+      totalPolicyVersions: policyVersions.length,
+      totalDailyStates: filteredDailyStates.length
+    };
 
     return {
       success: true,
@@ -305,7 +393,8 @@ exports.main = async (event, context) => {
         userHabits: userHabits.map(slimUserHabit),
         policyVersions: policyVersions.map(slimPolicyVersion),
         dailyStates: dailyStates.map(slimDailyState),
-        nextCursor
+        nextCursor,
+        snapshotMeta
       },
       serverTime
     };

@@ -137,12 +137,17 @@ describe('recoverData cloud function', () => {
     const result = await main({ __collectionPrefix: 'test_' }, {})
 
     expect(result.success).toBe(true)
-    expect(result.data).toEqual({
+    expect(result.data).toEqual(expect.objectContaining({
       userHabits: [],
       policyVersions: [],
       dailyStates: [],
       nextCursor: null
-    })
+    }))
+    expect(result.data.snapshotMeta).toEqual(expect.objectContaining({
+      protocolVersion: 2,
+      scope: 'range',
+      totalDailyStates: 0
+    }))
   })
 
   test('preserves custom habit metadata for cache recovery', async () => {
@@ -318,8 +323,123 @@ describe('recoverData cloud function', () => {
     }, {})
 
     expect(firstPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_1', 'ds_2'])
-    expect(firstPage.data.nextCursor).toBe('2')
+    expect(firstPage.data.nextCursor).toEqual(expect.any(String))
+    expect(firstPage.data.nextCursor).not.toBe('2')
     expect(secondPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
     expect(secondPage.data.nextCursor).toBeNull()
+  })
+
+  test('historyScope all returns complete history with protocol v2 snapshot metadata', async () => {
+    createMockCloud({
+      user_habits: [
+        { _openid: 'openid_1', userHabitId: 'uh_1', habitId: '1', status: 'active' }
+      ],
+      habit_policy_versions: [
+        { _openid: 'openid_1', policyVersionId: 'pv_1', userHabitId: 'uh_1' }
+      ],
+      daily_checkin_states: [
+        {
+          _openid: 'openid_1',
+          _id: 'old',
+          stateId: 'ds_old',
+          userHabitId: 'uh_1',
+          date: '2025-01-01',
+          status: 'checked'
+        },
+        {
+          _openid: 'openid_1',
+          _id: 'new',
+          stateId: 'ds_new',
+          userHabitId: 'uh_1',
+          date: '2026-07-26',
+          status: 'checked'
+        }
+      ]
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({
+      historyScope: 'all',
+      recoveryProtocolVersion: 2
+    }, {})
+
+    expect(result.success).toBe(true)
+    expect(result.data.dailyStates.map(item => item.stateId)).toEqual(['ds_old', 'ds_new'])
+    expect(result.data.snapshotMeta).toEqual(expect.objectContaining({
+      protocolVersion: 2,
+      scope: 'all',
+      totalUserHabits: 1,
+      totalPolicyVersions: 1,
+      totalDailyStates: 2,
+      token: expect.any(String)
+    }))
+  })
+
+  test('stable cursor does not repeat or skip states when an earlier record is added', async () => {
+    const collections = {
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: [
+        { _openid: 'openid_1', _id: 'id_1', stateId: 'ds_1', userHabitId: 'uh_1', date: '2026-01-01', status: 'checked' },
+        { _openid: 'openid_1', _id: 'id_2', stateId: 'ds_2', userHabitId: 'uh_1', date: '2026-01-02', status: 'checked' },
+        { _openid: 'openid_1', _id: 'id_3', stateId: 'ds_3', userHabitId: 'uh_1', date: '2026-01-03', status: 'checked' }
+      ]
+    }
+    createMockCloud(collections)
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const firstPage = await main({ historyScope: 'all', limit: 2 }, {})
+    collections.daily_checkin_states.unshift({
+      _openid: 'openid_1',
+      _id: 'id_0',
+      stateId: 'ds_0',
+      userHabitId: 'uh_1',
+      date: '2025-12-31',
+      status: 'checked'
+    })
+    const secondPage = await main({
+      historyScope: 'all',
+      cursor: firstPage.data.nextCursor,
+      limit: 2
+    }, {})
+
+    expect(firstPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_1', 'ds_2'])
+    expect(secondPage.data.dailyStates.map(item => item.stateId)).toEqual(['ds_3'])
+    expect(secondPage.data.nextCursor).toBeNull()
+    expect(secondPage.data.snapshotMeta.token).not.toBe(firstPage.data.snapshotMeta.token)
+  })
+
+  test('paginates more than 500 states with opaque cursors and no duplicates', async () => {
+    const dailyStates = Array.from({ length: 501 }, (_, index) => ({
+      _openid: 'openid_1',
+      _id: `id_${String(index).padStart(3, '0')}`,
+      stateId: `ds_${String(index).padStart(3, '0')}`,
+      userHabitId: 'uh_1',
+      date: new Date(Date.UTC(2025, 0, 1) + index * 86400000).toISOString().slice(0, 10),
+      status: 'checked'
+    }))
+    createMockCloud({
+      user_habits: [
+        { _openid: 'openid_1', userHabitId: 'uh_1', habitId: '1', status: 'active' }
+      ],
+      habit_policy_versions: [],
+      daily_checkin_states: dailyStates
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const recovered = []
+    let cursor = ''
+    let token = ''
+    do {
+      const result = await main({ historyScope: 'all', cursor, limit: 100 }, {})
+      expect(result.success).toBe(true)
+      recovered.push(...result.data.dailyStates)
+      token = token || result.data.snapshotMeta.token
+      expect(result.data.snapshotMeta.token).toBe(token)
+      cursor = result.data.nextCursor || ''
+    } while (cursor)
+
+    expect(recovered).toHaveLength(501)
+    expect(new Set(recovered.map(state => `${state.userHabitId}:${state.date}`)).size).toBe(501)
   })
 })

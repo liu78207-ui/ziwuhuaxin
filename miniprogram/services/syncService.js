@@ -19,6 +19,9 @@ const cloudService = require('./cloudService')
 const eventBus = require('./eventBus')
 
 const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png'
+const RECOVERY_PROTOCOL_VERSION = 2
+const DEFAULT_RECOVERY_PAGE_TIMEOUT_MS = 15000
+const MAX_RECOVERY_PAGES = 1000
 
 // ==================== 并发保护 ====================
 
@@ -73,6 +76,29 @@ function getPendingOperations() {
 
 function setPendingOperations(queue) {
   return storageService.setPendingOperations(queue)
+}
+
+function getSyncSummary() {
+  const queue = getPendingOperations()
+  const counts = {
+    pending: 0,
+    syncing: 0,
+    retrying: 0,
+    failed: 0,
+    synced: 0
+  }
+  queue.forEach(item => {
+    if (Object.prototype.hasOwnProperty.call(counts, item.status)) {
+      counts[item.status] += 1
+    }
+  })
+  const unsyncedCount = counts.pending + counts.syncing + counts.retrying + counts.failed
+  return {
+    ...counts,
+    total: queue.length,
+    unsyncedCount,
+    allSynced: unsyncedCount === 0
+  }
 }
 
 /**
@@ -356,8 +382,17 @@ async function recoverOrSync() {
     }
 
     await processQueue()
+    const summary = getSyncSummary()
+    if (!summary.allSynced) {
+      return {
+        success: false,
+        skipped: false,
+        reason: 'UNSYNCED_OPERATIONS_REMAIN',
+        summary
+      }
+    }
     console.info('syncService.recoverOrSync 完成')
-    return { success: true, skipped: false }
+    return { success: true, skipped: false, summary }
   } catch (e) {
     console.error('syncService.recoverOrSync failed:', e && e.message ? e.message : String(e || 'unknown error'))
     return { success: false, error: e && e.message ? e.message : String(e || 'unknown error') }
@@ -365,9 +400,16 @@ async function recoverOrSync() {
 }
 
 function buildRecoverDataParams(options = {}) {
-  const params = {
-    dailyStateDays: options.dailyStateDays || 90
-  }
+  const hasExplicitRange = Boolean(options.startDate || options.endDate || options.dailyStateDays)
+  const historyScope = options.historyScope || (hasExplicitRange ? '' : 'all')
+  const params = historyScope === 'all'
+    ? {
+        historyScope: 'all',
+        recoveryProtocolVersion: RECOVERY_PROTOCOL_VERSION
+      }
+    : {
+        dailyStateDays: options.dailyStateDays || 90
+      }
   const optionalKeys = ['startDate', 'endDate', 'cursor', 'limit']
   optionalKeys.forEach(key => {
     if (options[key] !== undefined && options[key] !== null && options[key] !== '') {
@@ -433,59 +475,206 @@ function resolveLatestPolicyVersionId(policyVersions, userHabitId) {
 }
 
 async function recoverFromCloud(options = {}) {
-  const result = await cloudService.callFunction('recoverData', buildRecoverDataParams(options))
-  if (!result.success) {
-    throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+  const snapshot = await fetchRecoverySnapshot(options)
+  if (!storageService.stageRecoverySnapshot(snapshot)) {
+    storageService.discardRecoverySnapshot()
+    throw new Error('恢复快照暂存失败，本地数据未修改')
   }
-
-  // cloudService.callFunction 返回 { success, data }
-  // recoverData 云函数返回 { success, data: { userHabits, policyVersions, dailyStates } }
-  // 所以实际数据在 result.data.data
-  const payload = result.data?.data || result.data || {}
-  const { userHabits, policyVersions, dailyStates } = payload
-
-  // 恢复 userHabits -> MyHabits
-  if (userHabits && Array.isArray(userHabits)) {
-    const migratedHabits = userHabits.map((h, sourceIndex) => {
-      const isCustom = h.source === 'custom' || String(h.habitId || '').indexOf('custom_') === 0
-      return cleanRecoveredObject({
-        userHabitId: h.userHabitId,
-        habitId: h.habitId,
-        source: isCustom ? 'custom' : (h.source || 'system'),
-        name: h.name || h.title || h.habitTitle,
-        category: h.category || (isCustom ? '自定义' : '运动类'),
-        remark: h.remark || '',
-        targetMinutes: h.targetMinutes || h.duration || 20,
-        themeClass: h.themeClass || (isCustom ? 't-purple' : 't-default'),
-        iconUrl: h.iconUrl || (isCustom ? CUSTOM_ICON_URL : ''),
-        status: h.status || 'active',
-        createdAt: h.createdAt,
-        addedAt: h.addedAt || null,
-        pinnedAt: h.pinnedAt || null,
-        deletedAt: h.deletedAt,
-        latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId),
-        sourceIndex
-      })
-    })
-      .sort(compareRecoveredHabitOrder)
-      .map(({ sourceIndex, ...habit }) => habit)
-    storageService.setMyHabits(migratedHabits)
+  const commitResult = storageService.commitRecoverySnapshot()
+  if (!commitResult.success) {
+    throw new Error('恢复快照提交失败，本地数据未修改')
   }
-
-  // 恢复 policyVersions
-  if (policyVersions && Array.isArray(policyVersions)) {
-    storageService.setPolicyVersions(policyVersions)
-  }
-
-  // 恢复 dailyStates
-  if (dailyStates && Array.isArray(dailyStates)) {
-    storageService.setDailyCheckinStates(dailyStates)
-  }
-
-  // 云端恢复成功后以云端快照为准，丢弃旧本地 pending，避免恢复后重放过期操作再次污染云端。
-  storageService.setPendingOperations([])
-
   return { success: true, source: 'recoverData', restored: true }
+}
+
+function normalizeRecoveredHabits(userHabits, policyVersions) {
+  return userHabits.map((h, sourceIndex) => {
+    const isCustom = h.source === 'custom' || String(h.habitId || '').indexOf('custom_') === 0
+    return cleanRecoveredObject({
+      userHabitId: h.userHabitId,
+      habitId: h.habitId,
+      source: isCustom ? 'custom' : (h.source || 'system'),
+      name: h.name || h.title || h.habitTitle,
+      category: h.category || (isCustom ? '自定义' : '运动类'),
+      remark: h.remark || '',
+      targetMinutes: h.targetMinutes || h.duration || 20,
+      themeClass: h.themeClass || (isCustom ? 't-purple' : 't-default'),
+      iconUrl: h.iconUrl || (isCustom ? CUSTOM_ICON_URL : ''),
+      status: h.status || 'active',
+      createdAt: h.createdAt,
+      addedAt: h.addedAt || null,
+      pinnedAt: h.pinnedAt || null,
+      deletedAt: h.deletedAt,
+      latestPolicyVersionId: resolveLatestPolicyVersionId(policyVersions, h.userHabitId),
+      sourceIndex
+    })
+  })
+    .sort(compareRecoveredHabitOrder)
+    .map(({ sourceIndex, ...habit }) => habit)
+}
+
+function validateRecoverySnapshot(snapshot, snapshotMeta) {
+  if (
+    !snapshot ||
+    !Array.isArray(snapshot.userHabits) ||
+    !Array.isArray(snapshot.policyVersions) ||
+    !Array.isArray(snapshot.dailyStates)
+  ) {
+    throw new Error('recoverData 返回的快照结构无效')
+  }
+  if (
+    !snapshotMeta ||
+    snapshotMeta.protocolVersion !== RECOVERY_PROTOCOL_VERSION ||
+    snapshotMeta.scope !== 'all' ||
+    !snapshotMeta.token
+  ) {
+    throw new Error('recoverData 云函数版本不支持全量安全恢复')
+  }
+  if (
+    snapshot.userHabits.length !== snapshotMeta.totalUserHabits ||
+    snapshot.policyVersions.length !== snapshotMeta.totalPolicyVersions ||
+    snapshot.dailyStates.length !== snapshotMeta.totalDailyStates
+  ) {
+    throw new Error('recoverData 快照数量校验失败')
+  }
+
+  const seenHabits = new Set()
+  snapshot.userHabits.forEach(habit => {
+    if (!habit || !habit.userHabitId) {
+      throw new Error('recoverData 返回了无效的用户习惯')
+    }
+    const key = String(habit.userHabitId)
+    if (seenHabits.has(key)) {
+      throw new Error(`recoverData 返回了重复的用户习惯: ${key}`)
+    }
+    seenHabits.add(key)
+  })
+
+  const seenPolicies = new Set()
+  snapshot.policyVersions.forEach(policy => {
+    if (!policy || !policy.policyVersionId || !policy.userHabitId) {
+      throw new Error('recoverData 返回了无效的策略版本')
+    }
+    const key = String(policy.policyVersionId)
+    if (seenPolicies.has(key)) {
+      throw new Error(`recoverData 返回了重复的策略版本: ${key}`)
+    }
+    if (!seenHabits.has(String(policy.userHabitId))) {
+      throw new Error(`recoverData 策略版本找不到所属习惯: ${key}`)
+    }
+    seenPolicies.add(key)
+  })
+
+  const seenStates = new Set()
+  snapshot.dailyStates.forEach(state => {
+    if (!state || !state.userHabitId || !state.date || !state.status) {
+      throw new Error('recoverData 返回了无效的每日状态')
+    }
+    const key = `${state.userHabitId}:${state.date}`
+    if (seenStates.has(key)) {
+      throw new Error(`recoverData 返回了重复的每日状态: ${key}`)
+    }
+    if (!seenHabits.has(String(state.userHabitId))) {
+      throw new Error(`recoverData 每日状态找不到所属习惯: ${key}`)
+    }
+    seenStates.add(key)
+  })
+}
+
+async function fetchRecoveryPage(params, timeoutMs) {
+  let timer
+  try {
+    return await Promise.race([
+      cloudService.callFunction('recoverData', params),
+      new Promise((resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error('recoverData 分页请求超时，本地数据未修改'))
+        }, timeoutMs)
+      })
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
+async function fetchRecoverySnapshot(options = {}) {
+  const requestedTimeout = Number(options.pageTimeoutMs)
+  const pageTimeoutMs = Number.isFinite(requestedTimeout) && requestedTimeout > 0
+    ? requestedTimeout
+    : DEFAULT_RECOVERY_PAGE_TIMEOUT_MS
+  const seenCursors = new Set()
+  const seenPageSignatures = new Set()
+  const dailyStates = []
+  let cursor = ''
+  let userHabits = []
+  let policyVersions = []
+  let expectedMeta = null
+  let pageCount = 0
+
+  while (true) {
+    const params = buildRecoverDataParams({
+      ...options,
+      historyScope: 'all',
+      cursor
+    })
+    const result = await fetchRecoveryPage(params, pageTimeoutMs)
+    if (!result.success) {
+      throw new Error(result.error?.message || 'recoverData 云函数返回失败')
+    }
+    const payload = result.data?.data || result.data || {}
+    const pageStates = Array.isArray(payload.dailyStates) ? payload.dailyStates : []
+    const pageMeta = payload.snapshotMeta
+    if (
+      !pageMeta ||
+      pageMeta.protocolVersion !== RECOVERY_PROTOCOL_VERSION ||
+      pageMeta.scope !== 'all' ||
+      !pageMeta.token
+    ) {
+      throw new Error('recoverData 云函数版本不支持全量安全恢复')
+    }
+    if (!expectedMeta) {
+      expectedMeta = { ...pageMeta }
+      userHabits = Array.isArray(payload.userHabits) ? payload.userHabits : []
+      policyVersions = Array.isArray(payload.policyVersions) ? payload.policyVersions : []
+    } else if (
+      pageMeta.token !== expectedMeta.token ||
+      pageMeta.totalUserHabits !== expectedMeta.totalUserHabits ||
+      pageMeta.totalPolicyVersions !== expectedMeta.totalPolicyVersions ||
+      pageMeta.totalDailyStates !== expectedMeta.totalDailyStates
+    ) {
+      throw new Error('recoverData 分页期间云端快照发生变化，请重试')
+    }
+
+    const signature = pageStates
+      .map(state => `${state.stateId || ''}:${state.userHabitId || ''}:${state.date || ''}`)
+      .join('|')
+    if (signature && seenPageSignatures.has(signature)) {
+      throw new Error('recoverData 返回了重复分页，本地数据未修改')
+    }
+    if (signature) seenPageSignatures.add(signature)
+    dailyStates.push(...pageStates)
+
+    const nextCursor = payload.nextCursor
+    if (nextCursor === null || nextCursor === undefined || nextCursor === '') break
+    const normalizedCursor = String(nextCursor)
+    if (normalizedCursor === String(cursor) || seenCursors.has(normalizedCursor)) {
+      throw new Error('recoverData 游标未前进，本地数据未修改')
+    }
+    seenCursors.add(normalizedCursor)
+    cursor = normalizedCursor
+    pageCount += 1
+    if (pageCount >= MAX_RECOVERY_PAGES) {
+      throw new Error('recoverData 分页超过安全上限，本地数据未修改')
+    }
+  }
+
+  const snapshot = {
+    userHabits: normalizeRecoveredHabits(userHabits, policyVersions),
+    policyVersions,
+    dailyStates
+  }
+  validateRecoverySnapshot(snapshot, expectedMeta)
+  return snapshot
 }
 
 /**
@@ -546,6 +735,7 @@ module.exports = {
   pushWithDedup,
   getPendingOperations,
   setPendingOperations,
+  getSyncSummary,
   hasDuplicatePending,
   processQueue,
   requestProcessQueue,
@@ -553,6 +743,8 @@ module.exports = {
   recoverOrSync,
   bootstrapCloudData,
   recoverFromCloud,
+  fetchRecoverySnapshot,
+  validateRecoverySnapshot,
   needsLocalRecovery,
   calculateNextRetry,
   getNetworkTypeAsync

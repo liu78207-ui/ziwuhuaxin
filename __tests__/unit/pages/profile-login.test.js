@@ -127,7 +127,7 @@ describe('profile page login flow', () => {
     expect(page.data.isProfileSaving).toBe(false)
   })
 
-  test('confirmClearCache skips pre-clear sync and forces cloud recovery', async () => {
+  test('confirmClearCache requests safe full-history cloud recovery', async () => {
     page.setData = jest.fn(function(data) {
       Object.assign(this.data, data)
     })
@@ -145,8 +145,7 @@ describe('profile page login flow', () => {
     await page.confirmClearCache()
 
     expect(cacheService.clearLocalUserCacheAndRecover).toHaveBeenCalledWith({
-      dailyStateDays: 90,
-      skipPreClearSync: true
+      historyScope: 'all'
     })
     expect(wx.showToast).toHaveBeenCalledWith({
       title: '已恢复云端',

@@ -82,7 +82,7 @@
         <text class="contact-modal-title clear-cache-modal-title">清空缓存</text>
       </view>
       <view class="clear-cache-modal-body">
-        <text class="clear-cache-modal-text">仅清除当前设备本地缓存，不会删除云端数据。清理前未同步的离线操作可能丢失，确认继续吗？</text>
+        <text class="clear-cache-modal-text">仅刷新当前设备本地缓存，不会删除云端数据。系统会先同步未完成操作并校验完整云端历史，成功后才替换本地缓存，确认继续吗？</text>
       </view>
       <view class="clear-cache-modal-footer">
         <button class="clear-cache-modal-btn clear-cache-modal-cancel" bindtap="closeClearCacheModal" disabled="{{isClearingCache}}">取消</button>

@@ -1,40 +1,52 @@
 describe('cacheService.clearLocalUserCacheAndRecover', () => {
   const servicePath = '../../miniprogram/services/cacheService'
+  const snapshot = {
+    userHabits: [{ userHabitId: 'uh_1' }],
+    policyVersions: [{ policyVersionId: 'pv_1', userHabitId: 'uh_1' }],
+    dailyStates: [{ userHabitId: 'uh_1', date: '2026-07-01', status: 'checked' }]
+  }
 
   function loadServiceWithMocks(overrides = {}) {
     jest.resetModules()
     const calls = []
+    const syncedSummary = {
+      total: 0,
+      pending: 0,
+      syncing: 0,
+      retrying: 0,
+      failed: 0,
+      synced: 0,
+      unsyncedCount: 0,
+      allSynced: true
+    }
     const syncService = {
       recoverOrSync: jest.fn(async () => {
         calls.push('recoverOrSync')
-        return { success: true }
+        return { success: true, summary: syncedSummary }
       }),
-      bootstrapCloudData: jest.fn(async () => {
-        calls.push('bootstrapCloudData')
-        return { success: true, restored: true }
-      }),
-      recoverFromCloud: jest.fn(async () => {
-        calls.push('recoverFromCloud')
-        return { success: true, source: 'recoverData', restored: true }
+      getSyncSummary: jest.fn(() => syncedSummary),
+      fetchRecoverySnapshot: jest.fn(async () => {
+        calls.push('fetchRecoverySnapshot')
+        return snapshot
       }),
       ...overrides.syncService
     }
     const storageService = {
-      clearUserDataCache: jest.fn(() => {
-        calls.push('clearUserDataCache')
-        return { success: true, removedKeys: ['MyHabits'], failedKeys: [] }
+      stageRecoverySnapshot: jest.fn(() => {
+        calls.push('stageRecoverySnapshot')
+        return true
+      }),
+      replaceUserDataCacheFromRecoverySnapshot: jest.fn(() => {
+        calls.push('replaceUserDataCacheFromRecoverySnapshot')
+        return { success: true, cleared: true, removedKeys: ['CheckinLogs'], failedKeys: [] }
+      }),
+      discardRecoverySnapshot: jest.fn(() => {
+        calls.push('discardRecoverySnapshot')
       }),
       ...overrides.storageService
     }
-    const userService = {
-      login: jest.fn(async () => {
-        calls.push('login')
-        return { userId: 'user_1' }
-      }),
-      ...overrides.userService
-    }
     const eventBus = {
-      emit: jest.fn((eventName) => {
+      emit: jest.fn(eventName => {
         calls.push(`emit:${eventName}`)
       }),
       ...overrides.eventBus
@@ -42,7 +54,6 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
 
     jest.doMock('../../miniprogram/services/syncService', () => syncService)
     jest.doMock('../../miniprogram/services/storageService', () => storageService)
-    jest.doMock('../../miniprogram/services/userService', () => userService)
     jest.doMock('../../miniprogram/services/eventBus', () => eventBus)
 
     return {
@@ -50,103 +61,130 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
       calls,
       syncService,
       storageService,
-      userService,
       eventBus
     }
   }
 
-  test('默认跳过清理前同步、清理、发事件、登录并恢复云端数据', async () => {
+  test('先同步并预取全量快照，再提交和清理 legacy 缓存', async () => {
     const { cacheService, calls, syncService, eventBus } = loadServiceWithMocks()
 
-    const result = await cacheService.clearLocalUserCacheAndRecover({ dailyStateDays: 30 })
-
-    expect(result).toEqual({
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toEqual({
       success: true,
       cleared: true,
       restored: true,
       restoreSource: 'recoverData',
-      skippedPreClearSync: true,
+      blocked: false,
+      blockedReason: '',
       failedKeys: [],
       recoveryError: ''
     })
     expect(calls).toEqual([
-      'clearUserDataCache',
-      'emit:cache:invalidated',
-      'login',
-      'recoverFromCloud'
+      'recoverOrSync',
+      'fetchRecoverySnapshot',
+      'stageRecoverySnapshot',
+      'replaceUserDataCacheFromRecoverySnapshot',
+      'emit:cache:invalidated'
     ])
-    expect(syncService.recoverOrSync).not.toHaveBeenCalled()
+    expect(syncService.fetchRecoverySnapshot).toHaveBeenCalledWith({
+      historyScope: 'all',
+      pageTimeoutMs: undefined
+    })
     expect(eventBus.emit).toHaveBeenCalledWith('cache:invalidated', expect.objectContaining({
       scope: 'userData',
       source: 'profile.clearCache'
     }))
-    expect(syncService.recoverFromCloud).toHaveBeenCalledWith({ dailyStateDays: 30 })
   })
 
-  test('可显式开启清理前同步', async () => {
-    const { cacheService, calls, syncService } = loadServiceWithMocks()
-
-    const result = await cacheService.clearLocalUserCacheAndRecover({
-      dailyStateDays: 90,
-      skipPreClearSync: false
+  test('存在未同步操作时阻止清理并保留旧缓存', async () => {
+    const summary = {
+      total: 2,
+      pending: 1,
+      failed: 1,
+      syncing: 0,
+      retrying: 0,
+      synced: 0,
+      unsyncedCount: 2,
+      allSynced: false
+    }
+    const { cacheService, syncService, storageService } = loadServiceWithMocks({
+      syncService: {
+        recoverOrSync: jest.fn(async () => ({
+          success: false,
+          reason: 'UNSYNCED_OPERATIONS_REMAIN',
+          summary
+        })),
+        getSyncSummary: jest.fn(() => summary)
+      }
     })
 
-    expect(result).toMatchObject({
-      success: true,
-      cleared: true,
-      restored: true,
-      restoreSource: 'recoverData',
-      skippedPreClearSync: false
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toMatchObject({
+      success: false,
+      cleared: false,
+      restored: false,
+      blocked: true,
+      blockedReason: 'UNSYNCED_OPERATIONS_REMAIN',
+      syncSummary: summary
     })
-    expect(syncService.recoverOrSync).toHaveBeenCalled()
-    expect(calls).toEqual([
-      'recoverOrSync',
-      'clearUserDataCache',
-      'emit:cache:invalidated',
-      'login',
-      'recoverFromCloud'
-    ])
-    expect(syncService.recoverFromCloud).toHaveBeenCalledWith({ dailyStateDays: 90 })
+    expect(syncService.fetchRecoverySnapshot).not.toHaveBeenCalled()
+    expect(storageService.stageRecoverySnapshot).not.toHaveBeenCalled()
   })
 
-  test('清理部分 key 失败时不继续登录和恢复', async () => {
-    const storageService = {
-      clearUserDataCache: jest.fn(() => ({
-        success: false,
-        removedKeys: ['MyHabits'],
-        failedKeys: ['dailyCheckinStates']
-      }))
-    }
-    const { cacheService, userService, syncService } = loadServiceWithMocks({ storageService })
+  test('云端分页恢复失败时不修改旧缓存', async () => {
+    const { cacheService, storageService, eventBus } = loadServiceWithMocks({
+      syncService: {
+        fetchRecoverySnapshot: jest.fn(async () => {
+          throw new Error('recoverData 分页请求超时，本地数据未修改')
+        })
+      }
+    })
 
-    const result = await cacheService.clearLocalUserCacheAndRecover()
-
-    expect(result.success).toBe(false)
-    expect(result.cleared).toBe(false)
-    expect(result.skippedPreClearSync).toBe(true)
-    expect(result.failedKeys).toEqual(['dailyCheckinStates'])
-    expect(userService.login).not.toHaveBeenCalled()
-    expect(syncService.bootstrapCloudData).not.toHaveBeenCalled()
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toMatchObject({
+      success: false,
+      cleared: false,
+      restored: false,
+      blocked: false,
+      recoveryError: 'recoverData 分页请求超时，本地数据未修改'
+    })
+    expect(storageService.replaceUserDataCacheFromRecoverySnapshot).not.toHaveBeenCalled()
+    expect(storageService.discardRecoverySnapshot).toHaveBeenCalled()
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 
-  test('recoverData 失败时仍返回已清理，并带 recoveryError', async () => {
-    const syncService = {
-      recoverOrSync: jest.fn(async () => ({ success: true })),
-      recoverFromCloud: jest.fn(async () => ({
-        success: false,
-        restored: false,
-        error: 'recoverData 云函数返回失败'
-      }))
-    }
-    const { cacheService } = loadServiceWithMocks({ syncService })
+  test('暂存失败时不替换缓存', async () => {
+    const { cacheService, storageService } = loadServiceWithMocks({
+      storageService: {
+        stageRecoverySnapshot: jest.fn(() => false)
+      }
+    })
 
-    const result = await cacheService.clearLocalUserCacheAndRecover()
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toMatchObject({
+      success: false,
+      cleared: false,
+      restored: false,
+      recoveryError: '恢复快照暂存失败'
+    })
+    expect(storageService.replaceUserDataCacheFromRecoverySnapshot).not.toHaveBeenCalled()
+  })
 
-    expect(result.success).toBe(true)
-    expect(result.cleared).toBe(true)
-    expect(result.restored).toBe(false)
-    expect(result.restoreSource).toBe('')
-    expect(result.skippedPreClearSync).toBe(true)
-    expect(result.recoveryError).toBe('recoverData 云函数返回失败')
+  test('快照提交失败时返回失败键且不宣布缓存失效', async () => {
+    const { cacheService, eventBus } = loadServiceWithMocks({
+      storageService: {
+        replaceUserDataCacheFromRecoverySnapshot: jest.fn(() => ({
+          success: false,
+          cleared: false,
+          reason: 'RECOVERY_COMMIT_FAILED',
+          failedKeys: ['dailyCheckinStates']
+        }))
+      }
+    })
+
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toMatchObject({
+      success: false,
+      cleared: false,
+      restored: false,
+      failedKeys: ['dailyCheckinStates'],
+      recoveryError: 'RECOVERY_COMMIT_FAILED'
+    })
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 })

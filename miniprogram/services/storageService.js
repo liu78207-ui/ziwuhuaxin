@@ -158,6 +158,151 @@ function clearUserDataCache() {
   }
 }
 
+function isRecoverySnapshot(snapshot) {
+  return Boolean(
+    snapshot &&
+    typeof snapshot === 'object' &&
+    Array.isArray(snapshot.userHabits) &&
+    Array.isArray(snapshot.policyVersions) &&
+    Array.isArray(snapshot.dailyStates)
+  )
+}
+
+function stageRecoverySnapshot(snapshot) {
+  if (!isRecoverySnapshot(snapshot)) return false
+  const staged = {
+    userHabits: snapshot.userHabits,
+    policyVersions: snapshot.policyVersions,
+    dailyStates: snapshot.dailyStates,
+    stagedAt: Date.now()
+  }
+  if (!setItem(STORAGE_KEYS.recoveryStaging, staged)) return false
+  return setItem(STORAGE_KEYS.recoveryTransaction, {
+    status: 'staged',
+    stagedAt: staged.stagedAt
+  })
+}
+
+function discardRecoverySnapshot() {
+  removeItem(STORAGE_KEYS.recoveryTransaction)
+  removeItem(STORAGE_KEYS.recoveryStaging)
+}
+
+function isSameStoredValue(actual, expected) {
+  try {
+    return JSON.stringify(actual) === JSON.stringify(expected)
+  } catch (e) {
+    return false
+  }
+}
+
+function commitRecoverySnapshot() {
+  const snapshot = getItem(STORAGE_KEYS.recoveryStaging)
+  if (!isRecoverySnapshot(snapshot)) {
+    return { success: false, reason: 'INVALID_RECOVERY_STAGING' }
+  }
+
+  const previous = {
+    userHabits: getMyHabits(),
+    policyVersions: getPolicyVersions(),
+    dailyStates: getDailyCheckinStates()
+  }
+  if (!setItem(STORAGE_KEYS.recoveryTransaction, {
+    status: 'committing',
+    stagedAt: snapshot.stagedAt || Date.now()
+  })) {
+    return { success: false, reason: 'RECOVERY_TRANSACTION_MARKER_FAILED' }
+  }
+
+  const writes = [
+    [STORAGE_KEYS.habits, snapshot.userHabits],
+    [STORAGE_KEYS.policyVersions, snapshot.policyVersions],
+    [STORAGE_KEYS.dailyStates, snapshot.dailyStates]
+  ]
+  const failedKey = writes.find(([key, value]) => !setItem(key, value))
+  const verifyFailedKey = failedKey || writes.find(([key, value]) =>
+    !isSameStoredValue(getItem(key), value)
+  )
+
+  if (verifyFailedKey) {
+    const rollbackWrites = [
+      [STORAGE_KEYS.habits, previous.userHabits],
+      [STORAGE_KEYS.policyVersions, previous.policyVersions],
+      [STORAGE_KEYS.dailyStates, previous.dailyStates]
+    ]
+    const rollbackResults = rollbackWrites.map(([key, value]) => setItem(key, value))
+    const rollbackFailed = rollbackResults.some(result => !result)
+    if (!rollbackFailed) {
+      discardRecoverySnapshot()
+    }
+    return {
+      success: false,
+      reason: rollbackFailed ? 'RECOVERY_ROLLBACK_FAILED' : 'RECOVERY_COMMIT_FAILED',
+      failedKey: verifyFailedKey[0]
+    }
+  }
+
+  discardRecoverySnapshot()
+  return { success: true }
+}
+
+function recoverInterruptedRecoveryTransaction() {
+  const transaction = getItem(STORAGE_KEYS.recoveryTransaction)
+  if (!transaction || (transaction.status !== 'staged' && transaction.status !== 'committing')) {
+    return { success: true, recovered: false }
+  }
+  const result = commitRecoverySnapshot()
+  return {
+    ...result,
+    recovered: Boolean(result.success)
+  }
+}
+
+function replaceUserDataCacheFromRecoverySnapshot() {
+  const commitResult = commitRecoverySnapshot()
+  if (!commitResult.success) {
+    return {
+      success: false,
+      cleared: false,
+      reason: commitResult.reason,
+      failedKeys: commitResult.failedKey ? [commitResult.failedKey] : []
+    }
+  }
+
+  // 核心快照已经完整提交后再清理 legacy 展示缓存。身份、pending、
+  // checkinOperations 和客户端序列号属于同步安全状态，清缓存也不得删除。
+  const clearKeys = new Set([
+    STORAGE_KEYS.logs,
+    STORAGE_KEYS.allHabitsInfo,
+    STORAGE_KEYS.operationLogs,
+    STORAGE_KEYS.userStrategies,
+    STORAGE_KEYS.checkinRecords,
+    STORAGE_KEYS.migrationMeta,
+    'allHabitIds',
+    'DynamicThreeDayScenarioSummary'
+  ])
+  getStorageKeys()
+    .filter(isPhase3BackupKey)
+    .forEach(key => clearKeys.add(key))
+
+  const removedKeys = []
+  const failedKeys = []
+  clearKeys.forEach(key => {
+    try {
+      wx.removeStorageSync(key)
+      removedKeys.push(key)
+    } catch (e) {
+      failedKeys.push(key)
+    }
+  })
+  return {
+    success: true,
+    cleared: true,
+    removedKeys,
+    failedKeys
+  }
+}
+
 // ==================== Phase 3: Migration Meta ====================
 
 function getMigrationMeta() {
@@ -623,6 +768,11 @@ module.exports = {
   removeItem,
   clear,
   clearUserDataCache,
+  stageRecoverySnapshot,
+  discardRecoverySnapshot,
+  commitRecoverySnapshot,
+  recoverInterruptedRecoveryTransaction,
+  replaceUserDataCacheFromRecoverySnapshot,
 
   // Phase 3: Migration
   getMigrationMeta,
