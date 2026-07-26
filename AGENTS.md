@@ -598,6 +598,7 @@ AI Coding Agent 修改代码后必须说明：
 - `docs/architecture/migration-plan.md`
 - `docs/architecture/legacy-compatibility-register.md`
 - `docs/governance/code-boundary-rules.md`
+- `docs/governance/change-impact-and-regression.md`
 - `docs/governance/testing-strategy.md`
 - `docs/governance/logging-debugging.md`
 - `docs/v1/v1-product-boundary.md`
@@ -667,3 +668,18 @@ AI Coding Agent 修改代码后必须说明：
 - 修改四主页面信息架构
 - 引入未经验证的复杂抽象
 - 直接删除旧逻辑而不做迁移
+
+## 变更影响治理
+
+涉及环境配置、登录身份、`cloudService`、`storageService`、`syncService`、
+`recoverData`、缓存恢复、数据库集合、索引、权限、app 启动顺序或核心状态机的
+修改，一律视为公共底座变更，默认影响全产品。
+
+公共底座变更必须遵守 `docs/governance/change-impact-and-regression.md`：
+
+- 必须先列出不允许改变的既有行为和完整依赖链。
+- 必须独立提交、独立验证并具备独立回滚能力。
+- 必须完成既有核心功能全量回归和真实 CloudBase 环境验证。
+- 只证明新需求可用、未证明旧链路不变时，不得发布。
+- 未确认归属的数据不得发送，未被服务端确认的操作不得删除。
+- 未经完整校验的恢复结果不得覆盖，未经逐条证据确认的正式数据不得修复。

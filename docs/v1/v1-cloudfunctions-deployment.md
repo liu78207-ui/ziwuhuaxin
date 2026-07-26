@@ -319,9 +319,116 @@ audit. It rejects custom habit IDs.
 }
 ```
 
+For evidence-based repair that includes custom habits, use
+`repairTargetCheckinsFromManifest`. Every entry must contain the exact
+`userHabitId`, `habitId`, business date, `status: "checked"`,
+`evidenceSource`, and `evidenceRef`. The function validates ownership,
+lifecycle, and the single policy version effective on that date. It defaults to
+dry-run, skips existing checked states, and reports non-checked states as
+conflicts unless the individual entry sets `overwriteExisting: true`.
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "action": "repairTargetCheckinsFromManifest",
+    "targetOpenid": "<target-openid>",
+    "batchId": "repair-2026-07-confirmed",
+    "confirmPhrase": "REPAIR_TARGET_CHECKINS_FROM_MANIFEST",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>",
+    "entries": [
+      {
+        "userHabitId": "<exact-userHabitId>",
+        "habitId": "<built-in-or-custom-habitId>",
+        "date": "2026-07-22",
+        "status": "checked",
+        "evidenceSource": "screenshot",
+        "evidenceRef": "shot-03",
+        "overwriteExisting": false
+      }
+    ]
+  }
+}
+```
+
+Production execution additionally requires `dryRun:false`,
+`allowProdMaintenance:true`, `backupConfirmed:true`, and
+`prodConfirmPhrase:"ALLOW_PROD_MAINTENANCE_AFTER_BACKUP"`. Unknown `checkedAt`
+must be omitted rather than fabricated.
+
+When a confirmed manifest identifies cloud `checked` states that should be
+uncompleted, use `cancelTargetCheckinsFromManifest`. This action never deletes
+history. It requires each target state to currently be `checked`, writes an
+`action:"undo"` repair operation first, then changes the daily final state to
+`canceled`. Its deterministic idempotency key is
+`repair_canceled_{userHabitId}_{date}`. Missing or non-checked states are
+reported as conflicts; an already canceled target is skipped idempotently.
+
+```json
+{
+  "name": "clearTestData",
+  "data": {
+    "action": "cancelTargetCheckinsFromManifest",
+    "targetOpenid": "<target-openid>",
+    "batchId": "cancel-repair-2026-07-confirmed",
+    "confirmPhrase": "CANCEL_TARGET_CHECKINS_FROM_MANIFEST",
+    "adminToken": "<CLEAR_USER_DATA_ADMIN_TOKEN>",
+    "entries": [
+      {
+        "userHabitId": "<exact-userHabitId>",
+        "habitId": "<built-in-or-custom-habitId>",
+        "date": "2026-07-05",
+        "status": "canceled",
+        "evidenceSource": "spreadsheet",
+        "evidenceRef": "7月打卡数据.xlsx:Sheet1!F2"
+      }
+    ]
+  }
+}
+```
+
+Use the same production guard fields as check-in repair. A successful
+post-execution dry-run must report `willCancel:0`, every entry under
+`skippedCanceled`, and no conflicts or rejected entries.
+
 ## Non-Goals
 
 This gate does not change report rules, cache invalidation, state machines, or
 AI behavior. `migrateV1Data` only materializes the V1 data model described in
 `docs/architecture/migration-plan.md` by reading legacy collections and writing
 the target collections idempotently.
+
+## V1 Cloud Sync Release Order
+
+This order is mandatory for the cloud-sync-only release:
+
+1. Back up production data and record the backup identifier.
+2. Run the index duplicate audit in dry-run mode. If duplicates are found, export the list and stop; the audit must never delete data.
+3. Create and verify the unique indexes declared in `cloudfunctions/database-indexes.json`.
+4. Deploy `syncCheckin`, `syncHabit`, `recoverData`, and the guarded maintenance/audit function.
+5. Run preview multi-device smoke tests.
+6. Release to a small production cohort and inspect `sync_logs` and `conflict_logs`.
+7. Expand to full release only after all gates remain green.
+
+The smoke suite must cover offline check-in recovery, repeated check-in/cancel,
+opposite operations on two devices, policy update, deletion, clear-cache
+recovery, and verification that no reminder entry exists.
+
+Required unique indexes:
+
+- `checkin_operations`: `_openid, idempotencyKey`
+- `daily_checkin_states`: `_openid, userHabitId, date`
+- `user_habits`: `_openid, userHabitId`
+- `habit_policy_versions`: `_openid, policyVersionId`
+- `habit_sync_operations`: `_openid, idempotencyKey`
+
+After exporting the five target collections as one JSON object keyed by
+collection name, run:
+
+```bash
+npm run audit:sync-index-duplicates -- /absolute/path/to/cloud-export.json
+npm run verify:sync-indexes
+```
+
+The audit prints only a dry-run report and exits with status `2` when duplicate
+groups exist. It never writes to CloudBase or changes the export.

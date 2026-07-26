@@ -1146,6 +1146,406 @@ describe('clearTestData cloud function', () => {
     expect(dailyStates.doc).not.toHaveBeenCalled();
   });
 
+  test('repairTargetCheckinsFromManifest dryRun validates custom lifecycle and policy without writing', async () => {
+    const userHabits = createCollection('user_habits', {
+      data: [{
+        _openid: 'target_openid',
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_yoga',
+        source: 'custom',
+        createdAt: '2026-07-01',
+        status: 'active'
+      }]
+    });
+    const policies = createCollection('habit_policy_versions', {
+      data: [{
+        _openid: 'target_openid',
+        policyVersionId: 'pv_custom_1',
+        userHabitId: 'uh_custom_1',
+        effectiveStartDate: '2026-07-01',
+        effectiveEndDate: null
+      }]
+    });
+    const dailyStates = createCollection('daily_checkin_states', { data: [] });
+    const operations = createCollection('checkin_operations', { data: [] });
+    const syncLogs = createCollection('sync_logs', { data: [] });
+    const { main } = loadClearTestData({
+      collections: {
+        user_habits: userHabits,
+        habit_policy_versions: policies,
+        daily_checkin_states: dailyStates,
+        checkin_operations: operations,
+        sync_logs: syncLogs
+      }
+    });
+
+    const result = await main({
+      action: 'repairTargetCheckinsFromManifest',
+      targetOpenid: 'target_openid',
+      batchId: 'repair_202607',
+      confirmPhrase: 'REPAIR_TARGET_CHECKINS_FROM_MANIFEST',
+      adminToken: 'secret',
+      entries: [{
+        userHabitId: 'uh_custom_1',
+        habitId: 'custom_yoga',
+        date: '2026-07-22',
+        status: 'checked',
+        evidenceSource: 'screenshot',
+        evidenceRef: 'shot-03',
+        overwriteExisting: false
+      }]
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      dryRun: true,
+      batchId: 'repair_202607',
+      details: {
+        input: 1,
+        willAdd: 1,
+        added: 0,
+        rejected: [],
+        conflicts: []
+      }
+    });
+    expect(dailyStates.add).not.toHaveBeenCalled();
+    expect(operations.add).not.toHaveBeenCalled();
+    expect(syncLogs.add).not.toHaveBeenCalled();
+  });
+
+  test('repairTargetCheckinsFromManifest requires confirmation before overwriting canceled state', async () => {
+    const userHabits = createCollection('user_habits', {
+      data: [{
+        _openid: 'target_openid',
+        userHabitId: 'uh_1',
+        habitId: '17',
+        createdAt: '2026-07-01',
+        status: 'active'
+      }]
+    });
+    const policies = createCollection('habit_policy_versions', {
+      data: [{
+        _openid: 'target_openid',
+        policyVersionId: 'pv_1',
+        userHabitId: 'uh_1',
+        effectiveStartDate: '2026-07-01',
+        effectiveEndDate: null
+      }]
+    });
+    const dailyStates = createCollection('daily_checkin_states', {
+      data: [{
+        _id: 'ds_canceled',
+        _openid: 'target_openid',
+        stateId: 'state_1',
+        userHabitId: 'uh_1',
+        date: '2026-07-22',
+        status: 'canceled'
+      }]
+    });
+    const { main } = loadClearTestData({
+      collections: {
+        user_habits: userHabits,
+        habit_policy_versions: policies,
+        daily_checkin_states: dailyStates,
+        checkin_operations: createCollection('checkin_operations', { data: [] }),
+        sync_logs: createCollection('sync_logs', { data: [] })
+      }
+    });
+    const basePayload = {
+      action: 'repairTargetCheckinsFromManifest',
+      targetOpenid: 'target_openid',
+      batchId: 'repair_202607',
+      confirmPhrase: 'REPAIR_TARGET_CHECKINS_FROM_MANIFEST',
+      adminToken: 'secret',
+      entries: [{
+        userHabitId: 'uh_1',
+        habitId: '17',
+        date: '2026-07-22',
+        status: 'checked',
+        evidenceSource: 'screenshot',
+        evidenceRef: 'shot-03'
+      }]
+    };
+
+    const dryRun = await main(basePayload);
+    expect(dryRun.success).toBe(false);
+    expect(dryRun.details.conflicts).toEqual([
+      expect.objectContaining({ reason: 'overwrite_confirmation_required', previousStatus: 'canceled' })
+    ]);
+
+    const repaired = await main({
+      ...basePayload,
+      dryRun: false,
+      runtimeEnv: 'test',
+      entries: [{ ...basePayload.entries[0], overwriteExisting: true }]
+    });
+    expect(repaired.success).toBe(true);
+    expect(repaired.details.updated).toBe(1);
+    expect(dailyStates.docRefs.ds_canceled.update).toHaveBeenCalled();
+  });
+
+  test('cancelTargetCheckinsFromManifest dryRun only accepts checked states', async () => {
+    const userHabits = createCollection('user_habits', {
+      data: [{
+        _openid: 'target_openid',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        createdAt: '2026-07-01',
+        status: 'active'
+      }]
+    });
+    const policies = createCollection('habit_policy_versions', {
+      data: [{
+        _openid: 'target_openid',
+        policyVersionId: 'pv_12',
+        userHabitId: 'uh_12',
+        effectiveStartDate: '2026-07-01',
+        effectiveEndDate: null
+      }]
+    });
+    const dailyStates = createCollection('daily_checkin_states', {
+      data: [{
+        _id: 'ds_checked',
+        _openid: 'target_openid',
+        stateId: 'state_12',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        date: '2026-07-05',
+        status: 'checked'
+      }]
+    });
+    const operations = createCollection('checkin_operations', { data: [] });
+    const syncLogs = createCollection('sync_logs', { data: [] });
+    const { main } = loadClearTestData({
+      collections: {
+        user_habits: userHabits,
+        habit_policy_versions: policies,
+        daily_checkin_states: dailyStates,
+        checkin_operations: operations,
+        sync_logs: syncLogs
+      }
+    });
+
+    const result = await main({
+      action: 'cancelTargetCheckinsFromManifest',
+      targetOpenid: 'target_openid',
+      batchId: 'cancel_202607',
+      confirmPhrase: 'CANCEL_TARGET_CHECKINS_FROM_MANIFEST',
+      adminToken: 'secret',
+      entries: [{
+        userHabitId: 'uh_12',
+        habitId: '12',
+        date: '2026-07-05',
+        status: 'canceled',
+        evidenceSource: 'spreadsheet',
+        evidenceRef: 'july-workbook-blank'
+      }]
+    });
+
+    expect(result).toMatchObject({
+      success: true,
+      dryRun: true,
+      batchId: 'cancel_202607',
+      details: {
+        input: 1,
+        willCancel: 1,
+        canceled: 0,
+        skippedCanceled: 0,
+        rejected: [],
+        conflicts: []
+      }
+    });
+    expect(dailyStates.doc).not.toHaveBeenCalled();
+    expect(operations.add).not.toHaveBeenCalled();
+    expect(syncLogs.add).not.toHaveBeenCalled();
+  });
+
+  test('cancelTargetCheckinsFromManifest writes an idempotent undo operation before canceling state', async () => {
+    const userHabits = createCollection('user_habits', {
+      data: [{
+        _openid: 'target_openid',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        createdAt: '2026-07-01',
+        status: 'active'
+      }]
+    });
+    const policies = createCollection('habit_policy_versions', {
+      data: [{
+        _openid: 'target_openid',
+        policyVersionId: 'pv_12',
+        userHabitId: 'uh_12',
+        effectiveStartDate: '2026-07-01',
+        effectiveEndDate: null
+      }]
+    });
+    const dailyStates = createCollection('daily_checkin_states', {
+      data: [{
+        _id: 'ds_checked',
+        _openid: 'target_openid',
+        stateId: 'state_12',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        date: '2026-07-05',
+        status: 'checked',
+        checkedAt: 1783200000000
+      }]
+    });
+    const operations = createCollection('checkin_operations', { data: [] });
+    const syncLogs = createCollection('sync_logs', { data: [] });
+    const { main } = loadClearTestData({
+      collections: {
+        user_habits: userHabits,
+        habit_policy_versions: policies,
+        daily_checkin_states: dailyStates,
+        checkin_operations: operations,
+        sync_logs: syncLogs
+      }
+    });
+
+    const result = await main({
+      action: 'cancelTargetCheckinsFromManifest',
+      targetOpenid: 'target_openid',
+      batchId: 'cancel_202607',
+      confirmPhrase: 'CANCEL_TARGET_CHECKINS_FROM_MANIFEST',
+      adminToken: 'secret',
+      dryRun: false,
+      runtimeEnv: 'test',
+      entries: [{
+        userHabitId: 'uh_12',
+        habitId: '12',
+        date: '2026-07-05',
+        status: 'canceled',
+        evidenceSource: 'spreadsheet',
+        evidenceRef: 'july-workbook-blank'
+      }]
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.details).toMatchObject({ willCancel: 1, canceled: 1 });
+    expect(operations.add).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        _openid: 'target_openid',
+        operationId: 'op_repair_canceled_uh_12_2026-07-05',
+        idempotencyKey: 'repair_canceled_uh_12_2026-07-05',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        policyVersionId: 'pv_12',
+        date: '2026-07-05',
+        action: 'undo',
+        source: 'repair',
+        repairBatchId: 'cancel_202607'
+      })
+    });
+    expect(dailyStates.docRefs.ds_checked.update).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        status: 'canceled',
+        checkedAt: null,
+        lastOperationId: 'op_repair_canceled_uh_12_2026-07-05'
+      })
+    });
+    expect(syncLogs.add).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        _openid: 'target_openid',
+        type: 'manual_checkin_cancel_repair',
+        status: 'completed',
+        repairBatchId: 'cancel_202607',
+        canceledCount: 1
+      })
+    });
+  });
+
+  test('cancelTargetCheckinsFromManifest is idempotent and reports non-checked conflicts', async () => {
+    const userHabits = createCollection('user_habits', {
+      data: [{
+        _openid: 'target_openid',
+        userHabitId: 'uh_12',
+        habitId: '12',
+        createdAt: '2026-07-01',
+        status: 'active'
+      }]
+    });
+    const policies = createCollection('habit_policy_versions', {
+      data: [{
+        _openid: 'target_openid',
+        policyVersionId: 'pv_12',
+        userHabitId: 'uh_12',
+        effectiveStartDate: '2026-07-01',
+        effectiveEndDate: null
+      }]
+    });
+    const dailyStates = createCollection('daily_checkin_states', {
+      data: [
+        {
+          _id: 'ds_canceled',
+          _openid: 'target_openid',
+          userHabitId: 'uh_12',
+          habitId: '12',
+          date: '2026-07-05',
+          status: 'canceled'
+        },
+        {
+          _id: 'ds_unchecked',
+          _openid: 'target_openid',
+          userHabitId: 'uh_12',
+          habitId: '12',
+          date: '2026-07-06',
+          status: 'unchecked'
+        }
+      ]
+    });
+    const operations = createCollection('checkin_operations', {
+      data: [{
+        _openid: 'target_openid',
+        idempotencyKey: 'repair_canceled_uh_12_2026-07-05'
+      }]
+    });
+    const { main } = loadClearTestData({
+      collections: {
+        user_habits: userHabits,
+        habit_policy_versions: policies,
+        daily_checkin_states: dailyStates,
+        checkin_operations: operations,
+        sync_logs: createCollection('sync_logs', { data: [] })
+      }
+    });
+    const entry = date => ({
+      userHabitId: 'uh_12',
+      habitId: '12',
+      date,
+      status: 'canceled',
+      evidenceSource: 'spreadsheet',
+      evidenceRef: 'july-workbook-blank'
+    });
+
+    const result = await main({
+      action: 'cancelTargetCheckinsFromManifest',
+      targetOpenid: 'target_openid',
+      batchId: 'cancel_202607',
+      confirmPhrase: 'CANCEL_TARGET_CHECKINS_FROM_MANIFEST',
+      adminToken: 'secret',
+      entries: [entry('2026-07-05'), entry('2026-07-06'), entry('2026-07-07')]
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.details.skippedCanceled).toBe(1);
+    expect(result.details.conflicts).toEqual([
+      expect.objectContaining({
+        date: '2026-07-06',
+        previousStatus: 'unchecked',
+        reason: 'expected_checked_state'
+      }),
+      expect.objectContaining({
+        date: '2026-07-07',
+        previousStatus: '',
+        reason: 'daily_state_not_found'
+      })
+    ]);
+    expect(result.details.records).toEqual([
+      expect.objectContaining({ date: '2026-07-05', action: 'skip_canceled_idempotent' })
+    ]);
+  });
+
   test('skips missing collections without failing the whole cleanup', async () => {
     const aiLogs = createCollection('ai_logs', { missing: true });
     const users = createCollection('users', { total: 1 });

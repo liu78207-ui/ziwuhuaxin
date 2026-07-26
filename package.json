@@ -16,7 +16,9 @@
     "verify:cloudfunctions": "node scripts/verify-v1-cloudfunctions.js",
     "verify:cloud-env": "node scripts/verify-cloud-env-boundaries.js",
     "verify:legacy-boundaries": "node scripts/verify-legacy-boundaries.js",
-    "verify:field-naming": "node scripts/verify-field-naming.js"
+    "verify:field-naming": "node scripts/verify-field-naming.js",
+    "verify:sync-indexes": "node scripts/verify-sync-index-manifest.js",
+    "audit:sync-index-duplicates": "node scripts/audit-sync-index-duplicates.js"
   },
   "keywords": [
     "微信小程序",

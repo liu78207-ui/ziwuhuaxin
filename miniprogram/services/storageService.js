@@ -4,6 +4,9 @@
 const { STORAGE_KEYS } = require('../constants/storageKeys')
 const { generateUserHabitId } = require('../constants/idPrefixes')
 
+const CURRENT_CACHE_VERSION = 2
+const CURRENT_MIGRATION_VERSION = 2
+
 function asArray(value) {
   return Array.isArray(value) ? value : []
 }
@@ -81,6 +84,53 @@ function setUserInfo(info) {
   return setItem(STORAGE_KEYS.userInfo, info)
 }
 
+function getDefaultCacheMeta() {
+  return {
+    cacheVersion: CURRENT_CACHE_VERSION,
+    dataVersion: 0,
+    reportVersion: 0,
+    migrationVersion: CURRENT_MIGRATION_VERSION,
+    ownerUserId: '',
+    runtimeEnv: '',
+    lastBusinessDate: '',
+    lastSyncedAt: null,
+    lastRecoveredAt: null,
+    lastMigratedAt: null,
+    readMode: 'current',
+    dateConfidence: 'high'
+  }
+}
+
+function getCacheMeta() {
+  return {
+    ...getDefaultCacheMeta(),
+    ...asObject(getItem(STORAGE_KEYS.cacheMeta))
+  }
+}
+
+function setCacheMeta(meta) {
+  return setItem(STORAGE_KEYS.cacheMeta, {
+    ...getDefaultCacheMeta(),
+    ...asObject(meta)
+  })
+}
+
+function patchCacheMeta(patch) {
+  return setCacheMeta({
+    ...getCacheMeta(),
+    ...asObject(patch)
+  })
+}
+
+function bumpDataVersions() {
+  const meta = getCacheMeta()
+  return setCacheMeta({
+    ...meta,
+    dataVersion: (Number(meta.dataVersion) || 0) + 1,
+    reportVersion: (Number(meta.reportVersion) || 0) + 1
+  })
+}
+
 function removeItem(key) {
   try {
     wx.removeStorageSync(key)
@@ -114,6 +164,83 @@ const USER_DATA_CACHE_KEYS = [
   'allHabitIds',
   'DynamicThreeDayScenarioSummary'
 ]
+
+function quarantinePendingOperations(reason, identity = {}) {
+  const pending = getPendingOperations()
+  if (pending.length === 0) return []
+
+  const existing = asArray(getItem(STORAGE_KEYS.pendingOperationsQuarantine))
+  const quarantinedAt = new Date().toISOString()
+  const quarantined = pending.map(item => ({
+    ...item,
+    quarantineReason: reason,
+    quarantinedAt,
+    expectedOwnerUserId: identity.ownerUserId || '',
+    expectedRuntimeEnv: identity.runtimeEnv || ''
+  }))
+  setItem(STORAGE_KEYS.pendingOperationsQuarantine, [...existing, ...quarantined])
+  setPendingOperations([])
+  return quarantined
+}
+
+function claimUnownedPendingOperations(ownerUserId, runtimeEnv) {
+  const queue = getPendingOperations()
+  let changed = false
+  const claimed = queue.map(item => {
+    if (item.ownerUserId || item.runtimeEnv) return item
+    changed = true
+    return {
+      ...item,
+      ownerUserId,
+      runtimeEnv,
+      updatedAt: new Date().toISOString()
+    }
+  })
+  if (changed) setPendingOperations(claimed)
+  return changed
+}
+
+function bindCacheIdentity(ownerUserId, runtimeEnv) {
+  const normalizedOwner = String(ownerUserId || '')
+  const normalizedEnv = String(runtimeEnv || '')
+  if (!normalizedOwner || !normalizedEnv) {
+    return { success: false, reason: 'INVALID_CACHE_IDENTITY', changed: false }
+  }
+
+  const meta = getCacheMeta()
+  const cachedUser = getUserInfo() || {}
+  const previousOwner = meta.ownerUserId || cachedUser._userId || ''
+  const previousEnv = meta.runtimeEnv || ''
+  const mismatch = Boolean(
+    (previousOwner && previousOwner !== normalizedOwner) ||
+    (previousEnv && previousEnv !== normalizedEnv)
+  )
+
+  let quarantinedCount = 0
+  if (mismatch) {
+    quarantinedCount = quarantinePendingOperations('CACHE_IDENTITY_MISMATCH', {
+      ownerUserId: normalizedOwner,
+      runtimeEnv: normalizedEnv
+    }).length
+    clearUserDataCache()
+  } else {
+    claimUnownedPendingOperations(normalizedOwner, normalizedEnv)
+  }
+
+  setCacheMeta({
+    ...(mismatch ? getDefaultCacheMeta() : meta),
+    ownerUserId: normalizedOwner,
+    runtimeEnv: normalizedEnv,
+    cacheVersion: CURRENT_CACHE_VERSION,
+    migrationVersion: CURRENT_MIGRATION_VERSION
+  })
+  return {
+    success: true,
+    changed: mismatch || previousOwner !== normalizedOwner || previousEnv !== normalizedEnv,
+    mismatch,
+    quarantinedCount
+  }
+}
 
 function isPhase3BackupKey(key) {
   return /^MyHabits_backup_phase3_\d+$/.test(key) ||
@@ -155,6 +282,126 @@ function clearUserDataCache() {
     success: Object.values(details).every(Boolean),
     removedKeys: Object.keys(details).filter(key => details[key]),
     failedKeys: Object.keys(details).filter(key => !details[key])
+  }
+}
+
+function isRecoverySnapshot(snapshot) {
+  return Boolean(snapshot && typeof snapshot === 'object' &&
+    Array.isArray(snapshot.userHabits) &&
+    Array.isArray(snapshot.policyVersions) &&
+    Array.isArray(snapshot.dailyStates))
+}
+
+function stageRecoverySnapshot(snapshot) {
+  if (!isRecoverySnapshot(snapshot)) return false
+  return setItem(STORAGE_KEYS.recoveryStaging, {
+    userHabits: snapshot.userHabits,
+    policyVersions: snapshot.policyVersions,
+    dailyStates: snapshot.dailyStates,
+    stagedAt: Date.now()
+  })
+}
+
+function discardRecoverySnapshot() {
+  removeItem(STORAGE_KEYS.recoveryStaging)
+}
+
+function commitRecoverySnapshot() {
+  const snapshot = getItem(STORAGE_KEYS.recoveryStaging)
+  if (!isRecoverySnapshot(snapshot)) {
+    return { success: false, reason: 'INVALID_RECOVERY_STAGING' }
+  }
+
+  const previous = {
+    userHabits: getMyHabits(),
+    policyVersions: getPolicyVersions(),
+    dailyStates: getDailyCheckinStates()
+  }
+  const writes = [
+    [STORAGE_KEYS.habits, snapshot.userHabits],
+    [STORAGE_KEYS.policyVersions, snapshot.policyVersions],
+    [STORAGE_KEYS.dailyStates, snapshot.dailyStates]
+  ]
+  const failedKey = writes.find(([key, value]) => !setItem(key, value))
+
+  if (failedKey) {
+    setItem(STORAGE_KEYS.habits, previous.userHabits)
+    setItem(STORAGE_KEYS.policyVersions, previous.policyVersions)
+    setItem(STORAGE_KEYS.dailyStates, previous.dailyStates)
+    return { success: false, reason: 'RECOVERY_COMMIT_FAILED', failedKey: failedKey[0] }
+  }
+
+  discardRecoverySnapshot()
+  return { success: true }
+}
+
+function replaceUserDataCacheFromRecoverySnapshot() {
+  const snapshot = getItem(STORAGE_KEYS.recoveryStaging)
+  if (!isRecoverySnapshot(snapshot)) {
+    return { success: false, cleared: false, reason: 'INVALID_RECOVERY_STAGING', failedKeys: [] }
+  }
+
+  const existingKeys = new Set(getStorageKeys())
+  const keys = new Set(USER_DATA_CACHE_KEYS)
+  // 安全恢复不等同于退出登录。保留已经验证过的本地用户资料，避免
+  // 核心快照替换成功后还依赖一次新的网络登录才能恢复页面身份。
+  keys.delete(STORAGE_KEYS.userInfo)
+  getStorageKeys()
+    .filter(isPhase3BackupKey)
+    .forEach(key => keys.add(key))
+  const backup = {}
+  keys.forEach(key => {
+    backup[key] = {
+      exists: existingKeys.has(key),
+      value: existingKeys.has(key) ? getItem(key) : undefined
+    }
+  })
+
+  const failedKeys = []
+  keys.forEach(key => {
+    try {
+      wx.removeStorageSync(key)
+    } catch (e) {
+      failedKeys.push(key)
+    }
+  })
+
+  const writes = [
+    [STORAGE_KEYS.habits, snapshot.userHabits],
+    [STORAGE_KEYS.policyVersions, snapshot.policyVersions],
+    [STORAGE_KEYS.dailyStates, snapshot.dailyStates]
+  ]
+  writes.forEach(([key, value]) => {
+    if (!setItem(key, value)) failedKeys.push(key)
+  })
+
+  if (failedKeys.length > 0) {
+    keys.forEach(key => {
+      try {
+        wx.removeStorageSync(key)
+      } catch (e) {
+        // 回滚尽力而为；最终失败键会返回给调用方。
+      }
+    })
+    Object.entries(backup).forEach(([key, entry]) => {
+      if (entry.exists && !setItem(key, entry.value)) {
+        failedKeys.push(`rollback:${key}`)
+      }
+    })
+    return {
+      success: false,
+      cleared: false,
+      reason: 'RECOVERY_REPLACE_FAILED',
+      failedKeys: Array.from(new Set(failedKeys))
+    }
+  }
+
+  discardRecoverySnapshot()
+  return {
+    success: true,
+    cleared: true,
+    removedKeys: Array.from(keys),
+    failedKeys: []
   }
 }
 
@@ -558,6 +805,17 @@ function saveCheckinOperation(operation) {
   return operation
 }
 
+function updateCheckinOperation(operationId, updates) {
+  const operations = getCheckinOperations()
+  const index = operations.findIndex(op => op.operationId === operationId)
+  if (index < 0) return false
+  operations[index] = {
+    ...operations[index],
+    ...updates
+  }
+  return setCheckinOperations(operations)
+}
+
 // ==================== Phase 4: PendingOperations ====================
 
 function getPendingOperations() {
@@ -620,9 +878,20 @@ module.exports = {
   setUserOpenid,
   getUserInfo,
   setUserInfo,
+  getCacheMeta,
+  setCacheMeta,
+  patchCacheMeta,
+  bumpDataVersions,
+  bindCacheIdentity,
+  claimUnownedPendingOperations,
+  quarantinePendingOperations,
   removeItem,
   clear,
   clearUserDataCache,
+  stageRecoverySnapshot,
+  discardRecoverySnapshot,
+  commitRecoverySnapshot,
+  replaceUserDataCacheFromRecoverySnapshot,
 
   // Phase 3: Migration
   getMigrationMeta,
@@ -659,6 +928,7 @@ module.exports = {
   getCheckinOperationsByUserHabitId,
   getCheckinOperationByIdempotencyKey,
   saveCheckinOperation,
+  updateCheckinOperation,
 
   // Phase 4: PendingOperations
   getPendingOperations,

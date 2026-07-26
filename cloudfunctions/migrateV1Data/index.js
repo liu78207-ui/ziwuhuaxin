@@ -23,7 +23,7 @@ cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 
-const MIGRATION_VERSION = 'v1-formal-001';
+const MIGRATION_VERSION = 'v1-formal-002';
 const COLLECTIONS = {
   users: 'users',
   userHabits: 'user_habits',
@@ -442,6 +442,8 @@ function buildUserHabit(openid, strategy, serverTime) {
     pinnedAt: getValue(strategy, ['pinnedAt', 'pinned_at'], null),
     deletedAt: deletedAt ? toDateStr(deletedAt) : null,
     latestPolicyVersionId: '',
+    serverRevision: 0,
+    lastServerOperationId: '',
     syncStatus: 'synced',
     migrationVersion: MIGRATION_VERSION,
     migratedFrom: 'user_strategies',
@@ -513,6 +515,7 @@ function buildCheckinOperation(openid, log, userHabit, policyVersion, serverTime
     clientTime: getValue(log, ['clientTime', 'created_at', 'createdAt'], null),
     clientSequence: Number(getValue(log, ['clientSequence', 'sequence'], 0)) || 0,
     serverTime,
+    serverRevision: 0,
     source: 'migration',
     syncStatus: 'synced',
     migrationVersion: MIGRATION_VERSION,
@@ -555,6 +558,8 @@ function buildDailyState(openid, operation, serverTime) {
     lastOperationId: operation.operationId,
     lastOperationClientTime: operation.clientTime || null,
     lastOperationClientSequence: operation.clientSequence || 0,
+    lastServerOperationId: operation.operationId,
+    serverRevision: 0,
     syncStatus: 'synced',
     migrationVersion: MIGRATION_VERSION,
     updatedAt: serverTime

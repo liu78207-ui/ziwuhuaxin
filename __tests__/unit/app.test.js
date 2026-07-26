@@ -556,7 +556,9 @@ describe('App.js 功能测试', () => {
 
     test('syncToCloud migrates legacy pending checkins through syncCheckin', async () => {
       const app = loadAppConfig();
-      const storage = {};
+      const storage = {
+        cacheMeta: { ownerUserId: 'user_test', runtimeEnv: 'test' }
+      };
       wx.getStorageSync.mockImplementation((key) => storage[key]);
       wx.setStorageSync.mockImplementation((key, value) => {
         storage[key] = value;
@@ -569,6 +571,7 @@ describe('App.js 功能测试', () => {
       wx.cloud.callFunction.mockResolvedValue({
         result: { success: true, data: { status: 'checked' } }
       });
+      require('../../miniprogram/services/syncService').confirmSyncIdentity('user_test', 'test');
 
       await app.syncToCloud();
 
@@ -585,7 +588,9 @@ describe('App.js 功能测试', () => {
 
     test('syncToCloud migrates legacy delete markers through syncCheckin undo', async () => {
       const app = loadAppConfig();
-      const storage = {};
+      const storage = {
+        cacheMeta: { ownerUserId: 'user_test', runtimeEnv: 'test' }
+      };
       wx.getStorageSync.mockImplementation((key) => storage[key]);
       wx.setStorageSync.mockImplementation((key, value) => {
         storage[key] = value;
@@ -598,6 +603,7 @@ describe('App.js 功能测试', () => {
       wx.cloud.callFunction.mockResolvedValue({
         result: { success: true, data: { status: 'canceled' } }
       });
+      require('../../miniprogram/services/syncService').confirmSyncIdentity('user_test', 'test');
 
       await app.syncToCloud();
 

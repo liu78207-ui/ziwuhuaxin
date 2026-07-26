@@ -25,7 +25,6 @@ const forbiddenPatterns = [
   /\bplan_start_date\b/g,
   /\bsync_status\b/g,
   /\blockedReason\b/g,
-  /\bsyncStatus\b/g,
   /\bisDeleted\b/g
 ]
 

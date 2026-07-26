@@ -2,9 +2,17 @@
 /* 归藏页面 - 个人中心 - 玉露丹青极致清透版 */
 
 .page-wrapper {
-  min-height: 100vh;
+  height: 100vh;
   background-color: var(--bg-primary);
+  position: relative;
+  overflow: hidden;
+}
+
+.profile-scroll {
+  width: 100%;
+  height: 100vh;
   padding: 0 48rpx 200rpx;
+  box-sizing: border-box;
 }
 
 /* ============================================

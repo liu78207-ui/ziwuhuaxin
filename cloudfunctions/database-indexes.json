@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "indexes": [
+    {
+      "collection": "checkin_operations",
+      "name": "uniq_openid_idempotencyKey",
+      "unique": true,
+      "fields": ["_openid", "idempotencyKey"]
+    },
+    {
+      "collection": "daily_checkin_states",
+      "name": "uniq_openid_userHabitId_date",
+      "unique": true,
+      "fields": ["_openid", "userHabitId", "date"]
+    },
+    {
+      "collection": "user_habits",
+      "name": "uniq_openid_userHabitId",
+      "unique": true,
+      "fields": ["_openid", "userHabitId"]
+    },
+    {
+      "collection": "habit_policy_versions",
+      "name": "uniq_openid_policyVersionId",
+      "unique": true,
+      "fields": ["_openid", "policyVersionId"]
+    },
+    {
+      "collection": "habit_sync_operations",
+      "name": "uniq_openid_idempotencyKey",
+      "unique": true,
+      "fields": ["_openid", "idempotencyKey"]
+    }
+  ]
+}

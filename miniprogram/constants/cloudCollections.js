@@ -7,6 +7,7 @@ const CLOUD_COLLECTIONS = {
   users: 'users',
   userHabits: 'user_habits',
   habitPolicyVersions: 'habit_policy_versions',
+  habitSyncOperations: 'habit_sync_operations',
   checkinOperations: 'checkin_operations',
   dailyCheckinStates: 'daily_checkin_states',
   syncLogs: 'sync_logs',

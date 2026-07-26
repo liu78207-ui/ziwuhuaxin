@@ -270,6 +270,9 @@ pending 项推荐字段：
 - 用户主动点击重试时重试。
 - 重试必须复用原始 `idempotencyKey`。
 - 超过最大重试次数后保持 `failed`，不删除原始记录。
+- `clientSequence` 只保证单设备内顺序，不能跨设备比较。
+- 同一日最终状态的跨设备顺序以云端 `lastOperationServerTime` 为准。
+- 新 operation 到达云端时按本次服务器接收顺序更新最终状态；只有已存在 operation 的历史重试早于当前状态时，才返回 `STALE_OPERATION`。
 
 队列顺序：
 
@@ -542,6 +545,15 @@ V1 按需恢复：
 - 不返回 DeepSeek API Key 或敏感配置。
 - 不携带分享、昵称、头像以外的隐私冗余数据。
 
+全历史恢复协议：
+
+- `recoverData({ historyScope: "all" })` 返回全部 `daily_checkin_states`；未传时保留近 90 天兼容口径。
+- 状态按 `date + _id/stateId` 稳定排序；新游标编码最后一条记录的
+  `date + _id`，并兼容旧数字偏移游标。`nextCursor` 不为空时客户端必须继续拉取。
+- 客户端必须先完成全部分页、校验唯一键并写入 staging，之后才能替换正式缓存。
+- 分页失败、超时、重复页、游标不前进或 staging 提交失败时，必须保留原缓存。
+- 云端恢复不得无条件删除本地 pending；只有云端确认的操作才能清除。
+
 ## 13. syncService 禁止事项
 
 页面层禁止：
@@ -579,6 +591,8 @@ V1 按需恢复：
 - 清缓存后通过 `recoverData` 恢复用户习惯、策略和近期每日状态。
 - 云端无数据时进入新用户空状态。
 - `recoverData` 分页中断后可继续恢复。
+- 超过 500 条状态时仍能完整恢复全部历史。
+- 游标重复或不前进时拒绝替换本地缓存。
 
 pending 与 retry：
 
@@ -588,6 +602,7 @@ pending 与 retry：
 - 重试成功后状态变为 `synced`。
 - 重试失败后状态保持 `failed` 或 `retrying`。
 - 重试复用原始 `idempotencyKey`。
+- 自动重试耗尽后允许显式手动重试，仍复用原始操作身份。
 
 syncCheckin 幂等：
 
@@ -621,6 +636,8 @@ syncCheckin 幂等：
 - 删除习惯后相关报表缓存失效。
 - 跨天后今日任务刷新。
 - app 升级后触发 migration 检查。
+- 存在未同步操作时阻止清缓存。
+- 清缓存前先完成全量云端预恢复，失败时不删除原缓存。
 
 边界安全：
 
@@ -629,3 +646,56 @@ syncCheckin 幂等：
 - 页面层没有新增 pending 队列操作。
 - 前端不可信 openid 不参与云端身份判断。
 - 云端只返回当前 `_openid` 数据。
+
+## 15. V1 发布版事务、版本与身份隔离
+
+本节是 V1 云同步发布的强制口径。本次版本不接入提醒能力，不新增提醒入口、提醒缓存字段、订阅消息 API、提醒云函数或提醒集合。
+
+### 15.1 服务端事务与冲突归并
+
+- `syncCheckin` 必须在一个 CloudBase 服务端事务内完成 operation 幂等写入、`daily_checkin_states` 更新和必要的 `conflict_logs` 写入。
+- 每个 `_openid + userHabitId + date` 独立维护递增 `serverRevision`。新操作取得当前 revision 加一。
+- 云函数不得只依赖 SDK 的隐式重试；遇到 `TransactionBusy` / `DATABASE_TRANSACTION_FAIL` 时，必须在同一次云函数调用内使用原始 `idempotencyKey` 做有限次数的指数退避重试。重试耗尽后才向客户端返回失败。
+- 同一 `idempotencyKey` 重试必须复用首次写入的 revision 和结果。
+- revision 较旧的请求只能返回 `IDEMPOTENT` 或 `STALE`，不得覆盖较新的每日最终状态。
+- 相反操作覆盖既有状态时必须记录冲突，最终以服务端事务实际提交顺序为准，后提交操作生效。
+- `syncHabit` 必须以 `_openid + userHabitId` 为事务串行化边界，并用 `habit_sync_operations` 保存习惯操作幂等流水。
+- 已删除的 `userHabitId` 不得被旧 add/update 重试重新激活；重新添加同一内置习惯必须创建新的 `userHabitId`。
+
+同步响应在保留 `success/code/serverTime` 的基础上增加：
+
+- `serverRevision`
+- `resolution`: `APPLIED`、`IDEMPOTENT`、`STALE` 或业务拒绝原因
+- `stateUpdated`
+- 必要时返回 `lastOperationId`、`latestPolicyVersionId`
+
+### 15.2 队列 single-flight 与显式重试
+
+- 并发 `processQueue` 调用共享同一个 Promise，所有调用方等待同一轮处理结果。
+- 自动重试最多三次；进入 `failed` 后停止自动调度，只允许 `retry` 或 `retryAllFailed` 显式重新激活。
+- 用户确认清缓存属于显式恢复动作：清理前若存在 `failed`，必须先调用 `retryAllFailed` 并等待 single-flight 完成；仍有未同步项时继续阻止清理，不得丢弃队列。
+- 新操作可以抢占尚未触发的延迟重试计时器并立即同步。
+- 冷启动、回到前台和网络恢复都触发续传。
+- 上次进程遗留的 `syncing/retrying` 仅在本次进程首次恢复时重置为 `pending`，必须保留原 `operationId/idempotencyKey`。
+- 云端确认后必须回写本地 operation 的同步状态、错误信息、服务端时间和 `serverRevision`。
+
+### 15.3 缓存身份与环境绑定
+
+`cacheMeta` 必须包含：
+
+- `ownerUserId`
+- `runtimeEnv`
+- `cacheVersion`、`dataVersion`、`reportVersion`、`migrationVersion`
+- `lastSyncedAt`、`lastRecoveredAt`、`lastBusinessDate`
+
+冷启动必须先通过云端确认内部 `userId`。离线期间允许读取本地缓存，但身份未确认前禁止上传 pending。每个队列项必须携带 `ownerUserId/runtimeEnv`；不匹配项转为失败诊断项，绝不发送到当前账号或另一环境。旧缓存只能在身份确认后认领；无法确认归属的 pending 不自动迁移。
+
+### 15.4 发布索引
+
+发布前必须先备份并执行重复数据 dry-run；发现重复只输出清单，不自动删除。随后创建并验证以下唯一索引：
+
+- `checkin_operations`: `_openid + idempotencyKey`
+- `daily_checkin_states`: `_openid + userHabitId + date`
+- `user_habits`: `_openid + userHabitId`
+- `habit_policy_versions`: `_openid + policyVersionId`
+- `habit_sync_operations`: `_openid + idempotencyKey`

@@ -124,23 +124,44 @@ App({
     // Phase 7: 登录逻辑收敛到 userService（静默模式）
     // 初始化网络状态监听
     this.initNetworkListener()
-    userService.login({ force: false })
+    this.startCloudSyncBootstrap({ recover: true })
+  },
+
+  onShow() {
+    if (typeof this.startCloudSyncBootstrap === 'function') {
+      this.startCloudSyncBootstrap({ recover: false })
+    }
+  },
+
+  startCloudSyncBootstrap(options = {}) {
+    if (this._cloudSyncBootstrapPromise) {
+      return this._cloudSyncBootstrapPromise
+    }
+
+    this._cloudSyncBootstrapPromise = userService.login({ force: true })
       .then(() => {
-        console.info('app.onLaunch login 完成')
-        // 启动时：登录成功后先尝试云端恢复清缓存/换设备缺失的核心缓存
-        return syncService.bootstrapCloudData()
+        console.info('app cloud login 完成')
+        return options.recover ? syncService.bootstrapCloudData() : null
       })
       .then((recoverResult) => {
-        console.info('app.onLaunch recover 完成:', recoverResult && recoverResult.source ? recoverResult.source : 'none')
-        // 登录成功后再处理 pending 队列同步，避免云环境异常时启动连环 timeout
+        if (options.recover) {
+          console.info('app cloud recover 完成:', recoverResult && recoverResult.source ? recoverResult.source : 'none')
+        }
         return syncService.recoverOrSync()
       })
       .then((syncResult) => {
-        console.info('app.onLaunch recoverOrSync 完成:', syncResult && syncResult.reason ? syncResult.reason : 'done')
+        console.info('app cloud recoverOrSync 完成:', syncResult && syncResult.reason ? syncResult.reason : 'done')
+        return syncResult
       })
       .catch(err => {
         console.warn('登录或云端恢复失败（继续使用本地数据）：', err.message)
+        return { success: false, reason: 'IDENTITY_OR_CLOUD_UNAVAILABLE', error: err.message }
       })
+      .finally(() => {
+        this._cloudSyncBootstrapPromise = null
+      })
+
+    return this._cloudSyncBootstrapPromise
   },
 
   // ========== 数据持久层==========

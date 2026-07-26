@@ -80,7 +80,7 @@ describe('App cloud startup gate', () => {
       env: 'cloud1-6gjv79k431b8103b',
       traceUser: true
     })
-    expect(userService.login).toHaveBeenCalledWith({ force: false })
+    expect(userService.login).toHaveBeenCalledWith({ force: true })
     expect(syncService.bootstrapCloudData).toHaveBeenCalled()
   })
 
@@ -90,7 +90,7 @@ describe('App cloud startup gate', () => {
     require('../../miniprogram/app.js')
     await flushPromises()
 
-    expect(userService.login).toHaveBeenCalledWith({ force: false })
+    expect(userService.login).toHaveBeenCalledWith({ force: true })
     expect(syncService.bootstrapCloudData).not.toHaveBeenCalled()
     expect(syncService.recoverFromCloud).not.toHaveBeenCalled()
     expect(syncService.recoverOrSync).not.toHaveBeenCalled()
@@ -102,8 +102,26 @@ describe('App cloud startup gate', () => {
     require('../../miniprogram/app.js')
     await flushPromises()
 
-    expect(userService.login).toHaveBeenCalledWith({ force: false })
+    expect(userService.login).toHaveBeenCalledWith({ force: true })
     expect(syncService.bootstrapCloudData).toHaveBeenCalled()
+    expect(syncService.recoverOrSync).toHaveBeenCalled()
+  })
+
+  test('onShow reconfirms identity and resumes pending sync without full recovery', async () => {
+    userService.login.mockResolvedValue({ success: true })
+
+    require('../../miniprogram/app.js')
+    await flushPromises()
+    const app = global.App.mock.results[0].value
+    userService.login.mockClear()
+    syncService.bootstrapCloudData.mockClear()
+    syncService.recoverOrSync.mockClear()
+
+    app.onShow()
+    await flushPromises()
+
+    expect(userService.login).toHaveBeenCalledWith({ force: true })
+    expect(syncService.bootstrapCloudData).not.toHaveBeenCalled()
     expect(syncService.recoverOrSync).toHaveBeenCalled()
   })
 })

@@ -276,3 +276,15 @@ failed -> pending
 - 打卡和取消都有 operation。
 - 首页和报表读取 `dailyCheckinState` 最终状态。
 - 删除当天和策略修改当天口径稳定。
+
+## 9. 服务端 revision 与同步恢复约束
+
+- `dailyCheckinState` 与 `userHabit` 增加非负整数 `serverRevision`，旧数据缺省按 `0` 读取。
+- 服务端每次接受新的业务操作时在事务内将 revision 加一，并记录最后服务端操作标识。
+- 相同 `idempotencyKey` 的重复请求不产生新的状态流转或 revision。
+- 旧 revision 到达时进入 `STALE` 解析结果，不允许逆向覆盖新状态。
+- `failed` 是自动重试终态，只能通过显式 `retry/retryAllFailed` 回到 `pending`。
+- 进程异常退出后遗留的 `syncing/retrying` 可以恢复为 `pending`，但不得更换 operation identity。
+- 账号或运行环境不匹配属于隔离失败，不进入业务云函数。
+
+上述变化不改变 `checked/canceled/unchecked/not_required` 的业务含义，也不改变报表口径。

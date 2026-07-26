@@ -28,6 +28,7 @@ module.exports = {
   // 需要收集覆盖率的文件（只包含 JavaScript 文件）
   collectCoverageFrom: [
     'miniprogram/utils/**/*.js',
+    '!miniprogram/utils/pinyin-pro.js',
     '!miniprogram/utils/**/*.ts',
     '!**/node_modules/**',
     '!**/__tests__/**'

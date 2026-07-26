@@ -1,53 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<testsuites name="jest tests" tests="23" failures="0" errors="0" time="1.702">
-  <testsuite name="habitSort 工具函数测试" errors="0" failures="0" skipped="0" timestamp="2026-07-08T02:28:24" time="0.695" tests="5">
-    <testcase classname="habitSort 工具函数测试" name="按固定字段顺序读取排序名称" time="0.005">
+<testsuites name="jest tests" tests="62" failures="0" errors="0" time="1.96">
+  <testsuite name="syncService recoverFromCloud" errors="0" failures="0" skipped="0" timestamp="2026-07-25T23:50:59" time="1.341" tests="32">
+    <testcase classname="syncService recoverFromCloud" name="does not fall back to syncLocalData when recoverData cloud function is not deployed" time="0.123">
     </testcase>
-    <testcase classname="habitSort 工具函数测试" name="中文名称生成稳定无声调拼音 sortKey" time="0.003">
+    <testcase classname="syncService recoverFromCloud" name="does not fall back to syncLocalData when recoverData times out" time="0.009">
     </testcase>
-    <testcase classname="habitSort 工具函数测试" name="按拼音排序中文习惯名称" time="0.002">
+    <testcase classname="syncService recoverFromCloud" name="does not fall back to syncLocalData when recoverData target collections are not created yet" time="0.016">
     </testcase>
-    <testcase classname="habitSort 工具函数测试" name="同名或空名时按稳定 ID 兜底" time="0">
+    <testcase classname="syncService recoverFromCloud" name="bootstrapCloudData returns a non-blocking failure when recoverData times out" time="0.012">
     </testcase>
-    <testcase classname="habitSort 工具函数测试" name="排序不依赖运行时 localeCompare" time="0">
+    <testcase classname="syncService recoverFromCloud" name="recoverFromCloud throws when recoverData fails" time="0.009">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="persists recovered V1 user habits using canonical fields" time="0.012">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="recoverFromCloud writes recovered habits in stable added order" time="0.009">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="follows every recoverData cursor and commits the full history once complete" time="0.009">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="recovers more than 500 daily states across every page before one commit" time="0.02">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="rejects a repeated recovery cursor without modifying existing cache" time="0.053">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="times out an incomplete recovery page without modifying existing cache" time="0.021">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="rejects duplicate habits or policy versions before modifying existing cache" time="0.01">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="bootstrapCloudData recovers empty local cache and emits recovery event" time="0.018">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="bootstrapCloudData skips recovery only when local core cache is complete" time="0.063">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="bootstrapCloudData recovers when habits exist but daily states are missing" time="0.01">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="bootstrapCloudData force option recovers even when local habits exist" time="0.01">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="recoverOrSync skips network probing when pending queue is empty" time="0.007">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="processQueue emits sync:updated after successful pending sync" time="0.007">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="recoverOrSync checks network when pending queue has work" time="0.011">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="processQueue passes queue action to syncHabit payloads" time="0.007">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="processQueue syncs pinnedAt updates through syncHabit" time="0.006">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="pushWithDedup reuses existing active item with the same idempotencyKey" time="0.004">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="hasDuplicatePending treats pending syncing and retrying as active duplicates" time="0.004">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="processQueue marks retryable failures as retrying before final failed state" time="0.009">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="retry resets an eligible failed item to pending and processes it" time="0.005">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="retry rejects missing items and allows manual retry after automatic retries are exhausted" time="0.006">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="retryAllFailed preserves operation identity while reactivating exhausted items" time="0.007">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="processQueue is single-flight and all callers await the same promise" time="0.007">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="identity mismatch isolates a queue item without calling a cloud function" time="0.004">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="interrupted syncing and retrying items recover once without changing operation identity" time="0.003">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="cloud confirmation writes checkin revision and sync state back locally" time="0.005">
+    </testcase>
+    <testcase classname="syncService recoverFromCloud" name="needsLocalRecovery returns true only when local habits are empty" time="0.005">
     </testcase>
   </testsuite>
-  <testsuite name="修习页面我的Tab" errors="0" failures="0" skipped="0" timestamp="2026-07-08T02:28:24" time="1.426" tests="18">
-    <testcase classname="修习页面我的Tab" name="第一个Tab文案为我的" time="0.132">
+  <testsuite name="recoverData cloud function" errors="0" failures="0" skipped="0" timestamp="2026-07-25T23:51:00" time="0.149" tests="11">
+    <testcase classname="recoverData cloud function" name="recovers V1 collections with pagination" time="0.01">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="顶部Tab展示文案不带分类后缀" time="0.039">
+    <testcase classname="recoverData cloud function" name="returns NO_OPENID when wx context has no openid" time="0.001">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab只显示已添加且正在进行的习惯" time="0.045">
+    <testcase classname="recoverData cloud function" name="returns empty snapshot when prefixed test collections do not exist yet" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab按名称首字母排序且忽略置顶和添加时间" time="0.031">
+    <testcase classname="recoverData cloud function" name="preserves custom habit metadata for cache recovery" time="0.001">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="分类Tab仍按分类展示全部可添加习惯并按首字母排序" time="0.038">
+    <testcase classname="recoverData cloud function" name="returns only current openid data and recent 90 days daily states by default" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab空状态提供添加入口" time="0.037">
+    <testcase classname="recoverData cloud function" name="returns only canonical V1 fields and ignores legacy aliases" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义Tab无习惯时显示一张添加卡片" time="0.057">
+    <testcase classname="recoverData cloud function" name="supports historical daily state range and cursor pagination" time="0.018">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义Tab有习惯时末尾保留添加卡片并使用统一图标" time="0.044">
+    <testcase classname="recoverData cloud function" name="stable cursor does not repeat or skip states when an earlier record is added concurrently" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义Tab按名称首字母排序且添加卡片始终在最后" time="0.043">
+    <testcase classname="recoverData cloud function" name="accepts the former numeric offset cursor for backward compatibility" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义Tab不因停用或再次启用时间改变排序" time="0.065">
+    <testcase classname="recoverData cloud function" name="paginates more than 500 historical states with stable opaque cursors" time="0.023">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义Tab显示已停用的自定义库条目且我的Tab不显示" time="0.045">
+    <testcase classname="recoverData cloud function" name="historyScope all includes states older than the default 90 day window" time="0.001">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="我的Tab和官方分类Tab不显示自定义添加卡片" time="0.031">
+  </testsuite>
+  <testsuite name="storageService.clearUserDataCache" errors="0" failures="0" skipped="0" timestamp="2026-07-25T23:51:00" time="0.086" tests="7">
+    <testcase classname="storageService.clearUserDataCache" name="只删除治理白名单和 Phase 3 备份键，不调用云端能力" time="0.007">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="点击自定义添加卡片打开添加弹窗" time="0.03">
+    <testcase classname="storageService.clearUserDataCache" name="删除部分 key 失败时返回 failedKeys" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="点击已停用自定义习惯打开再次启用弹窗" time="0.029">
+    <testcase classname="storageService recovery staging" name="commits a validated snapshot without clearing pending operations" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="官方习惯操作菜单使用编辑策略和删除习惯文案" time="0.029">
+    <testcase classname="storageService recovery staging" name="rolls back the three core caches when a staged commit fails" time="0.002">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="自定义习惯操作菜单使用编辑习惯和停用习惯文案" time="0.054">
+    <testcase classname="storageService recovery staging" name="safe cache replacement preserves login while removing only confirmed queue data" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="修习列表不显示置顶心形图标" time="0.034">
+    <testcase classname="storageService cache identity binding" name="claims an unowned legacy queue only after identity is confirmed" time="0.003">
     </testcase>
-    <testcase classname="修习页面我的Tab" name="策略弹窗标题和保存按钮文案按新增编辑状态切换" time="0.032">
+    <testcase classname="storageService cache identity binding" name="quarantines pending and clears user data when account identity changes" time="0.004">
+    </testcase>
+  </testsuite>
+  <testsuite name="profile page login flow" errors="0" failures="0" skipped="0" timestamp="2026-07-25T23:51:00" time="0.209" tests="6">
+    <testcase classname="profile page login flow" name="onLogin forces user login and refreshes profile view model" time="0.126">
+    </testcase>
+    <testcase classname="profile page login flow" name="onLogin logs timeout failures without printing the raw Error stack" time="0.003">
+    </testcase>
+    <testcase classname="profile page login flow" name="onAvatarOpen locks chooseAvatar entry against repeat taps" time="0.011">
+    </testcase>
+    <testcase classname="profile page login flow" name="onChooseAvatar uploads and saves selected avatar through userService" time="0.002">
+    </testcase>
+    <testcase classname="profile page login flow" name="onNicknameSubmit trims and saves nickname once logged in" time="0.002">
+    </testcase>
+    <testcase classname="profile page login flow" name="confirmClearCache requests a protected full-history recovery" time="0.003">
+    </testcase>
+  </testsuite>
+  <testsuite name="cacheService.clearLocalUserCacheAndRecover" errors="0" failures="0" skipped="0" timestamp="2026-07-25T23:51:00" time="0.057" tests="6">
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="先确认同步并预取全量快照，再原子替换缓存" time="0.007">
+    </testcase>
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="存在未同步操作时阻止清理且不读取恢复快照" time="0.001">
+    </testcase>
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="清缓存确认会显式重试 failed，成功后再继续同步与恢复" time="0.002">
+    </testcase>
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="清缓存显式重试 failed 仍失败时保留缓存并返回同步摘要" time="0.002">
+    </testcase>
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="云端预恢复失败时保留原缓存" time="0.002">
+    </testcase>
+    <testcase classname="cacheService.clearLocalUserCacheAndRecover" name="快照替换失败时返回失败键且不宣布缓存失效" time="0.001">
     </testcase>
   </testsuite>
 </testsuites>

@@ -70,7 +70,7 @@ describe('share menu and habits entry behavior', () => {
     // Intent was consumed from service, not globalData
     expect(habitService.consumePendingTabIntent()).toBe(null);
     expect(page.data.filteredHabits.length).toBeGreaterThan(0);
-    expect(page.data.filteredHabits.every((habit) => habit.category === page.data.categories[1])).toBe(true);
+    expect(page.data.filteredHabits.every((habit) => habit.category === '运动类')).toBe(true);
   });
 
   test('habits page keeps the default mine tab on ordinary entry', () => {

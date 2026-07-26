@@ -478,10 +478,10 @@ describe('stats page V1 report links', () => {
     );
 
     expect(wxml).toContain('<view class="content-inner">');
-    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*right:\s*-48rpx/s);
-    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*width:\s*calc\(100vw \+ 48rpx\)/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*right:\s*0/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*width:\s*100%/s);
     expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*overflow-x:\s*hidden/s);
-    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*padding:\s*270rpx 48rpx 200rpx 0/s);
+    expect(wxss).toMatch(/\.content-scroll\s*\{[^}]*padding:\s*270rpx 0 200rpx/s);
     expect(wxss).toMatch(/\.content-inner\s*\{[^}]*width:\s*100vw/s);
     expect(wxss).toMatch(/\.content-inner\s*\{[^}]*min-width:\s*0/s);
     expect(wxss).toMatch(/\.content-inner\s*\{[^}]*padding:\s*0 48rpx/s);

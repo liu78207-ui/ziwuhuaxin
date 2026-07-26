@@ -244,7 +244,7 @@ describe('cloud deletion policy', () => {
       }
     }));
     const addedHabit = calls.adds.find(call => call.collection === 'user_habits').payload.data;
-    expect(addedHabit.latestPolicyVersionId).toBeUndefined();
+    expect(addedHabit.latestPolicyVersionId).toBe('pv_20');
     expect(addedHabit.syncStatus).toBeUndefined();
     expect(calls.adds).toContainEqual(expect.objectContaining({
       collection: 'habit_policy_versions',

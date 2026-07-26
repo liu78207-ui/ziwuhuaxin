@@ -128,8 +128,13 @@ pages -> services -> cloudfunctions
 
 - [AGENTS.md](AGENTS.md)
 - [docs/governance/code-boundary-rules.md](docs/governance/code-boundary-rules.md)
+- [docs/governance/change-impact-and-regression.md](docs/governance/change-impact-and-regression.md)
 - [docs/governance/testing-strategy.md](docs/governance/testing-strategy.md)
 - [docs/governance/logging-debugging.md](docs/governance/logging-debugging.md)
+
+## 事故复盘
+
+- [2026 年 7 月环境隔离导致云同步失效事故复盘](docs/incidents/2026-07-environment-isolation-cloud-sync-incident.md)
 
 ## 架构
 
