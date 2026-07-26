@@ -24,6 +24,10 @@ const REPAIR_CHECKINS_ACTION = 'repairTargetUserCheckins';
 const REPAIR_CHECKINS_CONFIRM_PHRASE = 'REPAIR_TARGET_USER_CHECKINS';
 const REPAIR_BUILTIN_CHECKINS_ACTION = 'repairTargetBuiltinCheckinsByHabitDates';
 const REPAIR_BUILTIN_CHECKINS_CONFIRM_PHRASE = 'REPAIR_TARGET_BUILTIN_CHECKINS';
+const REPAIR_MANIFEST_ACTION = 'repairTargetCheckinsFromManifest';
+const REPAIR_MANIFEST_CONFIRM_PHRASE = 'REPAIR_TARGET_CHECKINS_FROM_MANIFEST';
+const CANCEL_MANIFEST_ACTION = 'cancelTargetCheckinsFromManifest';
+const CANCEL_MANIFEST_CONFIRM_PHRASE = 'CANCEL_TARGET_CHECKINS_FROM_MANIFEST';
 const INSPECT_BUILTIN_CHECKINS_ACTION = 'inspectTargetBuiltinCheckinsByHabitDates';
 const INSPECT_BUILTIN_CHECKINS_CONFIRM_PHRASE = 'INSPECT_TARGET_BUILTIN_CHECKINS';
 const ADMIN_TOKEN_ENV = 'CLEAR_USER_DATA_ADMIN_TOKEN';
@@ -32,6 +36,7 @@ const COLLECTIONS = {
   users: 'users',
   userHabits: 'user_habits',
   habitPolicyVersions: 'habit_policy_versions',
+  habitSyncOperations: 'habit_sync_operations',
   checkinOperations: 'checkin_operations',
   dailyCheckinStates: 'daily_checkin_states',
   syncLogs: 'sync_logs',
@@ -48,6 +53,7 @@ let activeCollectionPrefix = '';
 const USER_OWNED_QUERY = { _openid: _.exists(true) };
 const CUSTOM_RELATED_COLLECTIONS = [
   COLLECTIONS.habitPolicyVersions,
+  COLLECTIONS.habitSyncOperations,
   COLLECTIONS.dailyCheckinStates,
   COLLECTIONS.checkinOperations
 ];
@@ -56,6 +62,7 @@ const USER_DATA_COLLECTIONS = [
   { name: COLLECTIONS.users },
   { name: COLLECTIONS.userHabits },
   { name: COLLECTIONS.habitPolicyVersions },
+  { name: COLLECTIONS.habitSyncOperations },
   { name: COLLECTIONS.checkinOperations },
   { name: COLLECTIONS.dailyCheckinStates },
   { name: COLLECTIONS.syncLogs },
@@ -164,6 +171,14 @@ function isRepairCheckinsAction(event) {
 
 function isRepairBuiltinCheckinsAction(event) {
   return event && event.action === REPAIR_BUILTIN_CHECKINS_ACTION;
+}
+
+function isRepairManifestAction(event) {
+  return event && event.action === REPAIR_MANIFEST_ACTION;
+}
+
+function isCancelManifestAction(event) {
+  return event && event.action === CANCEL_MANIFEST_ACTION;
 }
 
 function isInspectBuiltinCheckinsAction(event) {
@@ -289,6 +304,84 @@ function validateRequest(event) {
       return {
         success: false,
         message: 'adminToken 无效，禁止修复用户数据。'
+      };
+    }
+
+    return { success: true };
+  }
+
+  if (isRepairManifestAction(event)) {
+    if (!isNonEmptyString(event.targetOpenid)) {
+      return {
+        success: false,
+        message: `${REPAIR_MANIFEST_ACTION} 需要 targetOpenid。`
+      };
+    }
+
+    if (event.scope === ALL_USERS_SCOPE) {
+      return {
+        success: false,
+        message: `${REPAIR_MANIFEST_ACTION} 不支持 ${ALL_USERS_SCOPE}。`
+      };
+    }
+
+    if (!isNonEmptyString(event.batchId) || !Array.isArray(event.entries) || event.entries.length === 0) {
+      return {
+        success: false,
+        message: `${REPAIR_MANIFEST_ACTION} 需要非空 batchId 和 entries。`
+      };
+    }
+
+    if (event.confirmPhrase !== REPAIR_MANIFEST_CONFIRM_PHRASE) {
+      return {
+        success: false,
+        message: `confirmPhrase 必须为 ${REPAIR_MANIFEST_CONFIRM_PHRASE}。`
+      };
+    }
+
+    if (event.adminToken !== token) {
+      return {
+        success: false,
+        message: 'adminToken 无效，禁止修复用户数据。'
+      };
+    }
+
+    return { success: true };
+  }
+
+  if (isCancelManifestAction(event)) {
+    if (!isNonEmptyString(event.targetOpenid)) {
+      return {
+        success: false,
+        message: `${CANCEL_MANIFEST_ACTION} 需要 targetOpenid。`
+      };
+    }
+
+    if (event.scope === ALL_USERS_SCOPE) {
+      return {
+        success: false,
+        message: `${CANCEL_MANIFEST_ACTION} 不支持 ${ALL_USERS_SCOPE}。`
+      };
+    }
+
+    if (!isNonEmptyString(event.batchId) || !Array.isArray(event.entries) || event.entries.length === 0) {
+      return {
+        success: false,
+        message: `${CANCEL_MANIFEST_ACTION} 需要非空 batchId 和 entries。`
+      };
+    }
+
+    if (event.confirmPhrase !== CANCEL_MANIFEST_CONFIRM_PHRASE) {
+      return {
+        success: false,
+        message: `confirmPhrase 必须为 ${CANCEL_MANIFEST_CONFIRM_PHRASE}。`
+      };
+    }
+
+    if (event.adminToken !== token) {
+      return {
+        success: false,
+        message: 'adminToken 无效，禁止取消用户打卡数据。'
       };
     }
 
@@ -815,6 +908,346 @@ async function findOperationByIdempotencyKey(openid, idempotencyKey) {
   return (res.data || [])[0] || null;
 }
 
+function isValidBusinessDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
+  const [year, month, day] = String(value).split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day;
+}
+
+async function resolveManifestTarget(openid, entry) {
+  const res = await collectionByName(COLLECTIONS.userHabits).where({
+    _openid: openid,
+    userHabitId: String(entry.userHabitId || '')
+  }).get();
+  const habits = (res.data || []).filter(item =>
+    String(item.habitId || '') === String(entry.habitId || '')
+  );
+  if (habits.length !== 1) {
+    return {
+      valid: false,
+      reason: habits.length === 0 ? 'user_habit_not_found' : 'ambiguous_user_habit'
+    };
+  }
+
+  const userHabit = habits[0];
+  if (!isUserHabitActiveOnDate(userHabit, entry.date)) {
+    return { valid: false, reason: 'user_habit_inactive_on_date' };
+  }
+
+  const policies = await listPolicyVersions(openid, userHabit.userHabitId);
+  const effectivePolicies = policies.filter(policy => isPolicyEffectiveOnDate(policy, entry.date));
+  if (effectivePolicies.length !== 1) {
+    return {
+      valid: false,
+      reason: effectivePolicies.length === 0 ? 'policy_not_found_for_date' : 'ambiguous_policy_for_date'
+    };
+  }
+
+  return { valid: true, userHabit, policy: effectivePolicies[0] };
+}
+
+function normalizeManifestEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return { valid: false, reason: 'invalid_entry' };
+  }
+  if (!entry.userHabitId || !entry.habitId || !isValidBusinessDate(entry.date)) {
+    return { valid: false, reason: 'missing_or_invalid_identity' };
+  }
+  if (entry.status !== 'checked') {
+    return { valid: false, reason: 'only_checked_status_supported' };
+  }
+  if (!isNonEmptyString(entry.evidenceSource) || !isNonEmptyString(entry.evidenceRef)) {
+    return { valid: false, reason: 'evidence_required' };
+  }
+  return {
+    valid: true,
+    data: {
+      userHabitId: String(entry.userHabitId),
+      habitId: String(entry.habitId),
+      date: String(entry.date),
+      status: 'checked',
+      evidenceSource: entry.evidenceSource.trim(),
+      evidenceRef: entry.evidenceRef.trim(),
+      overwriteExisting: entry.overwriteExisting === true
+    }
+  };
+}
+
+async function inspectOrRepairManifest(event, dryRun) {
+  const targetOpenid = event.targetOpenid.trim();
+  const batchId = event.batchId.trim();
+  const serverTime = Date.now();
+  const details = {
+    input: event.entries.length,
+    willAdd: 0,
+    added: 0,
+    willUpdate: 0,
+    updated: 0,
+    skippedChecked: 0,
+    conflicts: [],
+    rejected: [],
+    records: []
+  };
+
+  for (const rawEntry of event.entries) {
+    const normalized = normalizeManifestEntry(rawEntry);
+    if (!normalized.valid) {
+      details.rejected.push({
+        userHabitId: rawEntry && rawEntry.userHabitId || '',
+        habitId: rawEntry && rawEntry.habitId || '',
+        date: rawEntry && rawEntry.date || '',
+        reason: normalized.reason
+      });
+      continue;
+    }
+
+    const entry = normalized.data;
+    const target = await resolveManifestTarget(targetOpenid, entry);
+    if (!target.valid) {
+      details.rejected.push({ ...entry, reason: target.reason });
+      continue;
+    }
+
+    const existingState = await findDailyState(targetOpenid, entry.userHabitId, entry.date);
+    if (existingState && existingState.status === 'checked') {
+      details.skippedChecked += 1;
+      details.records.push({ ...entry, action: 'skip_checked' });
+      continue;
+    }
+    if (existingState && !entry.overwriteExisting) {
+      details.conflicts.push({
+        ...entry,
+        previousStatus: existingState.status || '',
+        reason: 'overwrite_confirmation_required'
+      });
+      continue;
+    }
+
+    const idempotencyKey = `repair_checked_${entry.userHabitId}_${entry.date}`;
+    const operationId = `op_${idempotencyKey}`;
+    const statePayload = {
+      stateId: existingState && existingState.stateId || `state_${idempotencyKey}`,
+      userHabitId: entry.userHabitId,
+      habitId: entry.habitId,
+      policyVersionId: target.policy.policyVersionId,
+      date: entry.date,
+      status: 'checked',
+      lastOperationId: operationId,
+      updatedAt: serverTime
+    };
+
+    if (existingState) {
+      details.willUpdate += 1;
+      if (!dryRun) {
+        await updateDocument(COLLECTIONS.dailyCheckinStates, existingState._id, {
+          ...statePayload,
+          canceledAt: removeFieldValue()
+        });
+        details.updated += 1;
+      }
+    } else {
+      details.willAdd += 1;
+      if (!dryRun) {
+        await addCollection(COLLECTIONS.dailyCheckinStates, {
+          _openid: targetOpenid,
+          ...statePayload
+        });
+        details.added += 1;
+      }
+    }
+
+    if (!dryRun) {
+      const existingOperation = await findOperationByIdempotencyKey(targetOpenid, idempotencyKey);
+      if (!existingOperation) {
+        await addCollection(COLLECTIONS.checkinOperations, {
+          _openid: targetOpenid,
+          operationId,
+          idempotencyKey,
+          userHabitId: entry.userHabitId,
+          habitId: entry.habitId,
+          policyVersionId: target.policy.policyVersionId,
+          date: entry.date,
+          action: 'checkin',
+          serverTime,
+          source: 'repair',
+          repairBatchId: batchId,
+          evidenceSource: entry.evidenceSource,
+          evidenceRef: entry.evidenceRef
+        });
+      }
+    }
+
+    details.records.push({
+      ...entry,
+      policyVersionId: target.policy.policyVersionId,
+      previousStatus: existingState && existingState.status || '',
+      action: existingState ? 'update_to_checked' : 'add_checked'
+    });
+  }
+
+  if (!dryRun) {
+    await addCollection(COLLECTIONS.syncLogs, {
+      _openid: targetOpenid,
+      type: 'manual_checkin_repair',
+      status: details.rejected.length || details.conflicts.length ? 'partial' : 'completed',
+      repairBatchId: batchId,
+      inputCount: details.input,
+      addedCount: details.added,
+      updatedCount: details.updated,
+      skippedCheckedCount: details.skippedChecked,
+      rejectedCount: details.rejected.length,
+      conflictCount: details.conflicts.length,
+      createdAt: serverTime
+    });
+  }
+
+  return { details, targetOpenid, batchId };
+}
+
+function normalizeCancelManifestEntry(entry) {
+  if (!entry || typeof entry !== 'object') {
+    return { valid: false, reason: 'invalid_entry' };
+  }
+  if (!entry.userHabitId || !entry.habitId || !isValidBusinessDate(entry.date)) {
+    return { valid: false, reason: 'missing_or_invalid_identity' };
+  }
+  if (entry.status !== 'canceled') {
+    return { valid: false, reason: 'only_canceled_status_supported' };
+  }
+  if (!isNonEmptyString(entry.evidenceSource) || !isNonEmptyString(entry.evidenceRef)) {
+    return { valid: false, reason: 'evidence_required' };
+  }
+  return {
+    valid: true,
+    data: {
+      userHabitId: String(entry.userHabitId),
+      habitId: String(entry.habitId),
+      date: String(entry.date),
+      status: 'canceled',
+      evidenceSource: entry.evidenceSource.trim(),
+      evidenceRef: entry.evidenceRef.trim()
+    }
+  };
+}
+
+async function inspectOrCancelManifest(event, dryRun) {
+  const targetOpenid = event.targetOpenid.trim();
+  const batchId = event.batchId.trim();
+  const serverTime = Date.now();
+  const details = {
+    input: event.entries.length,
+    willCancel: 0,
+    canceled: 0,
+    skippedCanceled: 0,
+    conflicts: [],
+    rejected: [],
+    records: []
+  };
+
+  for (const rawEntry of event.entries) {
+    const normalized = normalizeCancelManifestEntry(rawEntry);
+    if (!normalized.valid) {
+      details.rejected.push({
+        userHabitId: rawEntry && rawEntry.userHabitId || '',
+        habitId: rawEntry && rawEntry.habitId || '',
+        date: rawEntry && rawEntry.date || '',
+        reason: normalized.reason
+      });
+      continue;
+    }
+
+    const entry = normalized.data;
+    const target = await resolveManifestTarget(targetOpenid, entry);
+    if (!target.valid) {
+      details.rejected.push({ ...entry, reason: target.reason });
+      continue;
+    }
+
+    const existingState = await findDailyState(targetOpenid, entry.userHabitId, entry.date);
+    const idempotencyKey = `repair_canceled_${entry.userHabitId}_${entry.date}`;
+    const operationId = `op_${idempotencyKey}`;
+    const existingOperation = await findOperationByIdempotencyKey(targetOpenid, idempotencyKey);
+
+    if (existingState && existingState.status === 'canceled') {
+      details.skippedCanceled += 1;
+      details.records.push({
+        ...entry,
+        policyVersionId: target.policy.policyVersionId,
+        action: existingOperation ? 'skip_canceled_idempotent' : 'skip_already_canceled'
+      });
+      continue;
+    }
+
+    if (!existingState || existingState.status !== 'checked') {
+      details.conflicts.push({
+        ...entry,
+        previousStatus: existingState && existingState.status || '',
+        reason: existingState ? 'expected_checked_state' : 'daily_state_not_found'
+      });
+      continue;
+    }
+
+    details.willCancel += 1;
+    if (!dryRun) {
+      // Write the immutable operation first. If the state update fails, rerunning
+      // the same manifest will reuse this operation and complete the transition.
+      if (!existingOperation) {
+        await addCollection(COLLECTIONS.checkinOperations, {
+          _openid: targetOpenid,
+          operationId,
+          idempotencyKey,
+          userHabitId: entry.userHabitId,
+          habitId: entry.habitId,
+          policyVersionId: target.policy.policyVersionId,
+          date: entry.date,
+          action: 'undo',
+          serverTime,
+          source: 'repair',
+          repairBatchId: batchId,
+          evidenceSource: entry.evidenceSource,
+          evidenceRef: entry.evidenceRef
+        });
+      }
+
+      await updateDocument(COLLECTIONS.dailyCheckinStates, existingState._id, {
+        status: 'canceled',
+        canceledAt: serverTime,
+        checkedAt: removeFieldValue(),
+        lastOperationId: operationId,
+        updatedAt: serverTime
+      });
+      details.canceled += 1;
+    }
+
+    details.records.push({
+      ...entry,
+      policyVersionId: target.policy.policyVersionId,
+      previousStatus: existingState.status,
+      action: 'cancel_checked'
+    });
+  }
+
+  if (!dryRun) {
+    await addCollection(COLLECTIONS.syncLogs, {
+      _openid: targetOpenid,
+      type: 'manual_checkin_cancel_repair',
+      status: details.rejected.length || details.conflicts.length ? 'partial' : 'completed',
+      repairBatchId: batchId,
+      inputCount: details.input,
+      canceledCount: details.canceled,
+      skippedCanceledCount: details.skippedCanceled,
+      rejectedCount: details.rejected.length,
+      conflictCount: details.conflicts.length,
+      createdAt: serverTime
+    });
+  }
+
+  return { details, targetOpenid, batchId };
+}
+
 async function inspectOrRepairBuiltinCheckins(event, dryRun) {
   const targetOpenid = event.targetOpenid.trim();
   const dates = Array.isArray(event.dates) ? event.dates.map(String).filter(Boolean) : [];
@@ -1140,6 +1573,36 @@ exports.main = async (rawEvent = {}, context = {}) => {
     };
   }
 
+  if (isRepairManifestAction(event)) {
+    const { details, targetOpenid, batchId } = await inspectOrRepairManifest(event, dryRun);
+    return {
+      success: details.rejected.length === 0 && details.conflicts.length === 0,
+      dryRun,
+      action: event.action,
+      targetOpenid,
+      batchId,
+      details,
+      message: dryRun
+        ? 'dryRun 完成：未写入数据，请确认 records、conflicts 与 rejected 后再执行。'
+        : '指定账号 manifest 打卡修复完成。'
+    };
+  }
+
+  if (isCancelManifestAction(event)) {
+    const { details, targetOpenid, batchId } = await inspectOrCancelManifest(event, dryRun);
+    return {
+      success: details.rejected.length === 0 && details.conflicts.length === 0,
+      dryRun,
+      action: event.action,
+      targetOpenid,
+      batchId,
+      details,
+      message: dryRun
+        ? 'dryRun 完成：未取消数据，请确认 records、conflicts 与 rejected 后再执行。'
+        : '指定账号 manifest 多余打卡取消完成。'
+    };
+  }
+
   if (isInspectBuiltinCheckinsAction(event)) {
     const { details, targetOpenid } = await inspectBuiltinCheckins(event);
     return {
@@ -1188,6 +1651,10 @@ exports._private = {
   REPAIR_CHECKINS_CONFIRM_PHRASE,
   REPAIR_BUILTIN_CHECKINS_ACTION,
   REPAIR_BUILTIN_CHECKINS_CONFIRM_PHRASE,
+  REPAIR_MANIFEST_ACTION,
+  REPAIR_MANIFEST_CONFIRM_PHRASE,
+  CANCEL_MANIFEST_ACTION,
+  CANCEL_MANIFEST_CONFIRM_PHRASE,
   INSPECT_BUILTIN_CHECKINS_ACTION,
   INSPECT_BUILTIN_CHECKINS_CONFIRM_PHRASE,
   CUSTOM_RELATED_COLLECTIONS,
