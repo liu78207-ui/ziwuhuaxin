@@ -1,9 +1,13 @@
 const cloud = require('wx-server-sdk');
+const crypto = require('crypto');
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
 const db = cloud.database();
 const PAGE_SIZE = 100;
 const DEFAULT_DAILY_STATE_DAYS = 90;
+const TARGET_RECOVERY_MAX_RESPONSE_BYTES = 5 * 1024 * 1024;
+const TARGET_RECOVERY_OPENID_SHA256_ENV = 'TARGET_RECOVERY_OPENID_SHA256';
+const TARGET_RECOVERY_EXPIRES_AT_ENV = 'TARGET_RECOVERY_EXPIRES_AT';
 const COLLECTIONS = {
   userHabits: 'user_habits',
   habitPolicyVersions: 'habit_policy_versions',
@@ -92,6 +96,41 @@ function normalizePositiveInt(value, fallback, max) {
   if (!Number.isFinite(number) || number <= 0) return fallback;
   const integer = Math.floor(number);
   return max ? Math.min(integer, max) : integer;
+}
+
+function hasEmptyCursor(event = {}) {
+  return event.cursor === undefined || event.cursor === null || event.cursor === '';
+}
+
+function matchesTargetOpenidHash(openid, expectedHash) {
+  const normalizedHash = String(expectedHash || '').trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(normalizedHash)) return false;
+
+  const actual = Buffer.from(
+    crypto.createHash('sha256').update(String(openid || ''), 'utf8').digest('hex'),
+    'utf8'
+  );
+  const expected = Buffer.from(normalizedHash, 'utf8');
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+function isTargetLegacyRecoveryEnabled(openid, event, serverTime) {
+  if (!openid || !hasEmptyCursor(event)) return false;
+  if (event.historyScope === 'all') return false;
+  if (getCollectionPrefix(event) !== '') return false;
+
+  const expiresAt = Date.parse(String(process.env[TARGET_RECOVERY_EXPIRES_AT_ENV] || ''));
+  if (!Number.isFinite(expiresAt) || expiresAt <= serverTime) return false;
+
+  return matchesTargetOpenidHash(
+    openid,
+    process.env[TARGET_RECOVERY_OPENID_SHA256_ENV]
+  );
+}
+
+function exceedsTargetRecoveryResponseLimit(data, serverTime) {
+  const response = { success: true, data, serverTime };
+  return Buffer.byteLength(JSON.stringify(response), 'utf8') > TARGET_RECOVERY_MAX_RESPONSE_BYTES;
 }
 
 function pickDefined(source, keys) {
@@ -363,16 +402,35 @@ exports.main = async (event, context) => {
     const range = resolveDailyStateRange(event, serverTime);
     const filteredDailyStates = filterDailyStates(allDailyStates, range)
       .sort(compareDailyStateForRecovery);
-    const { page: dailyStates, nextCursor } = paginateDailyStates(filteredDailyStates, event);
+    const targetLegacyRecovery = isTargetLegacyRecoveryEnabled(OPENID, event, serverTime);
+    const { page: dailyStates, nextCursor } = targetLegacyRecovery
+      ? { page: filteredDailyStates, nextCursor: null }
+      : paginateDailyStates(filteredDailyStates, event);
+    const data = {
+      userHabits: userHabits.map(slimUserHabit),
+      policyVersions: policyVersions.map(slimPolicyVersion),
+      dailyStates: dailyStates.map(slimDailyState),
+      nextCursor
+    };
+
+    if (targetLegacyRecovery && exceedsTargetRecoveryResponseLimit(data, serverTime)) {
+      return {
+        success: false,
+        code: 'TARGET_RECOVERY_RESPONSE_TOO_LARGE',
+        message: '目标账号恢复快照超过安全响应上限，未返回不完整数据',
+        serverTime
+      };
+    }
+
+    if (targetLegacyRecovery) {
+      console.info('target legacy recovery snapshot served', {
+        dailyStateCount: data.dailyStates.length
+      });
+    }
 
     return {
       success: true,
-      data: {
-        userHabits: userHabits.map(slimUserHabit),
-        policyVersions: policyVersions.map(slimPolicyVersion),
-        dailyStates: dailyStates.map(slimDailyState),
-        nextCursor
-      },
+      data,
       serverTime
     };
   } catch (e) {
