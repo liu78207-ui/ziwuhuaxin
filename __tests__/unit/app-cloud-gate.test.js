@@ -50,6 +50,8 @@ describe('App cloud startup gate', () => {
       env: 'cloud1-6gjv79k431b8103b',
       traceUser: true
     })
+    expect(wx.getStorageSync).toHaveBeenCalledWith('test:MyHabits')
+    expect(wx.getStorageSync).not.toHaveBeenCalledWith('MyHabits')
   })
 
   test('initializes trial with the test CloudBase env', async () => {
@@ -65,6 +67,7 @@ describe('App cloud startup gate', () => {
       env: 'cloud1-6gjv79k431b8103b',
       traceUser: true
     })
+    expect(wx.getStorageSync).toHaveBeenCalledWith('test:MyHabits')
   })
 
   test('initializes release with the shared CloudBase env and no startup block', async () => {
@@ -82,6 +85,8 @@ describe('App cloud startup gate', () => {
     })
     expect(userService.login).toHaveBeenCalledWith({ force: false })
     expect(syncService.bootstrapCloudData).toHaveBeenCalled()
+    expect(wx.getStorageSync).toHaveBeenCalledWith('MyHabits')
+    expect(wx.getStorageSync).not.toHaveBeenCalledWith('test:MyHabits')
   })
 
   test('does not run recovery or sync when startup login times out', async () => {

@@ -29,6 +29,10 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
         calls.push('fetchRecoverySnapshot')
         return snapshot
       }),
+      validateRecoveryReplacement: jest.fn(() => {
+        calls.push('validateRecoveryReplacement')
+        return { success: true }
+      }),
       ...overrides.syncService
     }
     const storageService = {
@@ -81,6 +85,7 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
     expect(calls).toEqual([
       'recoverOrSync',
       'fetchRecoverySnapshot',
+      'validateRecoveryReplacement',
       'stageRecoverySnapshot',
       'replaceUserDataCacheFromRecoverySnapshot',
       'emit:cache:invalidated'
@@ -89,6 +94,7 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
       historyScope: 'all',
       pageTimeoutMs: undefined
     })
+    expect(syncService.validateRecoveryReplacement).toHaveBeenCalledWith(snapshot)
     expect(eventBus.emit).toHaveBeenCalledWith('cache:invalidated', expect.objectContaining({
       scope: 'userData',
       source: 'profile.clearCache'
@@ -164,6 +170,34 @@ describe('cacheService.clearLocalUserCacheAndRecover', () => {
       recoveryError: '恢复快照暂存失败'
     })
     expect(storageService.replaceUserDataCacheFromRecoverySnapshot).not.toHaveBeenCalled()
+  })
+
+  test('正式环境可疑空快照时保留本地缓存', async () => {
+    const suspiciousError = new Error('正式云端返回可疑空快照，本地数据已保留')
+    suspiciousError.code = 'SUSPICIOUS_EMPTY_SNAPSHOT'
+    const { cacheService, storageService, eventBus } = loadServiceWithMocks({
+      syncService: {
+        fetchRecoverySnapshot: jest.fn(async () => ({
+          userHabits: [],
+          policyVersions: [],
+          dailyStates: []
+        })),
+        validateRecoveryReplacement: jest.fn(() => {
+          throw suspiciousError
+        })
+      }
+    })
+
+    await expect(cacheService.clearLocalUserCacheAndRecover()).resolves.toMatchObject({
+      success: false,
+      cleared: false,
+      restored: false,
+      recoveryError: '正式云端返回可疑空快照，本地数据已保留',
+      recoveryErrorCode: 'SUSPICIOUS_EMPTY_SNAPSHOT'
+    })
+    expect(storageService.stageRecoverySnapshot).not.toHaveBeenCalled()
+    expect(storageService.replaceUserDataCacheFromRecoverySnapshot).not.toHaveBeenCalled()
+    expect(eventBus.emit).not.toHaveBeenCalled()
   })
 
   test('快照提交失败时返回失败键且不宣布缓存失效', async () => {

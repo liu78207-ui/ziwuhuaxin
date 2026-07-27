@@ -4,6 +4,48 @@
 const { STORAGE_KEYS } = require('../constants/storageKeys')
 const { generateUserHabitId } = require('../constants/idPrefixes')
 
+const RUNTIME_ENVS = {
+  test: 'test',
+  prod: 'prod'
+}
+const TEST_STORAGE_PREFIX = 'test:'
+
+// 默认保持正式版旧行为。App.onLaunch 会在首次缓存读取前显式设置当前环境。
+let activeRuntimeEnv = RUNTIME_ENVS.prod
+
+function configureRuntimeEnv(runtimeEnv) {
+  if (runtimeEnv !== RUNTIME_ENVS.test && runtimeEnv !== RUNTIME_ENVS.prod) {
+    throw new Error(`未知缓存运行环境: ${runtimeEnv}`)
+  }
+  activeRuntimeEnv = runtimeEnv
+  return activeRuntimeEnv
+}
+
+function getRuntimeEnv() {
+  return activeRuntimeEnv
+}
+
+function resolveStorageKey(key) {
+  const logicalKey = String(key || '')
+  return activeRuntimeEnv === RUNTIME_ENVS.test
+    ? `${TEST_STORAGE_PREFIX}${logicalKey}`
+    : logicalKey
+}
+
+function stripTestStoragePrefix(key) {
+  const value = String(key || '')
+  return value.startsWith(TEST_STORAGE_PREFIX)
+    ? value.slice(TEST_STORAGE_PREFIX.length)
+    : value
+}
+
+function isCurrentRuntimePhysicalKey(key) {
+  const value = String(key || '')
+  return activeRuntimeEnv === RUNTIME_ENVS.test
+    ? value.startsWith(TEST_STORAGE_PREFIX)
+    : !value.startsWith(TEST_STORAGE_PREFIX)
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : []
 }
@@ -13,20 +55,22 @@ function asObject(value) {
 }
 
 function getItem(key) {
+  const physicalKey = resolveStorageKey(key)
   try {
-    return wx.getStorageSync(key)
+    return wx.getStorageSync(physicalKey)
   } catch (e) {
-    console.error(`storageService.getItem ${key} failed:`, e)
+    console.error(`storageService.getItem ${physicalKey} failed:`, e)
     return null
   }
 }
 
 function setItem(key, value) {
+  const physicalKey = resolveStorageKey(key)
   try {
-    wx.setStorageSync(key, value)
+    wx.setStorageSync(physicalKey, value)
     return true
   } catch (e) {
-    console.error(`storageService.setItem ${key} failed:`, e)
+    console.error(`storageService.setItem ${physicalKey} failed:`, e)
     return false
   }
 }
@@ -82,18 +126,38 @@ function setUserInfo(info) {
 }
 
 function removeItem(key) {
+  const physicalKey = resolveStorageKey(key)
   try {
-    wx.removeStorageSync(key)
+    wx.removeStorageSync(physicalKey)
   } catch (e) {
-    console.error(`storageService.removeItem ${key} failed:`, e)
+    console.error(`storageService.removeItem ${physicalKey} failed:`, e)
   }
 }
 
 function clear() {
-  try {
-    wx.clearStorageSync()
-  } catch (e) {
-    console.error('storageService.clear failed:', e)
+  if (activeRuntimeEnv === RUNTIME_ENVS.prod) {
+    try {
+      wx.clearStorageSync()
+      return { success: true }
+    } catch (e) {
+      console.error('storageService.clear failed:', e)
+      return { success: false }
+    }
+  }
+
+  const failedKeys = []
+  getStorageKeys()
+    .filter(key => String(key).startsWith(TEST_STORAGE_PREFIX))
+    .forEach(key => {
+      try {
+        wx.removeStorageSync(key)
+      } catch (e) {
+        failedKeys.push(key)
+      }
+    })
+  return {
+    success: failedKeys.length === 0,
+    failedKeys
   }
 }
 
@@ -110,15 +174,18 @@ const USER_DATA_CACHE_KEYS = [
   STORAGE_KEYS.checkinOperations,
   STORAGE_KEYS.migrationMeta,
   STORAGE_KEYS.pendingOperations,
+  STORAGE_KEYS.recoveryStaging,
+  STORAGE_KEYS.recoveryTransaction,
   STORAGE_KEYS.clientSequenceCounter,
   'allHabitIds',
   'DynamicThreeDayScenarioSummary'
 ]
 
 function isPhase3BackupKey(key) {
-  return /^MyHabits_backup_phase3_\d+$/.test(key) ||
-    /^CheckinLogs_backup_phase3_\d+$/.test(key) ||
-    /^policyVersions_backup_phase3_\d+$/.test(key)
+  const logicalKey = stripTestStoragePrefix(key)
+  return /^MyHabits_backup_phase3_\d+$/.test(logicalKey) ||
+    /^CheckinLogs_backup_phase3_\d+$/.test(logicalKey) ||
+    /^policyVersions_backup_phase3_\d+$/.test(logicalKey)
 }
 
 function getStorageKeys() {
@@ -135,8 +202,9 @@ function getStorageKeys() {
 }
 
 function clearUserDataCache() {
-  const keys = new Set(USER_DATA_CACHE_KEYS)
+  const keys = new Set(USER_DATA_CACHE_KEYS.map(resolveStorageKey))
   getStorageKeys()
+    .filter(isCurrentRuntimePhysicalKey)
     .filter(isPhase3BackupKey)
     .forEach(key => keys.add(key))
 
@@ -280,8 +348,9 @@ function replaceUserDataCacheFromRecoverySnapshot() {
     STORAGE_KEYS.migrationMeta,
     'allHabitIds',
     'DynamicThreeDayScenarioSummary'
-  ])
+  ].map(resolveStorageKey))
   getStorageKeys()
+    .filter(isCurrentRuntimePhysicalKey)
     .filter(isPhase3BackupKey)
     .forEach(key => clearKeys.add(key))
 
@@ -751,7 +820,19 @@ function getNextClientSequence() {
   return next
 }
 
+function getCoreDataCounts() {
+  return {
+    userHabits: getMyHabits().length,
+    policyVersions: getPolicyVersions().length,
+    dailyStates: getDailyCheckinStates().length
+  }
+}
+
 module.exports = {
+  configureRuntimeEnv,
+  getRuntimeEnv,
+  resolveStorageKey,
+
   // 基础读写
   getItem,
   setItem,
@@ -818,5 +899,6 @@ module.exports = {
   removePendingItem,
 
   // Phase 4: ClientSequence
-  getNextClientSequence
+  getNextClientSequence,
+  getCoreDataCounts
 }

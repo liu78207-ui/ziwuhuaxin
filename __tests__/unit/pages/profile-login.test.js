@@ -155,4 +155,27 @@ describe('profile page login flow', () => {
     expect(page.data.isClearingCache).toBe(false)
     expect(page.data.showClearCacheModal).toBe(false)
   })
+
+  test('可疑空快照时提示本地数据已保留', async () => {
+    page.setData = jest.fn(function(data) {
+      Object.assign(this.data, data)
+    })
+    page.refreshViewModel = jest.fn()
+    page.data.isClearingCache = false
+    cacheService.clearLocalUserCacheAndRecover.mockResolvedValue({
+      success: false,
+      cleared: false,
+      restored: false,
+      blocked: false,
+      recoveryError: '正式云端返回可疑空快照，本地数据已保留',
+      recoveryErrorCode: 'SUSPICIOUS_EMPTY_SNAPSHOT'
+    })
+
+    await page.confirmClearCache()
+
+    expect(wx.showToast).toHaveBeenCalledWith({
+      title: '云端数据异常，本地已保留',
+      icon: 'none'
+    })
+  })
 })

@@ -94,11 +94,12 @@ App({
 
   onLaunch() {
     console.log('App onLaunch')
+    const currentEnvConfig = envConfig.getCurrentEnvConfig()
+    storageService.configureRuntimeEnv(currentEnvConfig.runtimeEnv)
     const interruptedRecovery = storageService.recoverInterruptedRecoveryTransaction()
     if (!interruptedRecovery.success) {
       console.warn('未完成的恢复事务暂未提交，将在云端恢复时重试:', interruptedRecovery.reason)
     }
-    const currentEnvConfig = envConfig.getCurrentEnvConfig()
     this.globalData.runtimeEnvInfo = {
       envVersion: currentEnvConfig.envVersion,
       runtimeEnv: currentEnvConfig.runtimeEnv,

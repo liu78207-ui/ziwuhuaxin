@@ -15,6 +15,13 @@
 - develop / trial：`test_users`、`test_user_habits`、`test_daily_checkin_states` 等。
 - release：`users`、`user_habits`、`daily_checkin_states` 等。
 
+本地业务缓存采用轻量隔离：
+
+- develop / trial：业务缓存、pending、客户端序列号和恢复事务统一使用 `test:` 前缀。
+- release：继续使用现有无前缀缓存 key，不迁移、不重命名。
+- 测试环境不得读取或接管无前缀旧缓存；未标环境的旧 pending 仅允许正式环境兼容接管。
+- App 必须在第一次读取缓存前，以当前 `runtimeEnv` 初始化 `storageService`。
+
 ## 访问边界
 
 - 前端云函数调用必须走 `services/cloudService.js`。
@@ -43,6 +50,7 @@
 - release 首页不显示“测试环境”。
 - develop/trial 数据只进入 `test_` 前缀集合。
 - release 数据只进入无前缀正式集合。
+- develop/trial 本地缓存只进入 `test:` 前缀，release 继续使用无前缀缓存。
 - 本地 pending 队列不存在跨环境遗留操作。
 - 未使用真实正式账号测试 develop/trial。
 - 已运行 `npm run verify:cloud-env`、`npm run verify:legacy-boundaries`、`npm run verify:field-naming`。

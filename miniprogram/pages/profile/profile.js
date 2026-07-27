@@ -40,7 +40,8 @@ Page({
     contactQrcodeUrl: '/assets/images/contact-qrcode.png',
     navTitleStyle: '',
     showEnvBadge: false,
-    envBadgeText: ''
+    envBadgeText: '',
+    clearCacheDescription: '仅刷新当前设备本地缓存，不会删除云端数据。系统会先同步未完成操作并校验完整云端历史，成功后才替换本地缓存，确认继续吗？'
   },
 
   onLoad() {
@@ -48,7 +49,10 @@ Page({
     this.setData({
       navTitleStyle: getNavTitleStyle(),
       showEnvBadge: currentEnvConfig.showEnvBadge,
-      envBadgeText: currentEnvConfig.envBadgeText
+      envBadgeText: currentEnvConfig.envBadgeText,
+      clearCacheDescription: currentEnvConfig.runtimeEnv === envConfig.ENV_TYPES.test
+        ? '当前为测试环境，仅会恢复测试环境数据，不会读取或修改正式数据。系统会先校验完整测试云端历史，成功后才替换测试缓存，确认继续吗？'
+        : '仅刷新当前设备本地缓存，不会删除云端数据。系统会先同步未完成操作并校验完整云端历史，成功后才替换本地缓存，确认继续吗？'
     });
     this.refreshViewModel();
   },
@@ -294,6 +298,8 @@ Page({
 
       if (result.blocked) {
         toastOptions = { title: '有数据尚未同步，请稍后重试', icon: 'none' };
+      } else if (result.recoveryErrorCode === 'SUSPICIOUS_EMPTY_SNAPSHOT') {
+        toastOptions = { title: '云端数据异常，本地已保留', icon: 'none' };
       } else if (!result.success) {
         toastOptions = { title: '清理失败，请稍后重试', icon: 'none' };
       } else if (result.recoveryError) {

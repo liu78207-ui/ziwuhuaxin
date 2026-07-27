@@ -48,6 +48,7 @@ async function clearLocalUserCacheAndRecover(options = {}) {
       historyScope: 'all',
       pageTimeoutMs: options.pageTimeoutMs
     })
+    syncService.validateRecoveryReplacement(snapshot)
     if (!storageService.stageRecoverySnapshot(snapshot)) {
       throw new Error('恢复快照暂存失败')
     }
@@ -91,7 +92,8 @@ async function clearLocalUserCacheAndRecover(options = {}) {
       blocked: false,
       blockedReason: '',
       failedKeys: [],
-      recoveryError: getErrorMessage(e)
+      recoveryError: getErrorMessage(e),
+      recoveryErrorCode: e && e.code ? e.code : ''
     }
   }
 }

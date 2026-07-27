@@ -886,6 +886,105 @@ describe('syncService recoverFromCloud', () => {
     expect(wx.cloud.callFunction).not.toHaveBeenCalled()
   })
 
+  test('测试环境拒绝未标环境的旧 pending，不发送到云端', async () => {
+    const storageService = require('../../../miniprogram/services/storageService')
+    storageService.configureRuntimeEnv('test')
+    storage['test:pendingOperations'] = [{
+      queueId: 'q_legacy_unknown',
+      entityType: 'checkin',
+      action: 'checkin',
+      payload: { userHabitId: 'uh_unknown', date: '2026-07-27' },
+      idempotencyKey: 'idem_unknown',
+      status: 'pending',
+      retryCount: 0,
+      createdAt: '2026-07-27T00:00:00.000Z'
+    }]
+
+    await syncService.processQueue()
+
+    expect(wx.cloud.callFunction).not.toHaveBeenCalled()
+    expect(storage['test:pendingOperations'][0]).toEqual(expect.objectContaining({
+      status: 'failed',
+      lastError: 'PENDING_ENV_MISMATCH'
+    }))
+    expect(syncService.getSyncSummary()).toEqual(expect.objectContaining({
+      allSynced: false,
+      environmentMismatch: 1
+    }))
+  })
+
+  test('正式环境兼容接管旧版未标环境 pending 并补齐归属', async () => {
+    const storageService = require('../../../miniprogram/services/storageService')
+    storageService.configureRuntimeEnv('prod')
+    storage.pendingOperations = [{
+      queueId: 'q_legacy_prod',
+      entityType: 'checkin',
+      action: 'checkin',
+      payload: { userHabitId: 'uh_prod', date: '2026-07-27' },
+      idempotencyKey: 'idem_prod',
+      status: 'pending',
+      retryCount: 0,
+      createdAt: '2026-07-27T00:00:00.000Z'
+    }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: { success: true }
+    })
+
+    await syncService.processQueue()
+
+    expect(wx.cloud.callFunction).toHaveBeenCalledTimes(1)
+    expect(storage.pendingOperations[0]).toEqual(expect.objectContaining({
+      runtimeEnv: 'prod',
+      status: 'synced'
+    }))
+  })
+
+  test('新 pending 写入当前 runtimeEnv', () => {
+    const storageService = require('../../../miniprogram/services/storageService')
+    storageService.configureRuntimeEnv('test')
+    storage['test:pendingOperations'] = []
+
+    syncService.push('checkin', 'checkin', {
+      userHabitId: 'uh_test',
+      date: '2026-07-27'
+    })
+
+    expect(storage['test:pendingOperations']).toHaveLength(1)
+    expect(storage['test:pendingOperations'][0].runtimeEnv).toBe('test')
+    expect(storage.pendingOperations).toBeUndefined()
+  })
+
+  test('正式环境本地有数据时拒绝全空恢复快照', () => {
+    const storageService = require('../../../miniprogram/services/storageService')
+    storageService.configureRuntimeEnv('prod')
+    storage.MyHabits = [{ userHabitId: 'uh_prod' }]
+
+    expect(() => syncService.validateRecoveryReplacement({
+      userHabits: [],
+      policyVersions: [],
+      dailyStates: []
+    })).toThrow('正式云端返回可疑空快照，本地数据已保留')
+  })
+
+  test('测试环境允许经过完整协议校验的空快照', () => {
+    const storageService = require('../../../miniprogram/services/storageService')
+    storageService.configureRuntimeEnv('test')
+    storage['test:MyHabits'] = [{ userHabitId: 'uh_test_local' }]
+
+    expect(syncService.validateRecoveryReplacement({
+      userHabits: [],
+      policyVersions: [],
+      dailyStates: []
+    })).toEqual(expect.objectContaining({
+      success: true,
+      localCounts: {
+        userHabits: 1,
+        policyVersions: 0,
+        dailyStates: 0
+      }
+    }))
+  })
+
   test('needsLocalRecovery returns true only when local habits are empty', () => {
     storage.MyHabits = []
     storage.policyVersions = [{ policyVersionId: 'pv_existing' }]

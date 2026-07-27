@@ -22,6 +22,8 @@ const CUSTOM_ICON_URL = '/assets/icons/habit-zidingyi.png'
 const RECOVERY_PROTOCOL_VERSION = 2
 const DEFAULT_RECOVERY_PAGE_TIMEOUT_MS = 15000
 const MAX_RECOVERY_PAGES = 1000
+const PENDING_ENV_MISMATCH = 'PENDING_ENV_MISMATCH'
+const SUSPICIOUS_EMPTY_SNAPSHOT = 'SUSPICIOUS_EMPTY_SNAPSHOT'
 
 // ==================== 并发保护 ====================
 
@@ -78,6 +80,22 @@ function setPendingOperations(queue) {
   return storageService.setPendingOperations(queue)
 }
 
+function getCurrentRuntimeEnv() {
+  return typeof storageService.getRuntimeEnv === 'function'
+    ? storageService.getRuntimeEnv()
+    : 'prod'
+}
+
+function resolvePendingRuntimeEnv(item) {
+  if (item && item.runtimeEnv) return item.runtimeEnv
+  // 旧版未标环境的 pending 只允许由正式环境兼容接管。
+  return getCurrentRuntimeEnv() === 'prod' ? 'prod' : ''
+}
+
+function isPendingForCurrentRuntime(item) {
+  return resolvePendingRuntimeEnv(item) === getCurrentRuntimeEnv()
+}
+
 function getSyncSummary() {
   const queue = getPendingOperations()
   const counts = {
@@ -87,17 +105,24 @@ function getSyncSummary() {
     failed: 0,
     synced: 0
   }
+  let environmentMismatch = 0
   queue.forEach(item => {
+    if (item.status !== 'synced' && !isPendingForCurrentRuntime(item)) {
+      environmentMismatch += 1
+    }
     if (Object.prototype.hasOwnProperty.call(counts, item.status)) {
       counts[item.status] += 1
     }
   })
-  const unsyncedCount = counts.pending + counts.syncing + counts.retrying + counts.failed
+  const unsyncedCount = queue.filter(item =>
+    item.status !== 'synced' || !isPendingForCurrentRuntime(item)
+  ).length
   return {
     ...counts,
+    environmentMismatch,
     total: queue.length,
     unsyncedCount,
-    allSynced: unsyncedCount === 0
+    allSynced: unsyncedCount === 0 && environmentMismatch === 0
   }
 }
 
@@ -114,6 +139,7 @@ function push(entityType, action, payload) {
 
   const item = {
     queueId,
+    runtimeEnv: getCurrentRuntimeEnv(),
     entityType,
     action,
     entityId: payload.userHabitId || payload.habitId || '',
@@ -159,6 +185,7 @@ function pushWithDedup(entityType, action, payload) {
   // 精确按 idempotencyKey 去重（每个业务操作唯一）
   const idempotencyKey = payload.idempotencyKey || generateIdempotencyKey(entityType, action, payload)
   const existing = getPendingOperations().find(i =>
+    isPendingForCurrentRuntime(i) &&
     i.idempotencyKey === idempotencyKey &&
     (i.status === 'pending' || i.status === 'syncing' || i.status === 'retrying')
   )
@@ -223,6 +250,23 @@ async function processQueue() {
     for (const item of sortedQueue) {
       // 已 synced 的跳过
       if (item.status === 'synced') continue
+
+      if (!isPendingForCurrentRuntime(item)) {
+        storageService.updatePendingItem(item.queueId, {
+          status: 'failed',
+          lastError: PENDING_ENV_MISMATCH,
+          updatedAt: new Date().toISOString()
+        })
+        continue
+      }
+
+      // 正式版接管旧版未标环境的 pending 时补齐归属，后续不得跨环境发送。
+      if (!item.runtimeEnv && getCurrentRuntimeEnv() === 'prod') {
+        storageService.updatePendingItem(item.queueId, {
+          runtimeEnv: 'prod',
+          updatedAt: new Date().toISOString()
+        })
+      }
 
       // 有 nextRetryAt 的项（failed 或 pending）都要检查是否到时间
       if (item.nextRetryAt) {
@@ -317,6 +361,9 @@ async function retry(queueId) {
   const item = queue.find(i => i.queueId === queueId)
 
   if (!item) return { success: false, error: 'NOT_FOUND' }
+  if (!isPendingForCurrentRuntime(item)) {
+    return { success: false, error: PENDING_ENV_MISMATCH }
+  }
   if (item.retryCount >= 3) {
     return { success: false, error: 'MAX_RETRIES_EXCEEDED' }
   }
@@ -476,6 +523,7 @@ function resolveLatestPolicyVersionId(policyVersions, userHabitId) {
 
 async function recoverFromCloud(options = {}) {
   const snapshot = await fetchRecoverySnapshot(options)
+  validateRecoveryReplacement(snapshot)
   if (!storageService.stageRecoverySnapshot(snapshot)) {
     storageService.discardRecoverySnapshot()
     throw new Error('恢复快照暂存失败，本地数据未修改')
@@ -485,6 +533,30 @@ async function recoverFromCloud(options = {}) {
     throw new Error('恢复快照提交失败，本地数据未修改')
   }
   return { success: true, source: 'recoverData', restored: true }
+}
+
+function validateRecoveryReplacement(snapshot) {
+  const snapshotCounts = {
+    userHabits: Array.isArray(snapshot && snapshot.userHabits) ? snapshot.userHabits.length : 0,
+    policyVersions: Array.isArray(snapshot && snapshot.policyVersions) ? snapshot.policyVersions.length : 0,
+    dailyStates: Array.isArray(snapshot && snapshot.dailyStates) ? snapshot.dailyStates.length : 0
+  }
+  const snapshotTotal = Object.values(snapshotCounts).reduce((sum, count) => sum + count, 0)
+  const localCounts = typeof storageService.getCoreDataCounts === 'function'
+    ? storageService.getCoreDataCounts()
+    : { userHabits: 0, policyVersions: 0, dailyStates: 0 }
+  const localTotal = Object.values(localCounts).reduce((sum, count) => sum + count, 0)
+
+  if (getCurrentRuntimeEnv() === 'prod' && localTotal > 0 && snapshotTotal === 0) {
+    const error = new Error('正式云端返回可疑空快照，本地数据已保留')
+    error.code = SUSPICIOUS_EMPTY_SNAPSHOT
+    throw error
+  }
+  return {
+    success: true,
+    localCounts,
+    snapshotCounts
+  }
 }
 
 function normalizeRecoveredHabits(userHabits, policyVersions) {
@@ -739,7 +811,10 @@ module.exports = {
   recoverFromCloud,
   fetchRecoverySnapshot,
   validateRecoverySnapshot,
+  validateRecoveryReplacement,
   needsLocalRecovery,
   calculateNextRetry,
-  getNetworkTypeAsync
+  getNetworkTypeAsync,
+  PENDING_ENV_MISMATCH,
+  SUSPICIOUS_EMPTY_SNAPSHOT
 }
