@@ -34,6 +34,7 @@ describe('config/env', () => {
 
     expect(config.cloudEnvId).toBe('cloud1-6gjv79k431b8103b')
     expect(config.collectionPrefix).toBe('test_')
+    expect(config.cloudFunctions.recoverData).toBe('recoverDataV2Test')
   })
 
   test('uses shared CloudBase env without collection prefix for release', () => {
@@ -45,6 +46,7 @@ describe('config/env', () => {
 
     expect(config.cloudEnvId).toBe('cloud1-6gjv79k431b8103b')
     expect(config.collectionPrefix).toBe('')
+    expect(config.cloudFunctions.recoverData).toBeUndefined()
     expect(() => env.assertCloudEnvReady(config)).not.toThrow()
   })
 })

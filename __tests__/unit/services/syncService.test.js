@@ -56,7 +56,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('FunctionName parameter could not be found')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -71,7 +71,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -90,7 +90,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('collection not exists')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -111,7 +111,7 @@ describe('syncService recoverFromCloud', () => {
       error: 'timeout'
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -124,7 +124,7 @@ describe('syncService recoverFromCloud', () => {
 
     await expect(syncService.recoverFromCloud()).rejects.toThrow('timeout')
 
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(1, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -254,7 +254,7 @@ describe('syncService recoverFromCloud', () => {
     await syncService.recoverFromCloud()
 
     expect(wx.cloud.callFunction).toHaveBeenCalledTimes(2)
-    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenNthCalledWith(2, expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2,
       cursor: 'cursor_1'
@@ -435,6 +435,33 @@ describe('syncService recoverFromCloud', () => {
     expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
   })
 
+  test('preserves structurally valid orphan history from an otherwise complete snapshot', () => {
+    const snapshot = {
+      userHabits: [],
+      policyVersions: [{
+        policyVersionId: 'pv_orphan',
+        userHabitId: 'uh_removed',
+        effectiveStartDate: '2026-01-01',
+        effectiveEndDate: null
+      }],
+      dailyStates: [{
+        stateId: 'state_orphan',
+        userHabitId: 'uh_removed',
+        date: '2026-01-01',
+        status: 'checked'
+      }]
+    }
+
+    expect(() => syncService.validateRecoverySnapshot(snapshot, {
+      protocolVersion: 2,
+      scope: 'all',
+      token: 'snapshot-token',
+      totalUserHabits: 0,
+      totalPolicyVersions: 1,
+      totalDailyStates: 1
+    })).not.toThrow()
+  })
+
   test('bootstrapCloudData recovers empty local cache and emits recovery event', async () => {
     const recoveredHandler = jest.fn()
     eventBus.on('sync:recovered', recoveredHandler)
@@ -464,7 +491,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -523,7 +550,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))
@@ -561,7 +588,7 @@ describe('syncService recoverFromCloud', () => {
       error: undefined
     })
 
-    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverData', {
+    expect(wx.cloud.callFunction).toHaveBeenCalledWith(expectedCloudCall('recoverDataV2Test', {
       historyScope: 'all',
       recoveryProtocolVersion: 2
     }))

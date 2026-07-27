@@ -559,9 +559,6 @@ function validateRecoverySnapshot(snapshot, snapshotMeta) {
     if (seenPolicies.has(key)) {
       throw new Error(`recoverData 返回了重复的策略版本: ${key}`)
     }
-    if (!seenHabits.has(String(policy.userHabitId))) {
-      throw new Error(`recoverData 策略版本找不到所属习惯: ${key}`)
-    }
     seenPolicies.add(key)
   })
 
@@ -573,9 +570,6 @@ function validateRecoverySnapshot(snapshot, snapshotMeta) {
     const key = `${state.userHabitId}:${state.date}`
     if (seenStates.has(key)) {
       throw new Error(`recoverData 返回了重复的每日状态: ${key}`)
-    }
-    if (!seenHabits.has(String(state.userHabitId))) {
-      throw new Error(`recoverData 每日状态找不到所属习惯: ${key}`)
     }
     seenStates.add(key)
   })

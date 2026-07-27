@@ -32,7 +32,9 @@ const CLOUD_ENV_CONFIG = {
     runtimeEnv: ENV_TYPES.test,
     cloudEnvId: SHARED_CLOUD_ENV_ID,
     collectionPrefix: 'test_',
-    cloudFunctions: {},
+    cloudFunctions: {
+      recoverData: 'recoverDataV2Test'
+    },
     showEnvBadge: true,
     envBadgeText: '测试环境'
   },

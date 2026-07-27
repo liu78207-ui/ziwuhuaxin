@@ -20,7 +20,7 @@ describe('cloudService.callFunction', () => {
     await cloudService.callFunction('recoverData', {})
 
     expect(wx.cloud.callFunction).toHaveBeenCalledWith({
-      name: 'recoverData',
+      name: 'recoverDataV2Test',
       data: {
         __runtimeEnv: 'test',
         __collectionPrefix: 'test_'
@@ -47,7 +47,7 @@ describe('cloudService.callFunction', () => {
     })
     expect(warnSpy).toHaveBeenCalledWith(
       'cloudService.callFunction 失败:',
-      'recoverData',
+      'recoverDataV2Test',
       cloudService.ERROR_CODES.TIMEOUT,
       'timeout'
     )
