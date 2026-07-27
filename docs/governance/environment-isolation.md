@@ -30,7 +30,12 @@
 - 除 `app.js` 和 `cloudService.js` 外，前端不得直接使用 `wx.cloud.init` 或 `wx.cloud.database`。
 - 集合名必须登记在 `miniprogram/constants/cloudCollections.js`，未知集合禁止访问。
 
-云函数继续使用 `cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })`。前端调用云函数时会传入内部字段 `__runtimeEnv` 与 `__collectionPrefix`，云函数必须通过集合 helper 访问集合，develop/trial 进入 `test_` 集合，release 进入正式集合。
+云函数继续使用 `cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV })`。普通同步函数当前仍通过统一集合 helper 处理环境字段；恢复链路采用更严格的服务器入口固定策略：
+
+- `recoverData` 根据腾讯云内置 `SCF_FUNCTIONNAME` 固定读取无前缀正式集合。
+- `recoverDataV2Test` 根据腾讯云内置 `SCF_FUNCTIONNAME` 固定读取 `test_` 集合。
+- 两个恢复函数都忽略客户端传入的 `__runtimeEnv`、`__collectionPrefix` 或 `collectionPrefix`。
+- 未登记的恢复函数名直接安全失败，不访问任何业务集合。
 
 ## 维护函数保护
 

@@ -31,21 +31,35 @@ function createMockCloud(collections, wxContext = { OPENID: 'openid_1' }, option
     }
   }
 
+  const collectionMock = jest.fn(collectionApi)
   jest.doMock('wx-server-sdk', () => ({
     DYNAMIC_CURRENT_ENV: 'test-env',
     init: jest.fn(),
     getWXContext: jest.fn(() => wxContext),
     database: jest.fn(() => ({
-      collection: jest.fn(collectionApi)
+      collection: collectionMock
     }))
   }), { virtual: true })
+
+  return { collectionMock }
 }
 
 describe('recoverData cloud function', () => {
+  const originalFunctionName = process.env.SCF_FUNCTIONNAME
+
   beforeEach(() => {
     jest.resetModules()
     jest.clearAllMocks()
     jest.restoreAllMocks()
+    process.env.SCF_FUNCTIONNAME = 'recoverData'
+  })
+
+  afterAll(() => {
+    if (originalFunctionName === undefined) {
+      delete process.env.SCF_FUNCTIONNAME
+    } else {
+      process.env.SCF_FUNCTIONNAME = originalFunctionName
+    }
   })
 
   test('recovers V1 collections with pagination', async () => {
@@ -125,6 +139,7 @@ describe('recoverData cloud function', () => {
   })
 
   test('returns empty snapshot when prefixed test collections do not exist yet', async () => {
+    process.env.SCF_FUNCTIONNAME = 'recoverDataV2Test'
     createMockCloud({}, { OPENID: 'openid_1' }, {
       missingCollections: [
         'test_user_habits',
@@ -134,7 +149,7 @@ describe('recoverData cloud function', () => {
     })
 
     const { main } = require('../../../cloudfunctions/recoverData/index.js')
-    const result = await main({ __collectionPrefix: 'test_' }, {})
+    const result = await main({ __collectionPrefix: '' }, {})
 
     expect(result.success).toBe(true)
     expect(result.data).toEqual(expect.objectContaining({
@@ -148,6 +163,54 @@ describe('recoverData cloud function', () => {
       scope: 'range',
       totalDailyStates: 0
     }))
+  })
+
+  test('正式恢复入口忽略客户端 test_ 前缀并只读取正式集合', async () => {
+    const { collectionMock } = createMockCloud({
+      user_habits: [],
+      habit_policy_versions: [],
+      daily_checkin_states: []
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({ __collectionPrefix: 'test_' }, {})
+
+    expect(result.success).toBe(true)
+    expect(collectionMock).toHaveBeenCalledWith('user_habits')
+    expect(collectionMock).toHaveBeenCalledWith('habit_policy_versions')
+    expect(collectionMock).toHaveBeenCalledWith('daily_checkin_states')
+    expect(collectionMock).not.toHaveBeenCalledWith('test_user_habits')
+  })
+
+  test('测试恢复入口忽略客户端正式前缀并只读取测试集合', async () => {
+    process.env.SCF_FUNCTIONNAME = 'recoverDataV2Test'
+    const { collectionMock } = createMockCloud({
+      test_user_habits: [],
+      test_habit_policy_versions: [],
+      test_daily_checkin_states: []
+    })
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({ __collectionPrefix: '' }, {})
+
+    expect(result.success).toBe(true)
+    expect(collectionMock).toHaveBeenCalledWith('test_user_habits')
+    expect(collectionMock).toHaveBeenCalledWith('test_habit_policy_versions')
+    expect(collectionMock).toHaveBeenCalledWith('test_daily_checkin_states')
+    expect(collectionMock).not.toHaveBeenCalledWith('user_habits')
+  })
+
+  test('未知服务器函数名必须拒绝恢复且不访问集合', async () => {
+    process.env.SCF_FUNCTIONNAME = 'recoverDataUnknown'
+    const { collectionMock } = createMockCloud({})
+
+    const { main } = require('../../../cloudfunctions/recoverData/index.js')
+    const result = await main({ __collectionPrefix: 'test_' }, {})
+
+    expect(result.success).toBe(false)
+    expect(result.code).toBe('CLOUD_ERROR')
+    expect(result.message).toContain('未授权的恢复函数入口')
+    expect(collectionMock).not.toHaveBeenCalled()
   })
 
   test('preserves custom habit metadata for cache recovery', async () => {

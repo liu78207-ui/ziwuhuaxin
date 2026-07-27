@@ -3,6 +3,7 @@ const path = require('path')
 
 const root = path.resolve(__dirname, '..')
 const miniprogramRoot = path.join(root, 'miniprogram')
+const recoverDataPath = path.join(root, 'cloudfunctions', 'recoverData', 'index.js')
 
 const allowedDirectCloudFiles = new Set([
   path.join(miniprogramRoot, 'app.js'),
@@ -56,6 +57,24 @@ for (const filePath of pageFiles) {
     /\bwx\.cloud\.callFunction\s*\(/g,
     match => `page must call cloudService/service layer instead of ${match[0]}`
   ))
+}
+
+if (!fs.existsSync(recoverDataPath)) {
+  failures.push('cloudfunctions/recoverData/index.js is missing')
+} else {
+  const recoverDataSource = fs.readFileSync(recoverDataPath, 'utf8')
+  if (!recoverDataSource.includes('process.env.SCF_FUNCTIONNAME')) {
+    failures.push('cloudfunctions/recoverData/index.js must bind collection scope to server SCF_FUNCTIONNAME')
+  }
+  if (
+    !recoverDataSource.includes("recoverData: ''") ||
+    !recoverDataSource.includes("recoverDataV2Test: 'test_'")
+  ) {
+    failures.push('cloudfunctions/recoverData/index.js must fix recoverData/prod and recoverDataV2Test/test scopes')
+  }
+  if (/event\.(?:__collectionPrefix|collectionPrefix)/.test(recoverDataSource)) {
+    failures.push('cloudfunctions/recoverData/index.js must not trust client collection prefix fields')
+  }
 }
 
 if (failures.length > 0) {

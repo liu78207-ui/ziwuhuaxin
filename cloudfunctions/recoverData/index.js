@@ -11,6 +11,10 @@ const COLLECTIONS = {
   habitPolicyVersions: 'habit_policy_versions',
   dailyCheckinStates: 'daily_checkin_states'
 };
+const FUNCTION_COLLECTION_PREFIXES = Object.freeze({
+  recoverData: '',
+  recoverDataV2Test: 'test_'
+});
 
 function getCollectionName(key) {
   const name = COLLECTIONS[key];
@@ -20,15 +24,25 @@ function getCollectionName(key) {
   return name;
 }
 
-function getCollectionPrefix(event = {}) {
-  const prefix = String(event.__collectionPrefix || event.collectionPrefix || '');
-  if (!prefix) return '';
-  if (prefix === 'test_') return prefix;
-  throw new Error(`非法集合前缀: ${prefix}`);
+function getServerFunctionName(context = {}) {
+  return String(
+    process.env.SCF_FUNCTIONNAME ||
+    context.function_name ||
+    context.functionName ||
+    ''
+  ).trim();
 }
 
-function collection(key, event = {}) {
-  return db.collection(`${getCollectionPrefix(event)}${getCollectionName(key)}`);
+function getCollectionPrefix(context = {}) {
+  const functionName = getServerFunctionName(context);
+  if (!Object.prototype.hasOwnProperty.call(FUNCTION_COLLECTION_PREFIXES, functionName)) {
+    throw new Error(`未授权的恢复函数入口: ${functionName || 'unknown'}`);
+  }
+  return FUNCTION_COLLECTION_PREFIXES[functionName];
+}
+
+function collection(key, context = {}) {
+  return db.collection(`${getCollectionPrefix(context)}${getCollectionName(key)}`);
 }
 
 function isCollectionMissing(err) {
@@ -200,20 +214,20 @@ function slimDailyState(state) {
   return result;
 }
 
-async function listAllByOpenid(collectionKey, openid, event) {
+async function listAllByOpenid(collectionKey, openid, context) {
   const items = [];
   let offset = 0;
 
   while (true) {
     let res;
     try {
-      res = await collection(collectionKey, event)
+      res = await collection(collectionKey, context)
         .where({ _openid: openid })
         .skip(offset)
         .limit(PAGE_SIZE)
         .get();
     } catch (err) {
-      if (isCollectionMissing(err) && getCollectionPrefix(event) === 'test_') {
+      if (isCollectionMissing(err) && getCollectionPrefix(context) === 'test_') {
         return [];
       }
       throw err;
@@ -371,9 +385,9 @@ exports.main = async (event, context) => {
   }
 
   try {
-    const userHabits = await listAllByOpenid('userHabits', OPENID, event);
-    const policyVersions = await listAllByOpenid('habitPolicyVersions', OPENID, event);
-    const allDailyStates = await listAllByOpenid('dailyCheckinStates', OPENID, event);
+    const userHabits = await listAllByOpenid('userHabits', OPENID, context);
+    const policyVersions = await listAllByOpenid('habitPolicyVersions', OPENID, context);
+    const allDailyStates = await listAllByOpenid('dailyCheckinStates', OPENID, context);
     const range = resolveDailyStateRange(event, serverTime);
     const filteredDailyStates = filterDailyStates(allDailyStates, range)
       .sort(compareDailyStateForRecovery);
