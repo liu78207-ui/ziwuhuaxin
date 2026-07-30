@@ -435,6 +435,90 @@ describe('syncService recoverFromCloud', () => {
     expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
   })
 
+  test('rejects duplicate userHabitId values before modifying cache', async () => {
+    storage.MyHabits = [{ userHabitId: 'uh_local' }]
+    storage.policyVersions = [{ policyVersionId: 'pv_local', userHabitId: 'uh_local' }]
+    storage.dailyCheckinStates = []
+    const duplicateHabits = [
+      { userHabitId: 'uh_cloud', habitId: '1', status: 'active' },
+      { userHabitId: 'uh_cloud', habitId: '2', status: 'active' }
+    ]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: duplicateHabits,
+          policyVersions: [],
+          dailyStates: [],
+          nextCursor: null,
+          snapshotMeta: snapshotMeta(duplicateHabits, [], [])
+        }
+      }
+    })
+
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('重复的用户习惯')
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
+    expect(storage.policyVersions).toEqual([
+      { policyVersionId: 'pv_local', userHabitId: 'uh_local' }
+    ])
+  })
+
+  test('rejects duplicate policyVersionId values before modifying cache', async () => {
+    storage.MyHabits = [{ userHabitId: 'uh_local' }]
+    storage.policyVersions = [{ policyVersionId: 'pv_local', userHabitId: 'uh_local' }]
+    storage.dailyCheckinStates = []
+    const habits = [{ userHabitId: 'uh_cloud', habitId: '1', status: 'active' }]
+    const duplicatePolicies = [
+      { policyVersionId: 'pv_cloud', userHabitId: 'uh_cloud' },
+      { policyVersionId: 'pv_cloud', userHabitId: 'uh_cloud' }
+    ]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: habits,
+          policyVersions: duplicatePolicies,
+          dailyStates: [],
+          nextCursor: null,
+          snapshotMeta: snapshotMeta(habits, duplicatePolicies, [])
+        }
+      }
+    })
+
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('重复的策略版本')
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
+    expect(storage.policyVersions).toEqual([
+      { policyVersionId: 'pv_local', userHabitId: 'uh_local' }
+    ])
+  })
+
+  test('rejects a snapshot whose declared counts do not match the received data', async () => {
+    storage.MyHabits = [{ userHabitId: 'uh_local' }]
+    storage.policyVersions = [{ policyVersionId: 'pv_local', userHabitId: 'uh_local' }]
+    storage.dailyCheckinStates = [
+      { stateId: 'ds_local', userHabitId: 'uh_local', date: '2026-07-01', status: 'checked' }
+    ]
+    const habits = [{ userHabitId: 'uh_cloud', habitId: '1', status: 'active' }]
+    wx.cloud.callFunction.mockResolvedValueOnce({
+      result: {
+        success: true,
+        data: {
+          userHabits: habits,
+          policyVersions: [],
+          dailyStates: [],
+          nextCursor: null,
+          snapshotMeta: snapshotMeta(habits, [], [], { totalDailyStates: 1 })
+        }
+      }
+    })
+
+    await expect(syncService.recoverFromCloud()).rejects.toThrow('数量校验失败')
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_local' }])
+    expect(storage.dailyCheckinStates).toEqual([
+      { stateId: 'ds_local', userHabitId: 'uh_local', date: '2026-07-01', status: 'checked' }
+    ])
+  })
+
   test('preserves structurally valid orphan history from an otherwise complete snapshot', () => {
     const snapshot = {
       userHabits: [],

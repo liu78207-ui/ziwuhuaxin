@@ -148,4 +148,76 @@ describe('storageService recovery snapshot transaction', () => {
     expect(storage.dailyCheckinStates).toHaveLength(1)
     expect(storage.recoveryTransaction).toBeUndefined()
   })
+
+  test('启动时继续完成已经进入 committing 阶段的恢复事务', () => {
+    const storageService = require('../../miniprogram/services/storageService')
+    storage.recoveryStaging = {
+      ...getSnapshot(),
+      stagedAt: 1785000000000
+    }
+    storage.recoveryTransaction = {
+      status: 'committing',
+      stagedAt: 1785000000000
+    }
+    storage.MyHabits = [{ userHabitId: 'uh_partially_written' }]
+
+    const result = storageService.recoverInterruptedRecoveryTransaction()
+
+    expect(result).toEqual({ success: true, recovered: true })
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_new' }])
+    expect(storage.policyVersions).toEqual([
+      { policyVersionId: 'pv_new', userHabitId: 'uh_new' }
+    ])
+    expect(storage.dailyCheckinStates).toEqual([
+      { userHabitId: 'uh_new', date: '2026-07-26', status: 'checked' }
+    ])
+    expect(storage.recoveryStaging).toBeUndefined()
+    expect(storage.recoveryTransaction).toBeUndefined()
+  })
+
+  test('提交失败且回滚也失败时保留事务，供下次启动安全重试', () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    let dailyWriteFailed = false
+    let rollbackHabitFailed = false
+    wx.setStorageSync = jest.fn((key, value) => {
+      if (key === 'dailyCheckinStates' && !dailyWriteFailed) {
+        dailyWriteFailed = true
+        throw new Error('quota exceeded')
+      }
+      if (
+        key === 'MyHabits' &&
+        dailyWriteFailed &&
+        !rollbackHabitFailed &&
+        value &&
+        value[0] &&
+        value[0].userHabitId === 'uh_old'
+      ) {
+        rollbackHabitFailed = true
+        throw new Error('rollback write failed')
+      }
+      storage[key] = value
+    })
+    const storageService = require('../../miniprogram/services/storageService')
+
+    expect(storageService.stageRecoverySnapshot(getSnapshot())).toBe(true)
+    expect(storageService.commitRecoverySnapshot()).toMatchObject({
+      success: false,
+      reason: 'RECOVERY_ROLLBACK_FAILED',
+      failedKey: 'dailyCheckinStates'
+    })
+    expect(storage.recoveryStaging).toBeDefined()
+    expect(storage.recoveryTransaction).toMatchObject({ status: 'committing' })
+
+    wx.setStorageSync = jest.fn((key, value) => {
+      storage[key] = value
+    })
+    expect(storageService.recoverInterruptedRecoveryTransaction()).toEqual({
+      success: true,
+      recovered: true
+    })
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_new' }])
+    expect(storage.dailyCheckinStates).toEqual([
+      { userHabitId: 'uh_new', date: '2026-07-26', status: 'checked' }
+    ])
+  })
 })

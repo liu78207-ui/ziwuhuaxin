@@ -505,4 +505,36 @@ describe('recoverData cloud function', () => {
     expect(recovered).toHaveLength(501)
     expect(new Set(recovered.map(state => `${state.userHabitId}:${state.date}`)).size).toBe(501)
   })
+
+  test('accepts a response below 5MB and safely rejects one above the business limit', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {})
+    const buildCollections = remarkSize => ({
+      user_habits: [{
+        _openid: 'openid_1',
+        userHabitId: 'uh_large',
+        habitId: '1',
+        status: 'active',
+        remark: 'a'.repeat(remarkSize)
+      }],
+      habit_policy_versions: [],
+      daily_checkin_states: []
+    })
+
+    createMockCloud(buildCollections(4 * 1024 * 1024))
+    let main = require('../../../cloudfunctions/recoverData/index.js').main
+    const belowLimit = await main({ historyScope: 'all' }, {})
+    expect(belowLimit.success).toBe(true)
+
+    jest.resetModules()
+    process.env.SCF_FUNCTIONNAME = 'recoverData'
+    createMockCloud(buildCollections(5 * 1024 * 1024))
+    main = require('../../../cloudfunctions/recoverData/index.js').main
+    const aboveLimit = await main({ historyScope: 'all' }, {})
+
+    expect(aboveLimit).toEqual(expect.objectContaining({
+      success: false,
+      code: 'RECOVERY_RESPONSE_TOO_LARGE'
+    }))
+    expect(aboveLimit.message).toContain('5MB')
+  })
 })

@@ -82,4 +82,45 @@ describe('storageService runtime environment isolation', () => {
     expect(storage['test:MyHabits']).toBeUndefined()
     expect(storage['test:unknownBusinessCache']).toBeUndefined()
   })
+
+  test('同一设备在体验版与正式版之间切换、清缓存和恢复时数据始终互不覆盖', () => {
+    const storageService = require('../../miniprogram/services/storageService')
+
+    storageService.configureRuntimeEnv('prod')
+    storageService.setMyHabits([{ userHabitId: 'uh_prod' }])
+    storageService.setPolicyVersions([{ policyVersionId: 'pv_prod', userHabitId: 'uh_prod' }])
+    storageService.setDailyCheckinStates([
+      { stateId: 'ds_prod', userHabitId: 'uh_prod', date: '2026-07-25', status: 'checked' }
+    ])
+
+    storageService.configureRuntimeEnv('test')
+    storageService.setMyHabits([{ userHabitId: 'uh_test' }])
+    storageService.setPolicyVersions([{ policyVersionId: 'pv_test', userHabitId: 'uh_test' }])
+    storageService.setDailyCheckinStates([
+      { stateId: 'ds_test', userHabitId: 'uh_test', date: '2026-07-28', status: 'checked' }
+    ])
+    expect(storageService.clearUserDataCache().success).toBe(true)
+    expect(storageService.stageRecoverySnapshot({
+      userHabits: [{ userHabitId: 'uh_test_recovered' }],
+      policyVersions: [{ policyVersionId: 'pv_test_recovered', userHabitId: 'uh_test_recovered' }],
+      dailyStates: [
+        { stateId: 'ds_test_recovered', userHabitId: 'uh_test_recovered', date: '2026-07-28', status: 'checked' }
+      ]
+    })).toBe(true)
+    expect(storageService.commitRecoverySnapshot()).toEqual({ success: true })
+
+    storageService.configureRuntimeEnv('prod')
+    expect(storageService.getMyHabits()).toEqual([{ userHabitId: 'uh_prod' }])
+    expect(storageService.getDailyCheckinStates()).toEqual([
+      { stateId: 'ds_prod', userHabitId: 'uh_prod', date: '2026-07-25', status: 'checked' }
+    ])
+
+    storageService.configureRuntimeEnv('test')
+    expect(storageService.getMyHabits()).toEqual([{ userHabitId: 'uh_test_recovered' }])
+    expect(storageService.getDailyCheckinStates()).toEqual([
+      { stateId: 'ds_test_recovered', userHabitId: 'uh_test_recovered', date: '2026-07-28', status: 'checked' }
+    ])
+    expect(storage.MyHabits).toEqual([{ userHabitId: 'uh_prod' }])
+    expect(storage['test:MyHabits']).toEqual([{ userHabitId: 'uh_test_recovered' }])
+  })
 })

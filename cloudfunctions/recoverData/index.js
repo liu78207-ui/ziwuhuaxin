@@ -6,6 +6,8 @@ const db = cloud.database();
 const PAGE_SIZE = 100;
 const DEFAULT_DAILY_STATE_DAYS = 90;
 const RECOVERY_PROTOCOL_VERSION = 2;
+// 腾讯云同步响应上限为 6MB；业务层限制为 5MB，预留平台封装开销。
+const MAX_RECOVERY_RESPONSE_BYTES = 5 * 1024 * 1024;
 const COLLECTIONS = {
   userHabits: 'user_habits',
   habitPolicyVersions: 'habit_policy_versions',
@@ -357,6 +359,15 @@ function buildSnapshotToken(userHabits, policyVersions, dailyStates, range) {
   return crypto.createHash('sha256').update(JSON.stringify(identity)).digest('hex');
 }
 
+function assertRecoveryResponseSize(response) {
+  const responseBytes = Buffer.byteLength(JSON.stringify(response), 'utf8');
+  if (responseBytes > MAX_RECOVERY_RESPONSE_BYTES) {
+    const error = new Error('recoverData 响应超过 5MB 安全上限，请联系维护人员处理');
+    error.code = 'RECOVERY_RESPONSE_TOO_LARGE';
+    throw error;
+  }
+}
+
 /**
  * recoverData - V1 数据恢复云函数
  *
@@ -401,7 +412,7 @@ exports.main = async (event, context) => {
       totalDailyStates: filteredDailyStates.length
     };
 
-    return {
+    const response = {
       success: true,
       data: {
         userHabits: userHabits.map(slimUserHabit),
@@ -412,8 +423,15 @@ exports.main = async (event, context) => {
       },
       serverTime
     };
+    assertRecoveryResponseSize(response);
+    return response;
   } catch (e) {
     console.error('recoverData 云函数异常:', e);
-    return { success: false, code: 'CLOUD_ERROR', message: e.message, serverTime };
+    return {
+      success: false,
+      code: e.code || 'CLOUD_ERROR',
+      message: e.message,
+      serverTime
+    };
   }
 };

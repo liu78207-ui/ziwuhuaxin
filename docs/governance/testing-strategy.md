@@ -129,6 +129,10 @@
 - 云端冲突进入 conflict logs。
 - recoverData 成功写入缓存。
 - recoverData 失败保留可用本地状态。
+- 完整快照声明数量与实际数量不一致时拒绝替换。
+- 重复 `userHabitId`、`policyVersionId`、`userHabitId + date` 时拒绝替换。
+- 缓存提交失败后回滚；回滚失败时保留事务并在下次启动继续。
+- 同一设备在 develop/trial 与 release 之间切换、清缓存和恢复时两个缓存命名空间互不覆盖。
 
 推荐测试文件：
 
@@ -164,6 +168,7 @@
 - `syncCheckin` 重复请求不重复计数。
 - `recoverData` 分页恢复。
 - `recoverData` 云端无数据返回空初始化结果。
+- `recoverData` 单次响应低于 5MB 时成功，超过 5MB 时返回 `RECOVERY_RESPONSE_TOO_LARGE`。
 
 推荐测试文件：
 
